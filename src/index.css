@@ -2,10 +2,49 @@
 *::before,
 *::after {
   box-sizing: border-box;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+input,
+textarea,
+[contenteditable='true'] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+button {
+  touch-action: manipulation;
+}
+
+[data-panel-trigger='profile'],
+[data-panel-trigger='notifications'] {
+  touch-action: manipulation;
+}
+
+.cutline-draw-target {
+  touch-action: none;
 }
 
 :root {
   --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', sans-serif;
+  --glass-bg: rgba(255, 255, 255, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.7);
+  --card-bg: rgba(255, 255, 255, 0.72);
+  --ui-text: #1a2230;
+  --ui-text-muted: #7a8499;
+  --ui-text-faint: #b0b8c8;
+  --ui-bg: #fafafa;
+  --ui-accent: #5a7ab0;
+  --vignette: #1a2230;
+  --vignette-rgba: rgba(26, 34, 48, 0.22);
+  --glass-shadow: 0 4px 24px rgba(20, 30, 50, 0.08);
+  --card-shadow: 0 8px 40px rgba(20, 30, 50, 0.14);
+  --pill-backdrop: blur(40px) saturate(180%);
+  --pill-surface: rgba(255, 255, 255, 0.45);
+  --pill-icon-halo: #ffffff;
 }
 
 html,
@@ -16,10 +55,105 @@ body,
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #fafafa;
+  background: var(--ui-bg);
+  color: var(--ui-text);
   font-family: var(--font-sans);
+  transition: background-color 400ms ease, color 400ms ease;
 }
 
 input::placeholder {
-  color: #b0b8c8;
+  color: var(--ui-text-faint);
+}
+
+.theme-surface {
+  transition: background-color 400ms ease, color 400ms ease, border-color 400ms ease,
+    box-shadow 400ms ease;
+}
+
+/* --- Pencil-hold tool pill (viewport-fixed; solid fill test — no frost) --- */
+
+.pen-tool-pill-host {
+  position: fixed;
+  z-index: 25;
+  pointer-events: none;
+  transform-origin: 100% 50%;
+}
+
+.pen-tool-pill__motion-blur {
+  position: absolute;
+  inset: -8px -14px -8px -6px;
+  border-radius: 999px;
+  pointer-events: none;
+  background: rgba(255, 255, 255, 0.65);
+  will-change: filter, opacity, transform;
+}
+
+.pen-tool-pill {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: stretch;
+  padding: 4px;
+  border-radius: 999px;
+  overflow: hidden;
+  color: var(--ui-text);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+[data-theme='light'] .pen-tool-pill {
+  background: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.95);
+  box-shadow:
+    0 4px 24px rgba(20, 30, 50, 0.14),
+    0 2px 8px rgba(20, 30, 50, 0.08);
+}
+
+[data-theme='dark'] .pen-tool-pill {
+  background: #2c3444;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.45),
+    0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.pen-tool-pill__segment {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  border-radius: 999px;
+  transition: background-color 0.12s ease;
+}
+
+[data-theme='light'] .pen-tool-pill__segment--hovered {
+  background: rgba(20, 30, 50, 0.06);
+}
+
+[data-theme='dark'] .pen-tool-pill__segment--hovered {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.pen-tool-pill__icon {
+  display: grid;
+  place-items: center;
+  line-height: 0;
+  flex-shrink: 0;
+}
+
+.pen-tool-pill__icon > * {
+  grid-area: 1 / 1;
+}
+
+.pen-tool-pill__icon-ring {
+  opacity: 0.88;
+  filter: blur(0.6px);
+}
+
+.pen-tool-pill__icon-glyph {
+  position: relative;
 }

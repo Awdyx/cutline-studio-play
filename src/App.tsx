@@ -1,5 +1,13 @@
-import { useEffect, useState } from 'react'
-import { TransformComponent, TransformWrapper } from 'react-zoom-pan-pinch'
+import { useEffect, useRef, useState } from 'react'
+import {
+  TransformComponent,
+  TransformWrapper,
+  type ReactZoomPanPinchContentRef,
+} from 'react-zoom-pan-pinch'
+import DrawingLayer from './drawing/DrawingLayer'
+import { useDrawing } from './drawing/useDrawing'
+import { usePenToolMenu } from './drawing/usePenToolMenu'
+import PenToolPillMenu from './components/PenToolPillMenu'
 import { AnimatePresence } from 'framer-motion'
 import MotionIndicator from './MotionIndicator'
 import TrailingVignette from './TrailingVignette'
@@ -8,10 +16,24 @@ import TopBar from './components/TopBar'
 import NotificationsPanel from './components/NotificationsPanel'
 import ProfilePanel from './components/ProfilePanel'
 import PlusFab from './components/PlusFab'
+import ToolPalette from './components/ToolPalette'
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
+import { useStrokesStore } from './drawing/strokesStore'
+import CutlineMenu from './components/CutlineMenu'
+import CustomizePanel from './components/CustomizePanel'
 import type { Notification, NotificationTab } from './types'
-
-const CANVAS_SIZE = 3000
-const meshColors = ['#e8f0fa', '#f5f8fc', '#dde8f5', '#ecf2f8', '#e0ebf5']
+import {
+  canvasBackgroundColor,
+  meshBlobVisibilities,
+} from './theme/paletteGenerator'
+import { useThemeCssVars } from './theme/useThemeCssVars'
+import { useThemeStore } from './theme/themeStore'
+import { useEffectiveMode } from './theme/useEffectiveMode'
+import {
+  CANVAS_HEIGHT,
+  CANVAS_WIDTH,
+  getCanvasMinScale,
+} from './drawing/canvasDimensions'
 
 const meshBlobMotion = [
   {
@@ -77,10 +99,6 @@ const meshKeyframesCss = meshBlobMotion
   )
   .join('\n')
 
-function getMinScale() {
-  return Math.max(window.innerWidth / CANVAS_SIZE, window.innerHeight / CANVAS_SIZE)
-}
-
 const currentUser = {
   name: 'James',
   initial: 'J',
@@ -115,15 +133,46 @@ const placeholderNotifications: Notification[] = [
   },
 ]
 
-function App() {
-  const [minScale, setMinScale] = useState(getMinScale)
-  const onPanning = usePanMotionHandler()
+type OpenPanel = 'notifications' | 'profile' | 'cutline' | 'customize' | null
 
-  const [openPanel, setOpenPanel] = useState<'notifications' | 'profile' | null>(null)
-  const [activeTab, setActiveTab] = useState<NotificationTab>('all')
+function App() {
+  const [minScale, setMinScale] = useState(getCanvasMinScale)
+  const onPanning = usePanMotionHandler()
+  const palette = useThemeStore((s) => s.palette)
+  const themeModeStore = useThemeStore((s) => s.mode)
+  const effectiveMode = useEffectiveMode(themeModeStore)
+  const { generated } = useThemeCssVars()
+  const meshColors = generated.meshColors
+  const meshBlobVisibility = meshBlobVisibilities(palette.blobDepth)
+  const meshLayerOpacity = effectiveMode === 'light' ? 0.92 : 0.88
+  const canvasBg = canvasBackgroundColor(palette, effectiveMode)
+
+  const transformRef = useRef<ReactZoomPanPinchContentRef | null>(null)
+  const canvasRef = useRef<HTMLDivElement | null>(null)
+  const [canvasMount, setCanvasMount] = useState<HTMLDivElement | null>(null)
+  const [penDown, setPenDown] = useState(false)
+  const penMenu = usePenToolMenu(transformRef)
+  useDrawing(canvasRef, transformRef, setPenDown, penMenu.bridgeRef, canvasMount)
+
+  const isPenDown = penDown || penMenu.state.phase !== 'idle'
+  useKeyboardShortcuts()
 
   useEffect(() => {
-    const handleResize = () => setMinScale(getMinScale())
+    useStrokesStore.getState().hydrate()
+  }, [])
+
+  const themeMode = useThemeStore((s) => s.mode)
+  const setMode = useThemeStore((s) => s.setMode)
+
+  const [openPanel, setOpenPanel] = useState<OpenPanel>(null)
+  const [activeTab, setActiveTab] = useState<NotificationTab>('all')
+
+  function openOnly(panel: OpenPanel) {
+    setOpenPanel((current) => (current === panel ? null : panel))
+  }
+
+  useEffect(() => {
+    const handleResize = () => setMinScale(getCanvasMinScale())
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
@@ -154,19 +203,41 @@ function App() {
       <TopBar
         user={currentUser}
         unreadCount={unreadCount}
+        cutlineMenuOpen={openPanel === 'cutline'}
         onSearch={() => {}}
-        onNotificationClick={() =>
-          setOpenPanel((p) => (p === 'notifications' ? null : 'notifications'))
-        }
-        onProfileClick={() =>
-          setOpenPanel((p) => (p === 'profile' ? null : 'profile'))
-        }
+        onCutlineClick={() => openOnly('cutline')}
+        onNotificationClick={() => openOnly('notifications')}
+        onProfileClick={() => openOnly('profile')}
       />
+
+      <ToolPalette />
+
+      <PenToolPillMenu state={penMenu.state} />
 
       <PlusFab
         onAddToCanvas={(type) => console.log('add to canvas', type)}
         onStudyAction={(action) => console.log('study action', action)}
       />
+
+      <AnimatePresence>
+        {openPanel === 'cutline' && (
+          <CutlineMenu
+            key="cutline"
+            isOpen
+            onClose={() => setOpenPanel(null)}
+            mode={themeMode}
+            onModeChange={setMode}
+            onCustomizeCanvas={() => setOpenPanel('customize')}
+            onNavigate={(dest) => console.log('cutline navigate', dest)}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {openPanel === 'customize' && (
+          <CustomizePanel key="customize" isOpen onClose={() => setOpenPanel(null)} />
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {openPanel === 'notifications' && (
@@ -197,6 +268,7 @@ function App() {
       </AnimatePresence>
 
       <TransformWrapper
+        ref={transformRef}
         initialScale={1}
         minScale={minScale}
         maxScale={4}
@@ -211,7 +283,7 @@ function App() {
             keys.includes('Control') || keys.includes('Meta'),
         }}
         trackPadPanning={{ disabled: false }}
-        panning={{ velocityDisabled: false }}
+        panning={{ velocityDisabled: false, disabled: isPenDown }}
         velocityAnimation={{
           sensitivityMouse: 0.4,
           sensitivityTouch: 0.4,
@@ -229,34 +301,46 @@ function App() {
           contentStyle={{ willChange: 'transform' }}
         >
           <div
-            style={{
-              width: CANVAS_SIZE,
-              height: CANVAS_SIZE,
-              position: 'relative',
-              backgroundColor: meshColors[3],
+            ref={(node) => {
+              canvasRef.current = node
+              setCanvasMount(node)
             }}
-            onPointerDown={(event) => {
-              console.log(event.pointerType)
+            className="cutline-draw-target draw-target"
+            style={{
+              width: CANVAS_WIDTH,
+              height: CANVAS_HEIGHT,
+              position: 'relative',
+              backgroundColor: canvasBg,
+              transition: 'background-color 400ms ease',
             }}
           >
             <style>{meshKeyframesCss}</style>
-            {meshColors.map((color, index) => (
-              <div
-                key={color}
-                aria-hidden
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  backgroundImage: `radial-gradient(circle, ${color} 0%, transparent 58%)`,
-                  backgroundSize: `${meshBlobMotion[index].size}px ${meshBlobMotion[index].size}px`,
-                  backgroundRepeat: 'no-repeat',
-                  backgroundPosition: `${meshBlobMotion[index].path[0][0]}% ${meshBlobMotion[index].path[0][1]}%`,
-                  animation: `meshBlob${index} ${meshBlobMotion[index].period}s ease-in-out infinite`,
-                  willChange: 'background-position',
-                  pointerEvents: 'none',
-                }}
-              />
-            ))}
+            {meshColors.map((color, index) => {
+              const visibility = meshBlobVisibility[index] ?? 0
+              if (visibility <= 0) return null
+
+              return (
+                <div
+                  key={index}
+                  aria-hidden
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    backgroundImage: `radial-gradient(circle, ${color} 0%, transparent 62%)`,
+                    opacity: meshLayerOpacity * visibility,
+                    backgroundSize: `${meshBlobMotion[index].size}px ${meshBlobMotion[index].size}px`,
+                    backgroundRepeat: 'no-repeat',
+                    backgroundPosition: `${meshBlobMotion[index].path[0][0]}% ${meshBlobMotion[index].path[0][1]}%`,
+                    animation: `meshBlob${index} ${meshBlobMotion[index].period}s ease-in-out infinite`,
+                    willChange: 'background-position, opacity',
+                    pointerEvents: 'none',
+                    transition:
+                      'background-image 400ms ease, opacity 400ms ease',
+                  }}
+                />
+              )
+            })}
+            <DrawingLayer />
           </div>
         </TransformComponent>
       </TransformWrapper>

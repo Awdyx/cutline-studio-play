@@ -1,11 +1,10 @@
 import { useRef, useState } from 'react'
 import { Search, Bell } from 'lucide-react'
-import { glass, font } from '../styles/tokens'
+import { glass, font, themeTransition } from '../styles/tokens'
 
-const islandStyle: React.CSSProperties = {
+const islandBase: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
-  background: glass.bg,
   backdropFilter: glass.blur,
   WebkitBackdropFilter: glass.blur,
   border: glass.border,
@@ -14,13 +13,42 @@ const islandStyle: React.CSSProperties = {
   fontFamily: font.family,
   color: font.colorPrimary,
   userSelect: 'none',
+  transition: themeTransition,
 }
 
 // ─── Brand Pill ───────────────────────────────────────────────────────────────
 
-export function BrandPill() {
+interface BrandPillProps {
+  isOpen?: boolean
+  onClick?: () => void
+}
+
+export function BrandPill({ isOpen = false, onClick }: BrandPillProps) {
+  const [hovered, setHovered] = useState(false)
+
   return (
-    <div style={{ ...islandStyle, gap: 8, padding: '8px 16px' }}>
+    <button
+      type="button"
+      onClick={onClick}
+      data-panel-trigger="cutline"
+      aria-label="Cutline menu"
+      aria-expanded={isOpen}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      className="theme-surface"
+      style={{
+        ...islandBase,
+        gap: 8,
+        padding: '8px 16px',
+        cursor: 'pointer',
+        background: isOpen
+          ? 'var(--card-bg)'
+          : hovered
+            ? 'var(--card-bg)'
+            : glass.bg,
+        border: glass.border,
+      }}
+    >
       <span
         style={{
           width: 7,
@@ -44,7 +72,7 @@ export function BrandPill() {
       >
         2.0
       </span>
-    </div>
+    </button>
   )
 }
 
@@ -66,8 +94,10 @@ export function SearchBar({ onSearch, placeholder = 'Search…' }: SearchBarProp
 
   return (
     <div
+      className="theme-surface"
       style={{
-        ...islandStyle,
+        ...islandBase,
+        background: glass.bg,
         gap: 8,
         padding: '8px 14px',
         width: '100%',
@@ -78,7 +108,7 @@ export function SearchBar({ onSearch, placeholder = 'Search…' }: SearchBarProp
     >
       <Search
         size={15}
-        color={font.colorMuted}
+        color="var(--ui-text-muted)"
         strokeWidth={2}
         style={{ flexShrink: 0 }}
       />
@@ -87,6 +117,7 @@ export function SearchBar({ onSearch, placeholder = 'Search…' }: SearchBarProp
         value={value}
         onChange={handleChange}
         placeholder={placeholder}
+        className="theme-surface"
         style={{
           flex: 1,
           border: 'none',
@@ -109,6 +140,7 @@ export function SearchBar({ onSearch, placeholder = 'Search…' }: SearchBarProp
         }}
       >
         <kbd
+          className="theme-surface"
           style={{
             fontSize: 11,
             fontFamily: font.family,
@@ -144,20 +176,20 @@ export function UserCluster({
 }: UserClusterProps) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      {/* Bell */}
       <button
         onClick={onNotificationClick}
         aria-label="Notifications"
         data-panel-trigger="notifications"
+        className="theme-surface"
         style={{
-          ...islandStyle,
+          ...islandBase,
+          background: glass.bg,
           position: 'relative',
           padding: 10,
           cursor: 'pointer',
-          border: glass.border,
         }}
       >
-        <Bell size={16} color={font.colorPrimary} strokeWidth={1.8} />
+        <Bell size={16} color="var(--ui-text)" strokeWidth={1.8} />
         {unreadCount > 0 && (
           <span
             aria-label={`${unreadCount} unread`}
@@ -175,17 +207,17 @@ export function UserCluster({
         )}
       </button>
 
-      {/* Profile pill */}
       <button
         onClick={onProfileClick}
         aria-label={`Profile: ${user.name}`}
         data-panel-trigger="profile"
+        className="theme-surface"
         style={{
-          ...islandStyle,
+          ...islandBase,
+          background: glass.bg,
           gap: 8,
           padding: '6px 12px 6px 8px',
           cursor: 'pointer',
-          border: glass.border,
         }}
       >
         <span
@@ -219,7 +251,9 @@ export function UserCluster({
 interface TopBarProps {
   user: UserClusterProps['user']
   unreadCount: number
+  cutlineMenuOpen?: boolean
   onSearch: (query: string) => void
+  onCutlineClick: () => void
   onNotificationClick: () => void
   onProfileClick: () => void
 }
@@ -227,7 +261,9 @@ interface TopBarProps {
 export default function TopBar({
   user,
   unreadCount,
+  cutlineMenuOpen = false,
   onSearch,
+  onCutlineClick,
   onNotificationClick,
   onProfileClick,
 }: TopBarProps) {
@@ -247,7 +283,7 @@ export default function TopBar({
       }}
     >
       <div style={{ pointerEvents: 'auto', flexShrink: 0 }}>
-        <BrandPill />
+        <BrandPill isOpen={cutlineMenuOpen} onClick={onCutlineClick} />
       </div>
       <div
         style={{

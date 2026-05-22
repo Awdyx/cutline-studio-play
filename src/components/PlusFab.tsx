@@ -340,6 +340,7 @@ export default function PlusFab({ onAddToCanvas, onStudyAction }: PlusFabProps) 
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.94, y: 8 }}
             transition={{ duration: 0.18, ease: 'easeOut' }}
+            className="theme-surface"
             style={{
               width: 280,
               marginBottom: 12,
@@ -418,6 +419,7 @@ export default function PlusFab({ onAddToCanvas, onStudyAction }: PlusFabProps) 
           rotate: isOpen ? 45 : 0,
         }}
         transition={{ duration: 0.2, ease: 'easeOut' }}
+        className="theme-surface"
         style={{
           width: 52,
           height: 52,
@@ -426,18 +428,17 @@ export default function PlusFab({ onAddToCanvas, onStudyAction }: PlusFabProps) 
           alignItems: 'center',
           justifyContent: 'center',
           cursor: 'pointer',
-          background: isOpen ? 'rgba(255, 255, 255, 0.72)' : glass.bg,
+          background: isOpen ? 'var(--card-bg)' : glass.bg,
           backdropFilter: glass.blur,
           WebkitBackdropFilter: glass.blur,
           border: glass.border,
-          boxShadow: fabHovered
-            ? '0 8px 32px rgba(20, 30, 50, 0.14)'
-            : glass.shadow,
-          transition: 'background 200ms ease-out, box-shadow 200ms ease-out',
+          boxShadow: fabHovered ? 'var(--card-shadow)' : glass.shadow,
+          transition:
+            'background 200ms ease-out, box-shadow 200ms ease-out, background-color 400ms ease',
           flexShrink: 0,
         }}
       >
-        <Plus size={22} color={font.colorPrimary} strokeWidth={2} />
+        <Plus size={22} color="var(--ui-text)" strokeWidth={2} />
       </motion.button>
     </div>
   )

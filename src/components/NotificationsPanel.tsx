@@ -178,6 +178,7 @@ export default function NotificationsPanel({
   return (
     <motion.div
       ref={panelRef}
+      className="theme-surface"
       style={cardBase}
       initial={{ opacity: 0, scale: 0.96, y: -4 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
