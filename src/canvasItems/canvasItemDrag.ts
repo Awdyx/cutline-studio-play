@@ -1,6 +1,11 @@
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { clientToCanvasFromElement } from '../drawing/canvasCoords'
 import { playSound } from '../sound/playSound'
+import {
+  startItemDragSound,
+  stopItemDragSound,
+  updateItemDragSound,
+} from '../sound/itemDragSound'
 import { useCanvasItemDragStore } from './canvasItemDragStore'
 import { useCanvasItemsStore } from './canvasItemsStore'
 
@@ -18,9 +23,6 @@ type DragSession = {
   grabOffsetY: number
   startClientX: number
   startClientY: number
-  anchorClientX: number
-  anchorClientY: number
-  suppressClickMenu: boolean
 }
 
 let session: DragSession | null = null
@@ -56,8 +58,8 @@ function commitDragStart() {
   const store = useCanvasItemsStore.getState()
   store.beginItemDrag(session.itemId)
   store.raiseInPlane(session.itemId)
-  store.closeZMenu()
   playSound('itemGrab')
+  startItemDragSound()
   useCanvasItemDragStore.setState({ activeItemId: session.itemId })
   setDragActiveClass(true)
 }
@@ -71,23 +73,16 @@ function finishSession() {
 
   if (!ended) return
 
-  if (ended.phase === 'pending') {
-    if (!ended.suppressClickMenu) {
-      const store = useCanvasItemsStore.getState()
-      if (store.zMenu?.itemId === ended.itemId) {
-        store.closeZMenu()
-      } else {
-        store.openZMenu(ended.itemId, ended.anchorClientX, ended.anchorClientY)
-      }
-    }
-    return
-  }
+  if (ended.phase === 'pending') return
 
+  stopItemDragSound()
   playSound('itemDrop')
 }
 
 function applyDragPosition(clientX: number, clientY: number) {
   if (!session || session.phase !== 'dragging') return
+
+  updateItemDragSound(clientX, clientY)
 
   const pos = clientToCanvasFromElement(clientX, clientY, session.canvasEl)
   if (!pos) return
@@ -106,7 +101,6 @@ function applyDragPosition(clientX: number, clientY: number) {
 export function attachCanvasItemDragPointerDown(
   itemId: string,
   event: ReactPointerEvent<HTMLButtonElement>,
-  options?: { suppressClickMenu?: boolean },
 ) {
   if (event.pointerType === 'pen') return
   if (event.pointerType === 'mouse' && event.button !== 0) return
@@ -141,9 +135,6 @@ export function attachCanvasItemDragPointerDown(
     grabOffsetY: pointerCanvas.y - item.y,
     startClientX: event.clientX,
     startClientY: event.clientY,
-    anchorClientX: event.clientX,
-    anchorClientY: event.clientY,
-    suppressClickMenu: options?.suppressClickMenu ?? false,
   }
 
   const onPointerMove = (e: PointerEvent) => {

@@ -21,6 +21,7 @@ export default function SelectionBlurOverlay() {
           transition={{ duration: 0.22, ease: 'easeOut' }}
           aria-hidden
           className={SELECTION_DEPTH_CLASS}
+          data-lock-flatten-skip
           style={{
             position: 'absolute',
             inset: 0,

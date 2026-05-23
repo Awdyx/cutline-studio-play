@@ -8,7 +8,7 @@ import {
 import { SFX_ON_GAIN } from './soundLevels'
 import type { SoundId } from './types'
 
-export function playSound(id: SoundId): void {
+export function playSound(id: SoundId, opts?: { layer?: boolean }): void {
   const { muted, hydrated } = useSoundStore.getState()
   if (!hydrated || muted) return
 
@@ -16,5 +16,5 @@ export function playSound(id: SoundId): void {
   void resumeAudioContext()
 
   setMasterOutputGain(SFX_ON_GAIN)
-  playSoundEngine(id)
+  playSoundEngine(id, opts)
 }

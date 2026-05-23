@@ -4,7 +4,7 @@ import type { CanvasItem } from '../canvasItems/types'
 import { effectiveCanvasLocked } from '../canvasLock/layer'
 import { useCanvasLockStore } from '../canvasLock/canvasLockStore'
 import { useStrokesStore } from '../drawing/strokesStore'
-import { notifyWorkspacePersist } from '../spaces/canvasWorkspaceStore'
+import { useCanvasWorkspaceStore } from '../spaces/canvasWorkspaceStore'
 import type { Stroke } from '../drawing/types'
 
 const HISTORY_CAP = 50
@@ -61,9 +61,8 @@ function applySnapshot(snap: CanvasSnapshot) {
   useCanvasItemsStore.setState({
     items: cloneItems(snap.items),
     activeStickyStroke: null,
-    zMenu: null,
   })
-  notifyWorkspacePersist()
+  useCanvasWorkspaceStore.getState().flushPersistWorkspace()
 }
 
 /** Call immediately before a user-visible canvas mutation. */

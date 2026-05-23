@@ -1,8 +1,8 @@
 import type { SoundId } from './types'
 
 const DEDUP_MS = 30
-/** Peak output at 100% SFX volume. */
-export const BASE_MASTER_GAIN = 0.525
+/** Peak output at 100% SFX volume (+20% from 0.525). */
+export const BASE_MASTER_GAIN = 0.63
 
 let ctx: AudioContext | null = null
 let master: GainNode | null = null
@@ -206,6 +206,74 @@ function themeGlowToDark(context: AudioContext, t0: number): void {
   noiseBurst(context, 0.14, 0.022, t0 + 0.085, 1600, 0.65)
 }
 
+/** Airy low breath — flyout row hover (deeper/softer than panel open thump). */
+function submenuHoverTick(context: AudioContext, t0: number): void {
+  const root = 172
+  tone(context, root * 0.52, 0.026, 0.014, 0.15, t0, 'sine')
+  tone(context, root, 0.02, 0.012, 0.13, t0 + 0.01, 'sine')
+  sweep(context, root * 0.78, root * 1.22, 0.11, 0.022, t0 + 0.008)
+  noiseBurst(context, 0.09, 0.011, t0 + 0.018, 480, 0.32)
+}
+
+/** Deeper soft confirm — flyout row tap (menu-thump family, quieter & longer). */
+function submenuTapTick(context: AudioContext, t0: number): void {
+  const root = 156
+  tone(context, root * 0.58, 0.04, 0.01, 0.11, t0, 'sine')
+  tone(context, root, 0.046, 0.008, 0.1, t0 + 0.014, 'sine')
+  tone(context, root * 1.45, 0.012, 0.006, 0.075, t0 + 0.022, 'triangle')
+  sweep(context, 128, 220, 0.14, 0.03, t0)
+  noiseBurst(context, 0.1, 0.016, t0 + 0.012, 400, 0.38)
+}
+
+/** Soft lift — canvas item grab (low-mid body, not a bright high tick). */
+function itemGrabLift(context: AudioContext, t0: number): void {
+  const root = 272
+  tone(context, root * 0.6, 0.018, 0.006, 0.065, t0, 'sine')
+  tone(context, root, 0.026, 0.005, 0.055, t0 + 0.007, 'sine')
+  sweep(context, root * 0.9, root * 1.55, 0.09, 0.022, t0 + 0.006)
+  noiseBurst(context, 0.065, 0.01, t0 + 0.012, 440, 0.38)
+}
+
+/** Bouncy pluck with a soft pitch settle — Animal Crossing–ish bubble pop. */
+function bubblyPluck(
+  context: AudioContext,
+  freq: number,
+  peak: number,
+  start: number,
+  release: number,
+  opts?: { startMul?: number; endMul?: number },
+): void {
+  const startMul = opts?.startMul ?? 1.05
+  const endMul = opts?.endMul ?? 1
+  const osc = context.createOscillator()
+  const g = env(context, peak, 0.002, release, start)
+  osc.type = 'sine'
+  osc.frequency.setValueAtTime(freq * startMul, start)
+  osc.frequency.exponentialRampToValueAtTime(
+    Math.max(freq * endMul, 40),
+    start + 0.024,
+  )
+  osc.connect(g)
+  g.connect(master!)
+  osc.start(start)
+  osc.stop(start + release + 0.03)
+  track(osc)
+}
+
+/** Gentle ascending pair — object selected. */
+function itemSelectBubble(context: AudioContext, t0: number): void {
+  bubblyPluck(context, 392, 0.028, t0, 0.062)
+  bubblyPluck(context, 466, 0.03, t0 + 0.034, 0.068)
+  noiseBurst(context, 0.036, 0.004, t0 + 0.018, 1050, 0.38)
+}
+
+/** Gentle descending pair — selection cleared (mirror of select). */
+function itemDeselectBubble(context: AudioContext, t0: number): void {
+  bubblyPluck(context, 466, 0.026, t0, 0.064, { startMul: 1.02, endMul: 0.94 })
+  bubblyPluck(context, 392, 0.027, t0 + 0.032, 0.07, { startMul: 1.01, endMul: 0.93 })
+  noiseBurst(context, 0.034, 0.0035, t0 + 0.016, 880, 0.32)
+}
+
 /** Low, woody menu tap — shared palette for open/close. */
 function menuThump(
   context: AudioContext,
@@ -222,7 +290,15 @@ function menuThump(
 
 const PLAYERS: Record<SoundId, (context: AudioContext, t0: number) => void> = {
   itemGrab(context, t0) {
-    tone(context, 3200, 0.04, 0.001, 0.012, t0, 'sine')
+    itemGrabLift(context, t0)
+  },
+
+  itemSelect(context, t0) {
+    itemSelectBubble(context, t0)
+  },
+
+  itemDeselect(context, t0) {
+    itemDeselectBubble(context, t0)
   },
 
   itemDrop(context, t0) {
@@ -259,6 +335,14 @@ const PLAYERS: Record<SoundId, (context: AudioContext, t0: number) => void> = {
 
   menuClose(context, t0) {
     menuThump(context, t0, 138, 0.1, 0.052)
+  },
+
+  submenuHover(context, t0) {
+    submenuHoverTick(context, t0)
+  },
+
+  submenuTap(context, t0) {
+    submenuTapTick(context, t0)
   },
 
   undo(context, t0) {
@@ -327,12 +411,26 @@ export function getMusicGainNode(): GainNode | null {
   return musicGain
 }
 
-export function playSoundEngine(id: SoundId): void {
+export function getSfxMasterGainNode(): GainNode | null {
+  ensureAudioContext()
+  return master
+}
+
+export function playSoundEngine(
+  id: SoundId,
+  opts?: { layer?: boolean },
+): void {
   const context = ensureAudioContext()
   if (!context || !master) return
   resumeAudioContext()
 
   const now = performance.now()
+  if (opts?.layer) {
+    if (now - lastPlayAt >= DEDUP_MS) lastPlayAt = now
+    PLAYERS[id](context, at(0))
+    return
+  }
+
   if (now - lastPlayAt < DEDUP_MS) {
     stopActiveNodes()
   }

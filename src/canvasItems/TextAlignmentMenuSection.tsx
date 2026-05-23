@@ -6,6 +6,7 @@ import {
   ArrowUpToLine,
   Minus,
 } from 'lucide-react'
+import { playSubmenuHover, runSubmenuClick } from '../sound/submenuSound'
 import { chromeLabel, font } from '../styles/tokens'
 import { useCanvasItemsStore } from './canvasItemsStore'
 import type { ItemTextAlignment, TextAlignH, TextAlignV } from './textAlignment'
@@ -26,7 +27,8 @@ function AlignToggle({
       type="button"
       aria-label={label}
       aria-pressed={active}
-      onClick={onClick}
+      onMouseEnter={() => playSubmenuHover()}
+      onClick={() => runSubmenuClick(onClick)}
       style={{
         flex: 1,
         display: 'flex',

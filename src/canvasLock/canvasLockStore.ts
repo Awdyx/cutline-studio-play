@@ -45,7 +45,7 @@ export const useCanvasLockStore = create<CanvasLockState>((set, get) => {
     const strokesStore = useStrokesStore.getState()
     const mergedStrokes = [...strokesStore.strokes, ...strokesStore.annotationStrokes]
 
-    useCanvasItemsStore.setState({ items: mergedItems, activeStickyStroke: null, zMenu: null })
+    useCanvasItemsStore.setState({ items: mergedItems, activeStickyStroke: null })
     useStrokesStore.setState({
       strokes: mergedStrokes,
       annotationStrokes: [],
@@ -95,7 +95,7 @@ export const useCanvasLockStore = create<CanvasLockState>((set, get) => {
     const nextItems = discardAnnotationsFromItems(items)
     const committedStrokes = useStrokesStore.getState().strokes
 
-    useCanvasItemsStore.setState({ items: nextItems, activeStickyStroke: null, zMenu: null })
+    useCanvasItemsStore.setState({ items: nextItems, activeStickyStroke: null })
     useStrokesStore.setState({
       strokes: committedStrokes,
       annotationStrokes: [],

@@ -9,7 +9,7 @@ import { playSound } from '../sound/playSound'
 import { useCanvasLockStore } from '../canvasLock/canvasLockStore'
 import { effectiveCanvasLocked } from '../canvasLock/layer'
 import { ERASE_HIT_RADIUS, hitTestStroke } from './eraseUtils'
-import { notifyWorkspacePersist } from '../spaces/canvasWorkspaceStore'
+import { notifyWorkspacePersist, useCanvasWorkspaceStore } from '../spaces/canvasWorkspaceStore'
 import { strokeToSvgPath } from './strokePath'
 import { generateStrokeId } from './strokeId'
 import type { DrawTool, Stroke, StrokePoint } from './types'
@@ -48,8 +48,13 @@ function createStroke(point: StrokePoint, config: StrokeConfig): Stroke {
 
 let persistEnabled = false
 
-function persist() {
-  if (persistEnabled) notifyWorkspacePersist()
+function persist(opts?: { immediate?: boolean }) {
+  if (!persistEnabled) return
+  if (opts?.immediate) {
+    useCanvasWorkspaceStore.getState().flushPersistWorkspace()
+    return
+  }
+  notifyWorkspacePersist()
 }
 
 export const useStrokesStore = create<StrokesState>((set, get) => ({
@@ -109,14 +114,14 @@ export const useStrokesStore = create<StrokesState>((set, get) => ({
 
     if (isLocked) {
       const annotationStrokes = [...get().annotationStrokes, completed]
-      persist()
       set({ annotationStrokes, activeStroke: null })
+      persist({ immediate: true })
       return
     }
 
     const strokes = [...get().strokes, completed]
-    persist()
     set({ strokes, activeStroke: null })
+    persist({ immediate: true })
   },
 
   beginDragErase: () => {
@@ -134,8 +139,8 @@ export const useStrokesStore = create<StrokesState>((set, get) => ({
         (stroke) => !hitTestStroke(stroke, pos.x, pos.y, ERASE_HIT_RADIUS),
       )
       if (next.length === annotationStrokes.length) return
-      persist()
       set({ annotationStrokes: next })
+      persist({ immediate: true })
       return
     }
 
@@ -144,8 +149,8 @@ export const useStrokesStore = create<StrokesState>((set, get) => ({
     )
     if (next.length === strokes.length) return
 
-    persist()
     set({ strokes: next })
+    persist({ immediate: true })
   },
 
   undo: () => {

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { playSound } from '../sound/playSound'
+import { playSubmenuHover, playSubmenuTap } from '../sound/submenuSound'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Eraser, Highlighter, Pen, Redo2, Trash2, Undo2 } from 'lucide-react'
 import {
@@ -22,6 +23,7 @@ import ToolColorPopover from './ToolColorPopover'
 import { SHORTCUTS_BY_ID } from '../shortcuts/shortcutDefs'
 import { useShortcutUiStore } from '../shortcuts/shortcutUiStore'
 import ShortcutTooltip from './ShortcutTooltip'
+import { SubmenuSoundScope, useSubmenuSoundScope } from './SubmenuSoundScope'
 
 const FAB_SIZE = 52
 const FAB_GAP = 12
@@ -34,20 +36,29 @@ function ToolButton({
   onClick,
   children,
   label,
+  submenuClickSound = true,
 }: {
   active?: boolean
   onClick: () => void
   children: React.ReactNode
   label: string
+  submenuClickSound?: boolean
 }) {
   const [hovered, setHovered] = useState(false)
+  const inSubmenuScope = useSubmenuSoundScope()
 
   return (
     <button
       type="button"
       aria-label={label}
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
+      onClick={() => {
+        if (inSubmenuScope && submenuClickSound) playSubmenuTap()
+        onClick()
+      }}
+      onMouseEnter={() => {
+        setHovered(true)
+        if (inSubmenuScope) playSubmenuHover()
+      }}
       onMouseLeave={() => setHovered(false)}
       style={{
         position: 'relative',
@@ -207,10 +218,12 @@ export default function ToolPalette() {
       }}
     >
       {colorPopover && (
-        <ToolColorPopover
-          tool={colorPopover}
-          onClose={() => setColorPopover(null)}
-        />
+        <SubmenuSoundScope>
+          <ToolColorPopover
+            tool={colorPopover}
+            onClose={() => setColorPopover(null)}
+          />
+        </SubmenuSoundScope>
       )}
 
       <AnimatePresence>
@@ -238,9 +251,11 @@ export default function ToolPalette() {
               fontFamily: font.family,
             }}
           >
+            <SubmenuSoundScope>
             <ShortcutTooltip keys={SHORTCUTS_BY_ID.undo.keys}>
               <ToolButton
                 label="Undo"
+                submenuClickSound={false}
                 onClick={() => {
                   if (canUndo) undo()
                 }}
@@ -255,6 +270,7 @@ export default function ToolPalette() {
             <ShortcutTooltip keys={SHORTCUTS_BY_ID.redo.keys}>
               <ToolButton
                 label="Redo"
+                submenuClickSound={false}
                 onClick={() => {
                   if (canRedo) redo()
                 }}
@@ -303,6 +319,7 @@ export default function ToolPalette() {
                 style={{ opacity: hasAnnotations ? 1 : 0.5 }}
               />
             </ToolButton>
+            </SubmenuSoundScope>
           </motion.div>
         )}
       </AnimatePresence>

@@ -7,10 +7,17 @@ import { useStrokesStore } from '../drawing/strokesStore'
 import type { Stroke } from '../drawing/types'
 import {
   loadWorkspaceFromStorage,
+  flushScheduledWorkspaceSave,
   scheduleSaveWorkspace,
-  tryPersistSnapshot,
+  saveWorkspaceToStorage,
+  WORKSPACE_STORAGE_VERSION,
   type LoadedWorkspace,
 } from './workspacePersistence'
+import {
+  migrateWorkspaceMediaToIdb,
+  workspaceNeedsMediaMigration,
+} from '../media/workspaceMediaMigration'
+import { putSnapshotFromDataUrl } from '../media/mediaBlobStore'
 import { normalizeLoadedWorkspace } from './normalizeWorkspace'
 import { applyCameraToRef, readCameraFromRef } from '../canvas/canvasCamera'
 import { captureCanvasSnapshot } from './spaceSnapshot'
@@ -30,7 +37,7 @@ type CanvasWorkspaceState = {
   activeCanvasId: ActiveCanvasId
   spaces: Record<string, SpaceCanvasData>
   transition: SpaceTransitionState
-  hydrate: () => void
+  hydrate: () => Promise<void>
   isInsideSpace: () => boolean
   isOnMainCanvas: () => boolean
   getSpaceName: (spaceId: string) => string
@@ -38,9 +45,11 @@ type CanvasWorkspaceState = {
   flushActiveToSlot: () => void
   loadActiveFromSlot: (canvasId: ActiveCanvasId) => void
   persistWorkspace: () => void
-  addSpaceData: (spaceId: string, name?: string) => void
+  /** Sync active canvas into memory and write workspace to localStorage immediately. */
+  flushPersistWorkspace: () => void
+  addSpaceData: (spaceId: string, name?: string, opts?: { persist?: boolean }) => void
   updateSpaceName: (spaceId: string, name: string) => void
-  updateSpaceSnapshot: (spaceId: string, snapshot: string | null) => void
+  updateSpaceSnapshot: (spaceId: string, snapshotDataUrl: string | null) => Promise<void>
   saveCameraForActive: (camera: SpaceCamera) => void
   getCameraForSpace: (spaceId: string) => SpaceCamera
   beginEnterSpace: (spaceId: string, cardRect: DOMRect) => void
@@ -66,7 +75,7 @@ let mainCameraCache: SpaceCamera | null = null
 
 function patchMainSpaceItem(
   spaceId: string,
-  patch: Partial<Pick<SpaceCanvasItem, 'name' | 'snapshot'>>,
+  patch: Partial<Pick<SpaceCanvasItem, 'name' | 'snapshotId'>>,
 ): void {
   mainItemsCache = mainItemsCache.map((item) =>
     item.id === spaceId && item.type === 'space' ? { ...item, ...patch } : item,
@@ -86,7 +95,14 @@ function workspaceSnapshot(
     spaces: state.spaces,
     activeCanvasId: state.activeCanvasId,
     mainCamera: mainCameraCache,
+    storageVersion: WORKSPACE_STORAGE_VERSION,
   }
+}
+
+function snapshotForPersist(): LoadedWorkspace {
+  const ws = useCanvasWorkspaceStore.getState()
+  ws.flushActiveToSlot()
+  return workspaceSnapshot(useCanvasWorkspaceStore.getState())
 }
 
 export const useCanvasWorkspaceStore = create<CanvasWorkspaceState>((set, get) => ({
@@ -94,11 +110,21 @@ export const useCanvasWorkspaceStore = create<CanvasWorkspaceState>((set, get) =
   spaces: {},
   transition: { phase: 'idle', spaceId: null, cardRect: null },
 
-  hydrate: () => {
-    const loaded = loadWorkspaceFromStorage()
-    if (!loaded) {
-      persistEnabled = true
-      return
+  hydrate: async () => {
+    let loaded = loadWorkspaceFromStorage()
+    if (
+      workspaceNeedsMediaMigration(loaded, loaded.storageVersion) ||
+      loaded.migratedFromLegacy
+    ) {
+      const migrated = await migrateWorkspaceMediaToIdb(loaded)
+      if (migrated) {
+        loaded = { ...migrated, storageVersion: WORKSPACE_STORAGE_VERSION }
+        saveWorkspaceToStorage(loaded)
+      } else {
+        console.warn(
+          '[spaces] media migration to IndexedDB failed — keeping inline localStorage data',
+        )
+      }
     }
 
     const normalized = normalizeLoadedWorkspace(loaded)
@@ -127,7 +153,7 @@ export const useCanvasWorkspaceStore = create<CanvasWorkspaceState>((set, get) =
   syncFromActiveStores: () => {
     const items = useCanvasItemsStore.getState().items
     const { strokes, annotationStrokes } = useStrokesStore.getState()
-    const { activeCanvasId, spaces } = get()
+    const { activeCanvasId } = get()
 
     if (activeCanvasId === 'main') {
       mainItemsCache = items
@@ -136,19 +162,20 @@ export const useCanvasWorkspaceStore = create<CanvasWorkspaceState>((set, get) =
       return
     }
 
-    const existing = spaces[activeCanvasId]
-    if (!existing) return
-
-    set({
-      spaces: {
-        ...spaces,
-        [activeCanvasId]: {
-          ...existing,
-          items,
-          strokes,
-          annotationStrokes,
+    set((state) => {
+      const existing = state.spaces[activeCanvasId]
+      if (!existing) return state
+      return {
+        spaces: {
+          ...state.spaces,
+          [activeCanvasId]: {
+            ...existing,
+            items,
+            strokes,
+            annotationStrokes,
+          },
         },
-      },
+      }
     })
   },
 
@@ -182,7 +209,6 @@ export const useCanvasWorkspaceStore = create<CanvasWorkspaceState>((set, get) =
     useCanvasItemsStore.setState({
       items,
       activeStickyStroke: null,
-      zMenu: null,
       selectedIds: [],
     })
     useStrokesStore.setState({
@@ -196,10 +222,15 @@ export const useCanvasWorkspaceStore = create<CanvasWorkspaceState>((set, get) =
   persistWorkspace: () => {
     if (!persistEnabled) return
     get().flushActiveToSlot()
-    scheduleSaveWorkspace(workspaceSnapshot(get()))
+    scheduleSaveWorkspace(snapshotForPersist)
   },
 
-  addSpaceData: (spaceId, name = DEFAULT_SPACE_NAME) => {
+  flushPersistWorkspace: () => {
+    if (!persistEnabled) return
+    flushScheduledWorkspaceSave(snapshotForPersist)
+  },
+
+  addSpaceData: (spaceId, name = DEFAULT_SPACE_NAME, opts) => {
     const clampedName = clampSpaceName(name)
     set((state) => ({
       spaces: {
@@ -209,68 +240,90 @@ export const useCanvasWorkspaceStore = create<CanvasWorkspaceState>((set, get) =
           strokes: [],
           annotationStrokes: [],
           name: clampedName,
-          snapshot: null,
+          snapshotId: null,
           camera: DEFAULT_SPACE_CAMERA,
         },
       },
     }))
-    get().persistWorkspace()
+    if (opts?.persist !== false) get().flushPersistWorkspace()
   },
 
   updateSpaceName: (spaceId, name) => {
     const space = get().spaces[spaceId]
     if (!space) return
     const clampedName = clampSpaceName(name)
-    set((state) => ({
-      spaces: {
-        ...state.spaces,
-        [spaceId]: { ...space, name: clampedName },
-      },
-    }))
+    set((state) => {
+      const current = state.spaces[spaceId]
+      if (!current) return state
+      return {
+        spaces: {
+          ...state.spaces,
+          [spaceId]: { ...current, name: clampedName },
+        },
+      }
+    })
     patchMainSpaceItem(spaceId, { name: clampedName })
     if (get().activeCanvasId === 'main') {
       useCanvasItemsStore.setState({ items: [...mainItemsCache] })
     }
-    get().persistWorkspace()
+    get().flushPersistWorkspace()
   },
 
-  updateSpaceSnapshot: (spaceId, snapshot) => {
+  updateSpaceSnapshot: async (spaceId, snapshotDataUrl) => {
     const space = get().spaces[spaceId]
     if (!space) return
-    const accepted = snapshot ? tryPersistSnapshot(spaceId, snapshot) : null
-    const finalSnapshot = accepted ?? space.snapshot
-    set((state) => ({
-      spaces: {
-        ...state.spaces,
-        [spaceId]: { ...space, snapshot: finalSnapshot },
-      },
-    }))
-    patchMainSpaceItem(spaceId, { snapshot: finalSnapshot })
+
+    let snapshotId = space.snapshotId
+    if (snapshotDataUrl) {
+      const saved = await putSnapshotFromDataUrl(spaceId, snapshotDataUrl)
+      if (!saved) return
+      snapshotId = spaceId
+    } else if (snapshotId) {
+      snapshotId = null
+    }
+
+    set((state) => {
+      const current = state.spaces[spaceId]
+      if (!current) return state
+      const { snapshot: _legacy, ...rest } = current as SpaceCanvasData & {
+        snapshot?: string
+      }
+      return {
+        spaces: {
+          ...state.spaces,
+          [spaceId]: { ...rest, snapshotId },
+        },
+      }
+    })
+    patchMainSpaceItem(spaceId, { snapshotId })
     if (get().activeCanvasId === 'main') {
       useCanvasItemsStore.setState({ items: [...mainItemsCache] })
     }
-    get().persistWorkspace()
+    get().flushPersistWorkspace()
   },
 
   saveCameraForActive: (camera) => {
-    const { activeCanvasId, spaces } = get()
+    const { activeCanvasId } = get()
     if (activeCanvasId === 'main') return
-    const space = spaces[activeCanvasId]
-    if (!space) return
-    set({
-      spaces: {
-        ...spaces,
-        [activeCanvasId]: { ...space, camera },
-      },
+    get().flushActiveToSlot()
+    set((state) => {
+      const space = state.spaces[activeCanvasId]
+      if (!space) return state
+      return {
+        spaces: {
+          ...state.spaces,
+          [activeCanvasId]: { ...space, camera },
+        },
+      }
     })
-    get().persistWorkspace()
+    get().flushPersistWorkspace()
   },
 
   getCameraForSpace: (spaceId) =>
     get().spaces[spaceId]?.camera ?? DEFAULT_SPACE_CAMERA,
 
   beginEnterSpace: (spaceId, cardRect) => {
-    useCanvasItemsStore.getState().clearSelection()
+    useCanvasItemsStore.getState().clearSelection({ silent: true })
     set({
       transition: { phase: 'entering', spaceId, cardRect },
     })
@@ -335,7 +388,7 @@ export const useCanvasWorkspaceStore = create<CanvasWorkspaceState>((set, get) =
     set({
       transition: { phase: 'idle', spaceId: null, cardRect: null },
     })
-    get().persistWorkspace()
+    get().flushPersistWorkspace()
   },
 
   beginExitSpace: (transformRef) => {
@@ -370,7 +423,7 @@ export const useCanvasWorkspaceStore = create<CanvasWorkspaceState>((set, get) =
     get().flushActiveToSlot()
 
     const snapshot = await captureCanvasSnapshot(canvasEl)
-    if (snapshot) get().updateSpaceSnapshot(activeCanvasId, snapshot)
+    if (snapshot) await get().updateSpaceSnapshot(activeCanvasId, snapshot)
   },
 
   completeExitSpace: (transformRef) => {
@@ -378,6 +431,7 @@ export const useCanvasWorkspaceStore = create<CanvasWorkspaceState>((set, get) =
     const spaceId = transition.spaceId ?? activeCanvasId
     if (spaceId === 'main' || !spaceId) return
 
+    get().flushActiveToSlot()
     get().loadActiveFromSlot('main')
     clearHistory()
 
@@ -390,7 +444,7 @@ export const useCanvasWorkspaceStore = create<CanvasWorkspaceState>((set, get) =
     set({
       transition: { phase: 'idle', spaceId: null, cardRect: null },
     })
-    get().persistWorkspace()
+    get().flushPersistWorkspace()
   },
 
   setTransitionIdle: () => {

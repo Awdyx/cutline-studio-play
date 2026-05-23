@@ -46,10 +46,6 @@ function handleEscape(openPanel: string | null, closePanel: () => void): boolean
   }
 
   const itemsStore = useCanvasItemsStore.getState()
-  if (itemsStore.zMenu) {
-    itemsStore.closeZMenu()
-    return true
-  }
 
   if (ui.toolPalette?.isOpen()) {
     ui.toolPalette.close()

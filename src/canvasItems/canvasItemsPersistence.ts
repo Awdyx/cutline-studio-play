@@ -109,8 +109,14 @@ function normalizeItem(raw: unknown): CanvasItem | null {
   }
 
   if (o.type === 'image' || o.type === 'video') {
-    const src = (o as { src?: string }).src
-    if (typeof src !== 'string' || src.length === 0) return null
+    const legacySrc = (o as { src?: string }).src
+    const mediaId =
+      typeof (o as { mediaId?: string }).mediaId === 'string'
+        ? (o as { mediaId: string }).mediaId
+        : typeof legacySrc === 'string' && legacySrc.length > 0
+          ? o.id
+          : null
+    if (!mediaId) return null
     return {
       id: o.id,
       type: o.type,
@@ -119,9 +125,10 @@ function normalizeItem(raw: unknown): CanvasItem | null {
       zIndex: o.zIndex,
       width: o.width,
       height: o.height,
-      src,
+      mediaId,
       ...(layer ? { layer } : {}),
-    }
+      ...(legacySrc ? { src: legacySrc } : {}),
+    } as CanvasItem
   }
 
   if (o.type === 'space') {
@@ -129,11 +136,14 @@ function normalizeItem(raw: unknown): CanvasItem | null {
       typeof (o as { name?: string }).name === 'string'
         ? (o as { name: string }).name
         : 'Untitled space'
+    const snapshotIdRaw = (o as { snapshotId?: unknown }).snapshotId
     const snapshotRaw = (o as { snapshot?: unknown }).snapshot
-    const snapshot =
-      typeof snapshotRaw === 'string' && snapshotRaw.length > 0
-        ? snapshotRaw
-        : null
+    const snapshotId =
+      typeof snapshotIdRaw === 'string' && snapshotIdRaw.length > 0
+        ? snapshotIdRaw
+        : typeof snapshotRaw === 'string' && snapshotRaw.length > 0
+          ? o.id
+          : null
     return {
       id: o.id,
       type: 'space',
@@ -143,9 +153,12 @@ function normalizeItem(raw: unknown): CanvasItem | null {
       width: o.width,
       height: o.height,
       name,
-      snapshot,
+      snapshotId,
       ...(layer ? { layer } : {}),
-    }
+      ...(typeof snapshotRaw === 'string' && snapshotRaw.length > 0
+        ? { snapshot: snapshotRaw }
+        : {}),
+    } as CanvasItem
   }
 
   return null

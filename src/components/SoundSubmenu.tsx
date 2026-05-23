@@ -6,7 +6,8 @@ import { CHROME_CARD_CLASS, card, chromeLabel, font, menuDividerStyle } from '..
 import { useSubmenuPosition } from './useSubmenuPosition'
 import { backgroundMusic } from '../sound/backgroundMusic'
 import { useSoundStore } from '../sound/soundStore'
-import { playSound } from '../sound/playSound'
+import { playSubmenuHover, runSubmenuClick } from '../sound/submenuSound'
+import { SubmenuSoundScope } from './SubmenuSoundScope'
 
 function ToggleRow({
   label,
@@ -19,6 +20,7 @@ function ToggleRow({
 }) {
   return (
     <div
+      onMouseEnter={() => playSubmenuHover()}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -33,7 +35,10 @@ function ToggleRow({
         type="button"
         role="switch"
         aria-checked={enabled}
-        onClick={() => onChange(!enabled)}
+        onClick={() => {
+          const next = !enabled
+          runSubmenuClick(() => onChange(next))
+        }}
         style={{
           width: 40,
           height: 24,
@@ -81,7 +86,6 @@ export default function SoundSubmenu({
 
   function handleSfxToggle(next: boolean) {
     setMuted(!next)
-    if (next) playSound('menuOpen')
   }
 
   function handleMusicToggle(next: boolean) {
@@ -115,6 +119,7 @@ export default function SoundSubmenu({
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
     >
+      <SubmenuSoundScope>
       <div
         style={{
           display: 'flex',
@@ -156,6 +161,7 @@ export default function SoundSubmenu({
         enabled={musicEnabled}
         onChange={handleMusicToggle}
       />
+      </SubmenuSoundScope>
     </motion.div>,
     document.body,
   )

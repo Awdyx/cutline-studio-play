@@ -20,6 +20,7 @@ import {
 import { SHORTCUTS_BY_ID } from '../shortcuts/shortcutDefs'
 import { modKeyLabel } from '../shortcuts/modKey'
 import { useShortcutUiStore } from '../shortcuts/shortcutUiStore'
+import { playSubmenuHover, playSubmenuTap } from '../sound/submenuSound'
 import { resolveStickyColor } from '../theme/paletteGenerator'
 import { useThemeStore } from '../theme/themeStore'
 import { useEffectiveMode } from '../theme/useEffectiveMode'
@@ -95,6 +96,7 @@ export default function CanvasSearchBar({ transformRef }: CanvasSearchBarProps) 
   const showDropdown = dropdownOpen && value.trim().length > 0
 
   function selectEntry(entry: CanvasSearchEntry) {
+    playSubmenuTap()
     selectItem(entry.id)
     focusItemOnCanvas(transformRef.current, entry.item)
     setDropdownOpen(false)
@@ -105,6 +107,7 @@ export default function CanvasSearchBar({ transformRef }: CanvasSearchBarProps) 
   useEffect(() => {
     useShortcutUiStore.getState().registerCanvasSearch({
       focus: () => {
+        playSubmenuTap()
         inputRef.current?.focus()
         setDropdownOpen(true)
       },
@@ -178,15 +181,20 @@ export default function CanvasSearchBar({ transformRef }: CanvasSearchBarProps) 
             setValue(e.target.value)
             setDropdownOpen(true)
           }}
-          onFocus={() => setDropdownOpen(true)}
+          onFocus={() => {
+            playSubmenuTap()
+            setDropdownOpen(true)
+          }}
           onKeyDown={(e) => {
             if (e.key === 'ArrowDown' && results.length > 0) {
               e.preventDefault()
+              playSubmenuHover()
               setHighlightIndex((i) => (i + 1) % results.length)
               return
             }
             if (e.key === 'ArrowUp' && results.length > 0) {
               e.preventDefault()
+              playSubmenuHover()
               setHighlightIndex((i) => (i - 1 + results.length) % results.length)
               return
             }
@@ -278,7 +286,10 @@ export default function CanvasSearchBar({ transformRef }: CanvasSearchBarProps) 
                     key={entry.id}
                     type="button"
                     data-search-result-index={index}
-                    onMouseEnter={() => setHighlightIndex(index)}
+                    onMouseEnter={() => {
+                      playSubmenuHover()
+                      setHighlightIndex(index)
+                    }}
                     onClick={() => selectEntry(entry)}
                     style={{
                       display: 'flex',

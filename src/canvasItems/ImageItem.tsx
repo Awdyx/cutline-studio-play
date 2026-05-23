@@ -1,5 +1,11 @@
 import type { RefObject } from 'react'
 import type { ReactZoomPanPinchContentRef } from 'react-zoom-pan-pinch'
+import {
+  MediaBlobFrame,
+  mediaLoadOpacity,
+  mediaLoadTransitionStyle,
+} from '../components/MediaLoadPlaceholder'
+import { useMediaBlobUrl } from '../hooks/useMediaBlobUrl'
 import CanvasItemShell from './CanvasItemShell'
 import { MEDIA_SATURATE, type ImageCanvasItem } from './types'
 
@@ -14,6 +20,8 @@ export default function ImageItem({
   onItemResizeStateChange?: (resizing: boolean) => void
   liftZIndex?: number
 }) {
+  const { url, status } = useMediaBlobUrl(item.mediaId)
+
   return (
     <CanvasItemShell
       item={item}
@@ -21,20 +29,26 @@ export default function ImageItem({
       onItemResizeStateChange={onItemResizeStateChange}
       liftZIndex={liftZIndex}
     >
-      <img
-        src={item.src}
-        alt=""
-        draggable={false}
-        style={{
-          width: '100%',
-          height: '100%',
-          objectFit: 'fill',
-          display: 'block',
-          borderRadius: 8,
-          background: 'rgba(255,255,255,0.6)',
-          filter: `saturate(${MEDIA_SATURATE})`,
-        }}
-      />
+      <MediaBlobFrame status={status}>
+        {url ? (
+          <img
+            src={url}
+            alt=""
+            draggable={false}
+            className="media-item-surface"
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'fill',
+              display: 'block',
+              borderRadius: 8,
+              filter: `saturate(${MEDIA_SATURATE})`,
+              opacity: mediaLoadOpacity(status),
+              ...mediaLoadTransitionStyle(),
+            }}
+          />
+        ) : null}
+      </MediaBlobFrame>
     </CanvasItemShell>
   )
 }

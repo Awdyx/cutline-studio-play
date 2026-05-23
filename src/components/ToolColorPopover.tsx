@@ -7,6 +7,8 @@ import {
   resolveHighlighterColor,
   resolvePenColor,
 } from '../drawing/colorUtils'
+import { playSubmenuHover, playSubmenuTap, runSubmenuClick } from '../sound/submenuSound'
+import { SubmenuSoundScope } from './SubmenuSoundScope'
 import { useToolStore } from '../drawing/toolStore'
 import { useThemeStore } from '../theme/themeStore'
 import { useEffectiveMode } from '../theme/useEffectiveMode'
@@ -51,7 +53,8 @@ function PresetSwatches({
             type="button"
             aria-label="Preset color"
             aria-pressed={selected}
-            onClick={() => onSelect(preset)}
+            onMouseEnter={() => playSubmenuHover()}
+            onClick={() => runSubmenuClick(() => onSelect(preset))}
             style={{
               width: 28,
               height: 28,
@@ -85,8 +88,13 @@ function SizeSlider({
   value: number
   onChange: (size: number) => void
 }) {
+  const lastTapValue = useRef(value)
+
   return (
-    <div style={{ marginTop: 14 }}>
+    <div
+      style={{ marginTop: 14 }}
+      onMouseEnter={() => playSubmenuHover()}
+    >
       <div
         style={{
           display: 'flex',
@@ -105,7 +113,14 @@ function SizeSlider({
         max={max}
         step={1}
         value={value}
-        onChange={(e) => onChange(parseFloat(e.target.value))}
+        onChange={(e) => {
+          const next = parseFloat(e.target.value)
+          onChange(next)
+          if (next !== lastTapValue.current) {
+            lastTapValue.current = next
+            playSubmenuTap()
+          }
+        }}
         style={{
           width: '100%',
           accentColor: 'var(--ui-accent)',
@@ -165,6 +180,7 @@ export default function ToolColorPopover({ tool, onClose }: ToolColorPopoverProp
         fontFamily: font.family,
       }}
     >
+      <SubmenuSoundScope>
       <PresetSwatches
         presets={isPen ? PEN_PRESETS : HIGHLIGHTER_PRESETS}
         currentColor={isPen ? penColor : highlighterColor}
@@ -182,6 +198,7 @@ export default function ToolColorPopover({ tool, onClose }: ToolColorPopoverProp
         value={isPen ? penSize : highlighterSize}
         onChange={isPen ? setPenSize : setHighlighterSize}
       />
+      </SubmenuSoundScope>
     </div>
   )
 }

@@ -25,6 +25,8 @@ import type { UserProfile } from '../profile/types'
 import UserAvatar from './UserAvatar'
 import ProfileIdentityTags from './ProfileIdentityTags'
 import { usePanelAlignedSubmenuLayout } from './usePanelAlignedSubmenuLayout'
+import { playSubmenuHover, playSubmenuTap } from '../sound/submenuSound'
+import { SubmenuSoundScope } from './SubmenuSoundScope'
 
 const SUBMENU_WIDTH = 320
 const SUBMENU_GAP = 10
@@ -202,6 +204,7 @@ export default function ProfileSubmenu({ panelRef, onClose }: ProfileSubmenuProp
         onClick={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}
       >
+      <SubmenuSoundScope>
       <div
         style={{
           display: 'flex',
@@ -214,7 +217,11 @@ export default function ProfileSubmenu({ panelRef, onClose }: ProfileSubmenuProp
         <button
           type="button"
           aria-label="Back"
-          onClick={handleClose}
+          onClick={() => {
+            playSubmenuTap()
+            handleClose()
+          }}
+          onMouseEnter={() => playSubmenuHover()}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -266,7 +273,11 @@ export default function ProfileSubmenu({ panelRef, onClose }: ProfileSubmenuProp
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
             <button
               type="button"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => {
+                playSubmenuTap()
+                fileInputRef.current?.click()
+              }}
+              onMouseEnter={() => playSubmenuHover()}
               style={secondaryButtonStyle}
             >
               <Camera size={14} strokeWidth={2} />
@@ -275,7 +286,11 @@ export default function ProfileSubmenu({ panelRef, onClose }: ProfileSubmenuProp
             {draft.avatarImageUrl && (
               <button
                 type="button"
-                onClick={() => patchDraft({ avatarImageUrl: null })}
+                onClick={() => {
+                  playSubmenuTap()
+                  patchDraft({ avatarImageUrl: null })
+                }}
+                onMouseEnter={() => playSubmenuHover()}
                 style={secondaryButtonStyle}
               >
                 <Trash2 size={14} strokeWidth={2} />
@@ -358,6 +373,7 @@ export default function ProfileSubmenu({ panelRef, onClose }: ProfileSubmenuProp
           />
         </Field>
       </div>
+      </SubmenuSoundScope>
       </motion.div>
 
       <AnimatePresence>

@@ -1,5 +1,6 @@
 import { loadCanvasItemsFromStorage } from '../canvasItems/canvasItemsPersistence'
 import type { CanvasItem } from '../canvasItems/types'
+import { stripLegacyMediaFromItems } from '../media/stripLegacyMediaFields'
 import { loadStrokesFromStorage } from '../drawing/strokesPersistence'
 import type { Stroke } from '../drawing/types'
 import { isUninitializedMainCamera } from '../canvas/canvasCamera'
@@ -13,15 +14,16 @@ import {
 } from './types'
 
 export const WORKSPACE_STORAGE_KEY = 'cutline-workspace-v1'
-const STORAGE_VERSION = 1
-const MAX_SNAPSHOT_BYTES = 5 * 1024 * 1024
+export const WORKSPACE_STORAGE_VERSION = 2
 
 type PersistedSpace = {
   items: CanvasItem[]
   strokes: Stroke[]
   annotationStrokes?: Stroke[]
   name: string
-  snapshot: string | null
+  snapshotId?: string | null
+  /** @deprecated v1 inline snapshot — migrated to IndexedDB */
+  snapshot?: string | null
   camera?: SpaceCamera
 }
 
@@ -39,9 +41,12 @@ export type LoadedWorkspace = {
   mainItems: CanvasItem[]
   mainStrokes: Stroke[]
   mainAnnotationStrokes: Stroke[]
-  spaces: Record<string, SpaceCanvasData>
+  spaces: Record<string, SpaceCanvasData & { snapshot?: string }>
   activeCanvasId: ActiveCanvasId
   mainCamera: SpaceCamera | null
+  /** True when assembled from legacy per-layer storage keys. */
+  migratedFromLegacy?: boolean
+  storageVersion: number
 }
 
 function normalizeMainCamera(raw: unknown): SpaceCamera | null {
@@ -62,92 +67,87 @@ function normalizeMainCamera(raw: unknown): SpaceCamera | null {
   return isUninitializedMainCamera(camera) ? null : camera
 }
 
-function snapshotByteSize(dataUrl: string): number {
-  return dataUrl.length
-}
-
-export function snapshotFitsBudget(
-  dataUrl: string,
-  otherPayloadEstimate: number,
-): boolean {
-  const total = snapshotByteSize(dataUrl) + otherPayloadEstimate
-  try {
-    const payload: PersistedPayload = {
-      version: STORAGE_VERSION,
-      mainItems: [],
-      mainStrokes: [],
-      spaces: {},
-      activeCanvasId: 'main',
-    }
-    const baseSize = JSON.stringify(payload).length
-    return baseSize + total < MAX_SNAPSHOT_BYTES * 2
-  } catch {
-    return snapshotByteSize(dataUrl) <= MAX_SNAPSHOT_BYTES
-  }
-}
-
 let saveTimer: ReturnType<typeof setTimeout> | null = null
+let pendingSnapshot: (() => LoadedWorkspace) | null = null
 
-export function scheduleSaveWorkspace(data: LoadedWorkspace): void {
+/** Debounced save — snapshot is read when the timer fires, not when scheduled. */
+export function scheduleSaveWorkspace(getSnapshot: () => LoadedWorkspace): void {
+  pendingSnapshot = getSnapshot
   if (saveTimer) clearTimeout(saveTimer)
   saveTimer = setTimeout(() => {
     saveTimer = null
-    saveWorkspaceToStorage(data)
+    const snapshot = pendingSnapshot
+    pendingSnapshot = null
+    if (snapshot) saveWorkspaceToStorage(snapshot())
   }, 500)
+}
+
+/** Immediately persist the latest workspace snapshot (e.g. on page unload). */
+export function flushScheduledWorkspaceSave(getSnapshot: () => LoadedWorkspace): void {
+  pendingSnapshot = getSnapshot
+  if (saveTimer) {
+    clearTimeout(saveTimer)
+    saveTimer = null
+  }
+  const snapshot = pendingSnapshot
+  pendingSnapshot = null
+  if (snapshot) saveWorkspaceToStorage(snapshot())
 }
 
 export function saveWorkspaceToStorage(data: LoadedWorkspace): void {
   try {
-    const spaces: Record<string, PersistedSpace> = {}
-    for (const [id, space] of Object.entries(data.spaces)) {
-      let snapshot = space.snapshot
-      if (snapshot && snapshotByteSize(snapshot) > MAX_SNAPSHOT_BYTES) {
-        console.warn(`[spaces] skipped oversize snapshot for ${id}`)
-        snapshot = null
-      }
-      spaces[id] = {
-        items: space.items,
-        strokes: space.strokes,
-        annotationStrokes:
-          space.annotationStrokes.length > 0
-            ? space.annotationStrokes
-            : undefined,
-        name: space.name,
-        snapshot,
-        camera: space.camera,
-      }
-    }
-
-    const payload: PersistedPayload = {
-      version: STORAGE_VERSION,
-      mainItems: data.mainItems,
-      mainStrokes: data.mainStrokes,
-      mainAnnotationStrokes:
-        data.mainAnnotationStrokes.length > 0
-          ? data.mainAnnotationStrokes
-          : undefined,
-      spaces,
-      activeCanvasId: data.activeCanvasId,
-      ...(data.mainCamera && !isUninitializedMainCamera(data.mainCamera)
-        ? { mainCamera: data.mainCamera }
-        : {}),
-    }
-
-    const serialized = JSON.stringify(payload)
-    if (serialized.length > 8 * 1024 * 1024) {
-      console.warn(
-        `[spaces] workspace payload ${(serialized.length / 1024 / 1024).toFixed(2)}MB — skipping save`,
-      )
+    const serialized = serializeWorkspace(data)
+    if (serialized === null) {
+      console.warn('[spaces] workspace payload too large — save skipped')
       return
     }
-
     localStorage.setItem(WORKSPACE_STORAGE_KEY, serialized)
   } catch (err) {
     console.warn('[spaces] failed to save workspace', err)
   }
 }
 
-function normalizeSpace(raw: unknown): SpaceCanvasData | null {
+const MAX_WORKSPACE_BYTES = 8 * 1024 * 1024
+
+function serializeWorkspace(data: LoadedWorkspace): string | null {
+  const spaces: Record<string, PersistedSpace> = {}
+  for (const [id, space] of Object.entries(data.spaces)) {
+    spaces[id] = {
+      items: stripLegacyMediaFromItems(space.items),
+      strokes: space.strokes,
+      annotationStrokes:
+        space.annotationStrokes.length > 0
+          ? space.annotationStrokes
+          : undefined,
+      name: space.name,
+      snapshotId: space.snapshotId,
+      camera: space.camera,
+    }
+  }
+
+  const payload: PersistedPayload = {
+    version: WORKSPACE_STORAGE_VERSION,
+    mainItems: stripLegacyMediaFromItems(data.mainItems),
+    mainStrokes: data.mainStrokes,
+    mainAnnotationStrokes:
+      data.mainAnnotationStrokes.length > 0
+        ? data.mainAnnotationStrokes
+        : undefined,
+    spaces,
+    activeCanvasId: data.activeCanvasId,
+    ...(data.mainCamera && !isUninitializedMainCamera(data.mainCamera)
+      ? { mainCamera: data.mainCamera }
+      : {}),
+  }
+
+  const serialized = JSON.stringify(payload)
+  if (serialized.length > MAX_WORKSPACE_BYTES) return null
+  return serialized
+}
+
+type LoadedSpaceRow = SpaceCanvasData & { snapshot?: string }
+
+function normalizeSpace(raw: unknown, spaceId: string): LoadedSpaceRow | null {
   if (!raw || typeof raw !== 'object') return null
   const o = raw as PersistedSpace
   if (!Array.isArray(o.items)) return null
@@ -161,6 +161,13 @@ function normalizeSpace(raw: unknown): SpaceCanvasData | null {
       ? camera
       : DEFAULT_SPACE_CAMERA
 
+  const snapshotId =
+    typeof o.snapshotId === 'string'
+      ? o.snapshotId
+      : typeof o.snapshot === 'string' && o.snapshot.length > 0
+        ? spaceId
+        : null
+
   return {
     items: o.items,
     strokes: Array.isArray(o.strokes) ? o.strokes : [],
@@ -171,20 +178,25 @@ function normalizeSpace(raw: unknown): SpaceCanvasData | null {
       typeof o.name === 'string'
         ? clampSpaceName(o.name)
         : DEFAULT_SPACE_NAME,
-    snapshot: typeof o.snapshot === 'string' ? o.snapshot : null,
+    snapshotId,
     camera: normalizedCamera,
+    ...(typeof o.snapshot === 'string' && o.snapshot.length > 0
+      ? { snapshot: o.snapshot }
+      : {}),
   }
 }
 
-export function loadWorkspaceFromStorage(): LoadedWorkspace | null {
+export function loadWorkspaceFromStorage(): LoadedWorkspace {
   try {
     const raw = localStorage.getItem(WORKSPACE_STORAGE_KEY)
     if (raw) {
       const parsed = JSON.parse(raw) as PersistedPayload
-      const spaces: Record<string, SpaceCanvasData> = {}
+      const storageVersion =
+        typeof parsed.version === 'number' ? parsed.version : 1
+      const spaces: Record<string, LoadedSpaceRow> = {}
       if (parsed.spaces && typeof parsed.spaces === 'object') {
         for (const [id, spaceRaw] of Object.entries(parsed.spaces)) {
-          const space = normalizeSpace(spaceRaw)
+          const space = normalizeSpace(spaceRaw, id)
           if (space) spaces[id] = space
         }
       }
@@ -204,6 +216,7 @@ export function loadWorkspaceFromStorage(): LoadedWorkspace | null {
             ? parsed.activeCanvasId
             : 'main',
         mainCamera,
+        storageVersion,
       }
     }
   } catch (err) {
@@ -216,16 +229,24 @@ export function loadWorkspaceFromStorage(): LoadedWorkspace | null {
 function migrateLegacyStorage(): LoadedWorkspace {
   const mainItems = loadCanvasItemsFromStorage()
   const { strokes, annotationStrokes } = loadStrokesFromStorage()
-  const spaces: Record<string, SpaceCanvasData> = {}
+  const spaces: Record<string, LoadedSpaceRow> = {}
 
   for (const item of mainItems) {
     if (item.type !== 'space') continue
+    const legacy = item as { snapshot?: string | null; snapshotId?: string | null }
     spaces[item.id] = {
       items: [],
       strokes: [],
       annotationStrokes: [],
       name: item.name,
-      snapshot: item.snapshot,
+      snapshotId:
+        legacy.snapshotId ??
+        (typeof legacy.snapshot === 'string' && legacy.snapshot.length > 0
+          ? item.id
+          : null),
+      ...(typeof legacy.snapshot === 'string' && legacy.snapshot.length > 0
+        ? { snapshot: legacy.snapshot }
+        : {}),
       camera: DEFAULT_SPACE_CAMERA,
     }
   }
@@ -237,16 +258,7 @@ function migrateLegacyStorage(): LoadedWorkspace {
     spaces,
     activeCanvasId: 'main',
     mainCamera: null,
+    migratedFromLegacy: true,
+    storageVersion: 1,
   }
-}
-
-export function tryPersistSnapshot(
-  spaceId: string,
-  snapshot: string,
-): string | null {
-  if (snapshotByteSize(snapshot) > MAX_SNAPSHOT_BYTES) {
-    console.warn(`[spaces] snapshot for ${spaceId} exceeds 5MB — not saved`)
-    return null
-  }
-  return snapshot
 }

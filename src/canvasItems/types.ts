@@ -38,18 +38,20 @@ export type TextCanvasItem = CanvasItemBase & {
 
 export type ImageCanvasItem = CanvasItemBase & {
   type: 'image'
-  src: string
+  /** IndexedDB blob id — same as item id for new imports. */
+  mediaId: string
 }
 
 export type VideoCanvasItem = CanvasItemBase & {
   type: 'video'
-  src: string
+  mediaId: string
 }
 
 export type SpaceCanvasItem = CanvasItemBase & {
   type: 'space'
   name: string
-  snapshot: string | null
+  /** IndexedDB snapshot blob id — typically the space id. */
+  snapshotId: string | null
 }
 
 export type CanvasItem =

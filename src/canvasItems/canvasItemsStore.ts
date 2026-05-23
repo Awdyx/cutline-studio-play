@@ -12,8 +12,9 @@ import { ERASE_HIT_RADIUS, hitTestStroke } from '../drawing/eraseUtils'
 import { generateStrokeId } from '../drawing/strokeId'
 import { strokeToSvgPath } from '../drawing/strokePath'
 import type { DrawTool, Stroke, StrokePoint } from '../drawing/types'
-import { notifyWorkspacePersist } from '../spaces/canvasWorkspaceStore'
-import { useCanvasWorkspaceStore } from '../spaces/canvasWorkspaceStore'
+import { notifyWorkspacePersist, useCanvasWorkspaceStore } from '../spaces/canvasWorkspaceStore'
+import { duplicateMediaForItem } from '../media/workspaceMediaMigration'
+import { deleteMediaBlob } from '../media/mediaBlobStore'
 import { generateItemId } from './itemId'
 import {
   nextZIndexForLayer,
@@ -54,14 +55,14 @@ type CanvasItemsState = {
   hydrate: () => void
   setSelectedIds: (ids: string[]) => void
   selectItem: (id: string, additive?: boolean) => void
-  clearSelection: () => void
+  clearSelection: (opts?: { silent?: boolean }) => void
   selectAll: () => void
   deleteSelected: () => void
   duplicateSelected: () => void
   addSticky: (x: number, y: number) => string
   addText: (x: number, y: number) => string
-  addImage: (x: number, y: number, src: string, width: number, height: number) => string
-  addVideo: (x: number, y: number, src: string, width: number, height: number) => string
+  addImage: (x: number, y: number, mediaId: string, width: number, height: number) => string
+  addVideo: (x: number, y: number, mediaId: string, width: number, height: number) => string
   addSpace: (x: number, y: number) => string
   beginItemDrag: (id: string) => void
   beginItemResize: (id: string) => void
@@ -70,9 +71,6 @@ type CanvasItemsState = {
   bringToFront: (id: string) => void
   sendToBack: (id: string) => void
   raiseInPlane: (id: string) => void
-  zMenu: { itemId: string; anchorX: number; anchorY: number } | null
-  openZMenu: (itemId: string, anchorX: number, anchorY: number) => void
-  closeZMenu: () => void
   deleteItem: (id: string) => void
   commitStickyTextEdit: (id: string, text: string) => void
   updateStickyText: (id: string, text: string) => void
@@ -99,8 +97,22 @@ function createStroke(point: StrokePoint, config: StrokeConfig): Stroke {
   }
 }
 
-function persistItems() {
-  if (persistEnabled) notifyWorkspacePersist()
+function persistItems(opts?: { immediate?: boolean }) {
+  if (!persistEnabled) return
+  if (opts?.immediate) {
+    useCanvasWorkspaceStore.getState().flushPersistWorkspace()
+    return
+  }
+  notifyWorkspacePersist()
+}
+
+async function deleteMediaForItems(items: CanvasItem[]): Promise<void> {
+  const ids = items
+    .filter((item): item is ImageCanvasItem | VideoCanvasItem =>
+      item.type === 'image' || item.type === 'video',
+    )
+    .map((item) => item.mediaId)
+  await Promise.all(ids.map((id) => deleteMediaBlob(id)))
 }
 
 function findItem(items: CanvasItem[], id: string): CanvasItem | undefined {
@@ -112,8 +124,8 @@ function itemIsMutable(item: CanvasItem | undefined): item is CanvasItem {
   return !isItemFrozen(item, useCanvasLockStore.getState().isLocked)
 }
 
-function cloneItem(item: CanvasItem, offset: number): CanvasItem {
-  const id = generateItemId()
+function cloneItem(item: CanvasItem, offset: number, forcedId?: string): CanvasItem {
+  const id = forcedId ?? generateItemId()
   const base = {
     ...item,
     id,
@@ -122,7 +134,10 @@ function cloneItem(item: CanvasItem, offset: number): CanvasItem {
     zIndex: item.zIndex + 1,
   }
   if (item.type === 'space') {
-    useCanvasWorkspaceStore.getState().addSpaceData(id, item.name)
+    useCanvasWorkspaceStore.getState().addSpaceData(id, item.name, { persist: false })
+  }
+  if (item.type === 'image' || item.type === 'video') {
+    return { ...base, mediaId: id } as CanvasItem
   }
   return base
 }
@@ -131,7 +146,6 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
   items: [],
   selectedIds: [],
   activeStickyStroke: null,
-  zMenu: null,
 
   hydrate: () => {
     persistEnabled = true
@@ -142,20 +156,32 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
   selectItem: (id, additive = false) => {
     const item = findItem(get().items, id)
     if (!itemIsMutable(item)) return
+
+    let shouldPlay = false
     set((state) => {
       if (additive) {
         const has = state.selectedIds.includes(id)
-        return {
-          selectedIds: has
-            ? state.selectedIds.filter((x) => x !== id)
-            : [...state.selectedIds, id],
+        if (has) {
+          return { selectedIds: state.selectedIds.filter((x) => x !== id) }
         }
+        shouldPlay = true
+        return { selectedIds: [...state.selectedIds, id] }
       }
+      if (state.selectedIds.length === 1 && state.selectedIds[0] === id) {
+        return state
+      }
+      shouldPlay = true
       return { selectedIds: [id] }
     })
+
+    if (shouldPlay) playSound('itemSelect')
   },
 
-  clearSelection: () => set({ selectedIds: [] }),
+  clearSelection: (opts?: { silent?: boolean }) => {
+    if (get().selectedIds.length === 0) return
+    set({ selectedIds: [] })
+    if (!opts?.silent) playSound('itemDeselect')
+  },
 
   selectAll: () => {
     const ids = get()
@@ -176,7 +202,6 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
     set((state) => {
       const remove = new Set(toDelete)
       const nextItems = state.items.filter((item) => !remove.has(item.id))
-      persistItems()
       return {
         items: nextItems,
         selectedIds: [],
@@ -185,9 +210,11 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
           remove.has(state.activeStickyStroke.stickyId)
             ? null
             : state.activeStickyStroke,
-        zMenu: state.zMenu && remove.has(state.zMenu.itemId) ? null : state.zMenu,
       }
     })
+    const removedItems = items.filter((item) => toDelete.includes(item.id))
+    void deleteMediaForItems(removedItems)
+    persistItems({ immediate: true })
   },
 
   duplicateSelected: () => {
@@ -199,13 +226,24 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
     if (sources.length === 0) return
     pushUndoSnapshot()
     const offset = 24
-    const clones = sources.map((item) => cloneItem(item, offset))
-    const newIds = clones.map((c) => c.id)
-    set((state) => {
-      const next = [...state.items, ...clones]
-      persistItems()
-      return { items: next, selectedIds: newIds }
-    })
+    void (async () => {
+      const clones: CanvasItem[] = []
+      for (const source of sources) {
+        const id = generateItemId()
+        if (source.type === 'image' || source.type === 'video') {
+          const copied = await duplicateMediaForItem(source.mediaId, id)
+          if (!copied) continue
+        }
+        clones.push(cloneItem(source, offset, id))
+      }
+      if (clones.length === 0) return
+      const newIds = clones.map((c) => c.id)
+      set((state) => ({
+        items: [...state.items, ...clones],
+        selectedIds: newIds,
+      }))
+      persistItems({ immediate: true })
+    })()
   },
 
   addSticky: (x, y) => {
@@ -228,7 +266,7 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
     }
     const next = [...items, sticky]
     set({ items: next })
-    persistItems()
+    persistItems({ immediate: true })
     playSound('spawn')
     return id
   },
@@ -252,55 +290,53 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
     }
     const next = [...items, textItem]
     set({ items: next })
-    persistItems()
+    persistItems({ immediate: true })
     playSound('spawn')
     return id
   },
 
-  addImage: (x, y, src, width, height) => {
+  addImage: (x, y, mediaId, width, height) => {
     pushUndoSnapshot()
-    const id = generateItemId()
     const items = get().items
     const layer = newItemLayer(useCanvasLockStore.getState().isLocked)
     const image: ImageCanvasItem = {
-      id,
+      id: mediaId,
       type: 'image',
       x: x - width / 2,
       y: y - height / 2,
       zIndex: nextZIndexForLayer(items, layer),
       width,
       height,
-      src,
+      mediaId,
       ...(layer === 'annotation' ? { layer } : {}),
     }
     const next = [...items, image]
     set({ items: next })
-    persistItems()
+    persistItems({ immediate: true })
     playSound('spawn')
-    return id
+    return mediaId
   },
 
-  addVideo: (x, y, src, width, height) => {
+  addVideo: (x, y, mediaId, width, height) => {
     pushUndoSnapshot()
-    const id = generateItemId()
     const items = get().items
     const layer = newItemLayer(useCanvasLockStore.getState().isLocked)
     const video: VideoCanvasItem = {
-      id,
+      id: mediaId,
       type: 'video',
       x: x - width / 2,
       y: y - height / 2,
       zIndex: nextZIndexForLayer(items, layer),
       width,
       height,
-      src,
+      mediaId,
       ...(layer === 'annotation' ? { layer } : {}),
     }
     const next = [...items, video]
     set({ items: next })
-    persistItems()
+    persistItems({ immediate: true })
     playSound('spawn')
-    return id
+    return mediaId
   },
 
   addSpace: (x, y) => {
@@ -318,13 +354,15 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
       width: SPACE_WIDTH,
       height: SPACE_HEIGHT,
       name: DEFAULT_SPACE_NAME,
-      snapshot: null,
+      snapshotId: null,
       ...(layer === 'annotation' ? { layer } : {}),
     }
-    useCanvasWorkspaceStore.getState().addSpaceData(id, DEFAULT_SPACE_NAME)
     const next = [...items, space]
     set({ items: next })
-    persistItems()
+    useCanvasWorkspaceStore
+      .getState()
+      .addSpaceData(id, DEFAULT_SPACE_NAME, { persist: false })
+    persistItems({ immediate: true })
     playSound('spawn')
     return id
   },
@@ -341,24 +379,22 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
 
   updateItemPosition: (id, x, y) => {
     if (!itemIsMutable(findItem(get().items, id))) return
-    set((state) => {
-      const items = state.items.map((item) =>
+    set((state) => ({
+      items: state.items.map((item) =>
         item.id === id ? { ...item, x, y } : item,
-      )
-      persistItems()
-      return { items }
-    })
+      ),
+    }))
+    persistItems()
   },
 
   updateItemSize: (id, width, height) => {
     if (!itemIsMutable(findItem(get().items, id))) return
-    set((state) => {
-      const items = state.items.map((item) =>
+    set((state) => ({
+      items: state.items.map((item) =>
         item.id === id ? { ...item, width, height } : item,
-      )
-      persistItems()
-      return { items }
-    })
+      ),
+    }))
+    persistItems()
   },
 
   bringToFront: (id) => {
@@ -366,12 +402,13 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
     pushUndoSnapshot()
     set((state) => {
       const zIndex = zIndexForBringToFront(state.items, id)
-      const items = state.items.map((item) =>
-        item.id === id ? { ...item, zIndex } : item,
-      )
-      persistItems()
-      return { items }
+      return {
+        items: state.items.map((item) =>
+          item.id === id ? { ...item, zIndex } : item,
+        ),
+      }
     })
+    persistItems({ immediate: true })
   },
 
   sendToBack: (id) => {
@@ -379,46 +416,42 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
     pushUndoSnapshot()
     set((state) => {
       const zIndex = zIndexForSendToBack(state.items, id)
-      const items = state.items.map((item) =>
-        item.id === id ? { ...item, zIndex } : item,
-      )
-      persistItems()
-      return { items }
+      return {
+        items: state.items.map((item) =>
+          item.id === id ? { ...item, zIndex } : item,
+        ),
+      }
     })
+    persistItems({ immediate: true })
   },
 
   raiseInPlane: (id) => {
     if (!itemIsMutable(findItem(get().items, id))) return
     set((state) => {
       const zIndex = zIndexForRaiseInPlane(state.items, id)
-      const items = state.items.map((item) =>
-        item.id === id ? { ...item, zIndex } : item,
-      )
-      persistItems()
-      return { items }
+      return {
+        items: state.items.map((item) =>
+          item.id === id ? { ...item, zIndex } : item,
+        ),
+      }
     })
-  },
-
-  openZMenu: (itemId, anchorX, anchorY) => {
-    set({ zMenu: { itemId, anchorX, anchorY } })
-  },
-
-  closeZMenu: () => {
-    set({ zMenu: null })
+    persistItems()
   },
 
   deleteItem: (id) => {
     if (!itemIsMutable(findItem(get().items, id))) return
+    const target = findItem(get().items, id)
     pushUndoSnapshot()
-    set((state) => {
-      const items = state.items.filter((item) => item.id !== id)
-      persistItems()
-      const activeStickyStroke =
-        state.activeStickyStroke?.stickyId === id ? null : state.activeStickyStroke
-      const zMenu = state.zMenu?.itemId === id ? null : state.zMenu
-      const selectedIds = state.selectedIds.filter((sid) => sid !== id)
-      return { items, activeStickyStroke, zMenu, selectedIds }
-    })
+    set((state) => ({
+      items: state.items.filter((item) => item.id !== id),
+      activeStickyStroke:
+        state.activeStickyStroke?.stickyId === id ? null : state.activeStickyStroke,
+      selectedIds: state.selectedIds.filter((sid) => sid !== id),
+    }))
+    if (target && (target.type === 'image' || target.type === 'video')) {
+      void deleteMediaBlob(target.mediaId)
+    }
+    persistItems({ immediate: true })
   },
 
   commitStickyTextEdit: (id, text) => {
@@ -430,13 +463,12 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
 
   updateStickyText: (id, text) => {
     if (!itemIsMutable(findItem(get().items, id))) return
-    set((state) => {
-      const items = state.items.map((item) =>
+    set((state) => ({
+      items: state.items.map((item) =>
         item.id === id && item.type === 'sticky' ? { ...item, text } : item,
-      )
-      persistItems()
-      return { items }
-    })
+      ),
+    }))
+    persistItems()
   },
 
   commitTextItemEdit: (id, text) => {
@@ -448,13 +480,12 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
 
   updateTextItemText: (id, text) => {
     if (!itemIsMutable(findItem(get().items, id))) return
-    set((state) => {
-      const items = state.items.map((item) =>
+    set((state) => ({
+      items: state.items.map((item) =>
         item.id === id && item.type === 'text' ? { ...item, text } : item,
-      )
-      persistItems()
-      return { items }
-    })
+      ),
+    }))
+    persistItems()
   },
 
   setItemTextAlignment: (id, alignment) => {
@@ -468,15 +499,14 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
       return
     }
     pushUndoSnapshot()
-    set((state) => {
-      const items = state.items.map((entry) =>
+    set((state) => ({
+      items: state.items.map((entry) =>
         entry.id === id && (entry.type === 'sticky' || entry.type === 'text')
           ? { ...entry, textAlign: alignment }
           : entry,
-      )
-      persistItems()
-      return { items }
-    })
+      ),
+    }))
+    persistItems({ immediate: true })
   },
 
   getStickyById: (id) => {
@@ -537,9 +567,9 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
         return { ...item, annotationStrokes: next }
       })
       if (!changed) return state
-      persistItems()
       return { items }
     })
+    if (changed) persistItems()
   },
 
   endStickyStroke: () => {
@@ -566,8 +596,8 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
       useCanvasLockStore.getState().isLocked,
     )
 
-    set((state) => {
-      const items = state.items.map((item) => {
+    set((state) => ({
+      items: state.items.map((item) => {
         if (item.id !== active.stickyId || item.type !== 'sticky') return item
         const onCommittedLayer = isLocked && itemLayer(item) === 'committed'
         if (onCommittedLayer) {
@@ -575,9 +605,9 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
           return { ...item, annotationStrokes }
         }
         return { ...item, strokes: [...item.strokes, completed] }
-      })
-      persistItems()
-      return { items, activeStickyStroke: null }
-    })
+      }),
+      activeStickyStroke: null,
+    }))
+    persistItems({ immediate: true })
   },
 }))

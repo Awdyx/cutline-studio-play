@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, type RefObject } from 'react'
 import type { ReactZoomPanPinchContentRef } from 'react-zoom-pan-pinch'
 import { clientToCanvas } from '../drawing/canvasCoords'
+import { putMediaBlob } from '../media/mediaBlobStore'
+import { generateItemId } from './itemId'
 import { useCanvasItemsStore } from './canvasItemsStore'
 import { isAcceptedMediaFile, prepareMediaFromFile } from './mediaUtils'
 import { viewportCenterCanvas } from './viewportCenter'
@@ -15,11 +17,16 @@ export function useCanvasFileHandlers(
     async (file: File, canvasX: number, canvasY: number) => {
       const prepared = await prepareMediaFromFile(file)
       if (!prepared) return
+
+      const mediaId = generateItemId()
+      const saved = await putMediaBlob(mediaId, prepared.blob)
+      if (!saved) return
+
       const { addImage, addVideo } = useCanvasItemsStore.getState()
       if (prepared.kind === 'image') {
-        addImage(canvasX, canvasY, prepared.src, prepared.width, prepared.height)
+        addImage(canvasX, canvasY, mediaId, prepared.width, prepared.height)
       } else {
-        addVideo(canvasX, canvasY, prepared.src, prepared.width, prepared.height)
+        addVideo(canvasX, canvasY, mediaId, prepared.width, prepared.height)
       }
     },
     [],

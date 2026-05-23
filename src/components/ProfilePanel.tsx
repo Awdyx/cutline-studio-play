@@ -14,6 +14,7 @@ import UserAvatar from './UserAvatar'
 import ProfileIdentityTags from './ProfileIdentityTags'
 import ProfileSubmenu from './ProfileSubmenu'
 import SubscriptionSubmenu from './SubscriptionSubmenu'
+import { playSubmenuHover, playSubmenuTap } from '../sound/submenuSound'
 
 type ProfileDestination = 'profile' | 'subscription' | 'help'
 type ProfileSubmenuId = 'profile' | 'subscription'
@@ -68,8 +69,14 @@ function NavRow({
   return (
     <button
       type="button"
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
+      onClick={() => {
+        playSubmenuTap()
+        onClick()
+      }}
+      onMouseEnter={() => {
+        setHovered(true)
+        playSubmenuHover()
+      }}
       onMouseLeave={() => setHovered(false)}
       style={{
         display: 'flex',

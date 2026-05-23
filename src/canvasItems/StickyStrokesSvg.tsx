@@ -77,13 +77,15 @@ export default function StickyStrokesSvg({
       }}
     >
       {renderStrokeList(strokes, effectiveMode, 'c')}
-      {renderStrokeList(annotationStrokes, effectiveMode, 'a')}
-      {active && (
-        <ActiveStrokePath
-          stroke={active}
-          fill={resolveStrokeFill(active.color, active.tool, effectiveMode)}
-        />
-      )}
+      <g data-lock-sticky-annotation>
+        {renderStrokeList(annotationStrokes, effectiveMode, 'a')}
+        {active && (
+          <ActiveStrokePath
+            stroke={active}
+            fill={resolveStrokeFill(active.color, active.tool, effectiveMode)}
+          />
+        )}
+      </g>
     </svg>
   )
 }

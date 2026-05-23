@@ -1,6 +1,17 @@
-import { useCallback, useRef, useState, type RefObject } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type RefObject,
+} from 'react'
 import type { ReactZoomPanPinchContentRef } from 'react-zoom-pan-pinch'
-import { useWindowPointerSession } from '../canvas/useWindowPointerSession'
+import {
+  startItemResizeSound,
+  stopItemResizeSound,
+  updateItemResizeSound,
+} from '../sound/itemResizeSound'
 import { MIN_ITEM_HEIGHT, MIN_ITEM_WIDTH } from './grabZone'
 import { useCanvasItemsStore } from './canvasItemsStore'
 
@@ -13,6 +24,7 @@ export function useCanvasItemResize(
 ) {
   const [isResizing, setIsResizing] = useState(false)
   const activeRef = useRef(false)
+  const detachRef = useRef<(() => void) | null>(null)
   const resizeRef = useRef({
     pointerId: -1,
     startClientX: 0,
@@ -20,7 +32,6 @@ export function useCanvasItemResize(
     startWidth: 0,
     startHeight: 0,
   })
-  const { startSession } = useWindowPointerSession<HTMLButtonElement>()
 
   const setResizing = useCallback(
     (resizing: boolean) => {
@@ -30,16 +41,35 @@ export function useCanvasItemResize(
     [onResizeStateChange],
   )
 
+  useEffect(
+    () => () => {
+      detachRef.current?.()
+      detachRef.current = null
+      if (activeRef.current) {
+        activeRef.current = false
+        stopItemResizeSound()
+      }
+    },
+    [],
+  )
+
   const finishResize = useCallback(() => {
+    detachRef.current?.()
+    detachRef.current = null
     if (!activeRef.current) return
     activeRef.current = false
     resizeRef.current.pointerId = -1
+    stopItemResizeSound()
     setResizing(false)
   }, [setResizing])
 
   const handlePointerDown = useCallback(
-    (event: React.PointerEvent<HTMLButtonElement>) => {
+    (event: ReactPointerEvent<HTMLButtonElement>) => {
       if (event.pointerType === 'pen') return
+      if (event.pointerType === 'mouse' && event.button !== 0) return
+
+      detachRef.current?.()
+      detachRef.current = null
 
       resizeRef.current = {
         pointerId: event.pointerId,
@@ -50,36 +80,56 @@ export function useCanvasItemResize(
       }
 
       useCanvasItemsStore.getState().beginItemResize(itemId)
-      useCanvasItemsStore.getState().closeZMenu()
       activeRef.current = true
       setResizing(true)
+      startItemResizeSound(event.clientX, event.clientY)
 
-      startSession(
-        event,
-        {
-          onMove: (clientX, clientY) => {
-            if (!activeRef.current) return
+      event.preventDefault()
+      event.stopPropagation()
 
-            const ref = transformRef.current
-            if (!ref) return
-            const scale = ref.state.scale
+      const pointerId = event.pointerId
 
-            const dx = (clientX - resizeRef.current.startClientX) / scale
-            const dy = (clientY - resizeRef.current.startClientY) / scale
+      const onPointerMove = (e: PointerEvent) => {
+        if (!activeRef.current || e.pointerId !== pointerId) return
+        if (e.cancelable) e.preventDefault()
 
-            const nextWidth = Math.max(MIN_ITEM_WIDTH, resizeRef.current.startWidth + dx)
-            const nextHeight = Math.max(MIN_ITEM_HEIGHT, resizeRef.current.startHeight + dy)
+        updateItemResizeSound(e.clientX, e.clientY)
 
-            useCanvasItemsStore.getState().updateItemSize(itemId, nextWidth, nextHeight)
-          },
-          onEnd: () => {
-            finishResize()
-          },
-        },
-        { allowPointerType: (type) => type !== 'pen' },
-      )
+        const ref = transformRef.current
+        if (!ref) return
+        const scale = ref.state.scale
+
+        const dx = (e.clientX - resizeRef.current.startClientX) / scale
+        const dy = (e.clientY - resizeRef.current.startClientY) / scale
+
+        const nextWidth = Math.max(
+          MIN_ITEM_WIDTH,
+          resizeRef.current.startWidth + dx,
+        )
+        const nextHeight = Math.max(
+          MIN_ITEM_HEIGHT,
+          resizeRef.current.startHeight + dy,
+        )
+
+        useCanvasItemsStore.getState().updateItemSize(itemId, nextWidth, nextHeight)
+      }
+
+      const onPointerEnd = (e: PointerEvent) => {
+        if (!activeRef.current || e.pointerId !== pointerId) return
+        finishResize()
+      }
+
+      document.addEventListener('pointermove', onPointerMove, { capture: true })
+      document.addEventListener('pointerup', onPointerEnd, { capture: true })
+      document.addEventListener('pointercancel', onPointerEnd, { capture: true })
+
+      detachRef.current = () => {
+        document.removeEventListener('pointermove', onPointerMove, true)
+        document.removeEventListener('pointerup', onPointerEnd, true)
+        document.removeEventListener('pointercancel', onPointerEnd, true)
+      }
     },
-    [finishResize, height, itemId, setResizing, startSession, transformRef, width],
+    [finishResize, height, itemId, setResizing, transformRef, width],
   )
 
   return {

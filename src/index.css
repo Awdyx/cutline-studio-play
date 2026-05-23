@@ -176,6 +176,20 @@ input::placeholder {
   background-color: var(--canvas-bg);
 }
 
+.media-load-placeholder {
+  background: transparent;
+  box-shadow: none;
+}
+
+[data-theme='dark'] .media-load-placeholder {
+  background: transparent;
+  box-shadow: none;
+}
+
+.media-item-surface {
+  background: transparent;
+}
+
 .theme-ambient-pulse {
   position: fixed;
   inset: 0;

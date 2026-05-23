@@ -1,112 +1,39 @@
-import { useEffect } from 'react'
+import { useRef } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ArrowDownToLine, ArrowUpToLine, Trash2 } from 'lucide-react'
-import { CHROME_GLASS_CLASS, chromeLabel, glass, font, menuDividerStyle } from '../styles/tokens'
+import { MenuRow } from '../components/MenuRow'
+import { SubmenuSoundScope } from '../components/SubmenuSoundScope'
+import { CHROME_GLASS_CLASS, glass, menuDividerStyle } from '../styles/tokens'
+import { useCanvasItemZMenuLayout } from './canvasItemZMenuLayout'
+import { useCanvasItemDragStore } from './canvasItemDragStore'
 import { useCanvasItemsStore } from './canvasItemsStore'
 import TextAlignmentMenuSection from './TextAlignmentMenuSection'
-import {
-  GRAB_HANDLE_OFFSET_X,
-  GRAB_HANDLE_TOP,
-  HANDLE_HIT_SIZE,
-  Z_MENU_GAP,
-} from './grabZone'
-
-function MenuRow({
-  icon: Icon,
-  label,
-  onClick,
-  destructive = false,
-}: {
-  icon: React.ElementType
-  label: string
-  onClick: () => void
-  destructive?: boolean
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        width: '100%',
-        padding: '10px 14px',
-        border: 'none',
-        background: 'transparent',
-        color: destructive ? '#c44e4e' : font.colorPrimary,
-        fontSize: 13,
-        fontWeight: 500,
-        fontFamily: font.family,
-        cursor: 'pointer',
-        borderRadius: 10,
-        textAlign: 'left',
-        whiteSpace: 'nowrap',
-      }}
-      className={
-        destructive
-          ? 'canvas-item-z-menu-row canvas-item-z-menu-row--destructive'
-          : 'canvas-item-z-menu-row'
-      }
-    >
-      <Icon
-        size={16}
-        strokeWidth={2}
-        style={{
-          color: destructive ? '#c44e4e' : font.colorMuted,
-          flexShrink: 0,
-        }}
-      />
-      {chromeLabel(label)}
-    </button>
-  )
-}
 
 export default function CanvasItemZOrderMenu() {
-  const zMenu = useCanvasItemsStore((s) => s.zMenu)
-  const closeZMenu = useCanvasItemsStore((s) => s.closeZMenu)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const selectedIds = useCanvasItemsStore((s) => s.selectedIds)
+  const activeDragItemId = useCanvasItemDragStore((s) => s.activeItemId)
   const bringToFront = useCanvasItemsStore((s) => s.bringToFront)
   const sendToBack = useCanvasItemsStore((s) => s.sendToBack)
   const deleteItem = useCanvasItemsStore((s) => s.deleteItem)
+
+  const itemId = selectedIds.length === 1 ? selectedIds[0] : null
+  const showMenu = itemId != null && activeDragItemId !== itemId
+
   const menuItem = useCanvasItemsStore((s) =>
-    zMenu ? s.items.find((item) => item.id === zMenu.itemId) : undefined,
+    itemId ? s.items.find((item) => item.id === itemId) : undefined,
   )
   const isSpace = menuItem?.type === 'space'
   const showTextAlign =
     menuItem?.type === 'sticky' || menuItem?.type === 'text'
 
-  useEffect(() => {
-    if (!zMenu) return
-
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') closeZMenu()
-    }
-
-    function onPointerDown(e: PointerEvent) {
-      const target = e.target as HTMLElement
-      if (target.closest('[data-canvas-item-z-menu]')) return
-      if (target.closest('.canvas-item-drag-handle')) return
-      if (target.closest('.canvas-item-resize-handle')) return
-      closeZMenu()
-    }
-
-    document.addEventListener('keydown', onKeyDown)
-    document.addEventListener('pointerdown', onPointerDown, { capture: true })
-    return () => {
-      document.removeEventListener('keydown', onKeyDown)
-      document.removeEventListener('pointerdown', onPointerDown, { capture: true })
-    }
-  }, [zMenu, closeZMenu])
-
-  const anchorX = zMenu?.anchorX ?? 0
-  const anchorY = zMenu?.anchorY ?? 0
-  const itemId = zMenu?.itemId
-  const menuAnchorLeft = anchorX - GRAB_HANDLE_OFFSET_X - Z_MENU_GAP
+  const menuLayout = useCanvasItemZMenuLayout(menuRef, itemId, showMenu)
 
   return (
     <AnimatePresence>
-      {zMenu && itemId && (
+      {showMenu && itemId && (
         <motion.div
+          ref={menuRef}
           key={itemId}
           data-canvas-item-z-menu
           className={CHROME_GLASS_CLASS}
@@ -116,9 +43,9 @@ export default function CanvasItemZOrderMenu() {
           transition={{ type: 'spring', stiffness: 520, damping: 34, mass: 0.7 }}
           style={{
             position: 'fixed',
-            left: menuAnchorLeft,
-            top: anchorY - (GRAB_HANDLE_TOP + HANDLE_HIT_SIZE / 2),
-            translate: '-100% 0',
+            left: menuLayout.left,
+            top: menuLayout.top,
+            translate: `${menuLayout.translateX} 0`,
             zIndex: 30,
             minWidth: 168,
             padding: 4,
@@ -127,45 +54,40 @@ export default function CanvasItemZOrderMenu() {
             border: glass.border,
             boxShadow: glass.shadow,
             pointerEvents: 'auto',
-            transformOrigin: 'center right',
+            transformOrigin: menuLayout.transformOrigin,
+            overflow: 'hidden',
           }}
         >
-          {showTextAlign && menuItem && (
-            <TextAlignmentMenuSection
-              itemId={menuItem.id}
-              alignment={menuItem.textAlign}
+          <SubmenuSoundScope>
+            {showTextAlign && menuItem && (
+              <TextAlignmentMenuSection
+                itemId={menuItem.id}
+                alignment={menuItem.textAlign}
+              />
+            )}
+            {!isSpace && (
+              <>
+                <MenuRow
+                  icon={ArrowUpToLine}
+                  label="Bring to front"
+                  onClick={() => bringToFront(itemId)}
+                />
+                <MenuRow
+                  icon={ArrowDownToLine}
+                  label="Send to back"
+                  onClick={() => sendToBack(itemId)}
+                />
+                <div style={menuDividerStyle} />
+              </>
+            )}
+            <MenuRow
+              icon={Trash2}
+              label="Delete"
+              destructive
+              submenuClickSound={false}
+              onClick={() => deleteItem(itemId)}
             />
-          )}
-          {!isSpace && (
-            <>
-              <MenuRow
-                icon={ArrowUpToLine}
-                label="Bring to front"
-                onClick={() => {
-                  bringToFront(itemId)
-                  closeZMenu()
-                }}
-              />
-              <MenuRow
-                icon={ArrowDownToLine}
-                label="Send to back"
-                onClick={() => {
-                  sendToBack(itemId)
-                  closeZMenu()
-                }}
-              />
-              <div style={menuDividerStyle} />
-            </>
-          )}
-          <MenuRow
-            icon={Trash2}
-            label="Delete"
-            destructive
-            onClick={() => {
-              deleteItem(itemId)
-              closeZMenu()
-            }}
-          />
+          </SubmenuSoundScope>
         </motion.div>
       )}
     </AnimatePresence>

@@ -1,3 +1,7 @@
+import {
+  compressImageForImport,
+} from '../media/compressImage'
+
 export const MAX_MEDIA_BYTES = 5 * 1024 * 1024
 export const MAX_MEDIA_DIMENSION = 400
 
@@ -39,15 +43,6 @@ function readFileAsDataUrl(file: File): Promise<string> {
   })
 }
 
-function loadImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image()
-    img.onload = () => resolve(img)
-    img.onerror = reject
-    img.src = src
-  })
-}
-
 function loadVideoMeta(src: string): Promise<HTMLVideoElement> {
   return new Promise((resolve, reject) => {
     const video = document.createElement('video')
@@ -60,19 +55,21 @@ function loadVideoMeta(src: string): Promise<HTMLVideoElement> {
 
 export async function prepareImageFromFile(
   file: File,
-): Promise<{ src: string; width: number; height: number } | null> {
+): Promise<{ blob: Blob; width: number; height: number } | null> {
   if (!file.type.startsWith('image/')) return null
   if (rejectOversize(file)) return null
 
-  const dataUrl = await readFileAsDataUrl(file)
-  const img = await loadImage(dataUrl)
-  const { width, height } = fitDimensions(img.naturalWidth, img.naturalHeight)
-  return { src: dataUrl, width, height }
+  const compressed = await compressImageForImport(file)
+  const { width, height } = fitDimensions(
+    compressed.naturalWidth,
+    compressed.naturalHeight,
+  )
+  return { blob: compressed.blob, width, height }
 }
 
 export async function prepareVideoFromFile(
   file: File,
-): Promise<{ src: string; width: number; height: number } | null> {
+): Promise<{ blob: Blob; width: number; height: number } | null> {
   if (!file.type.startsWith('video/')) return null
   if (rejectOversize(file)) return null
 
@@ -82,12 +79,13 @@ export async function prepareVideoFromFile(
     video.videoWidth || 320,
     video.videoHeight || 240,
   )
-  return { src: dataUrl, width, height }
+  const blob = await fetch(dataUrl).then((r) => r.blob())
+  return { blob, width, height }
 }
 
 export async function prepareMediaFromFile(
   file: File,
-): Promise<{ kind: 'image' | 'video'; src: string; width: number; height: number } | null> {
+): Promise<{ kind: 'image' | 'video'; blob: Blob; width: number; height: number } | null> {
   if (!isAcceptedMediaFile(file)) return null
   if (file.type.startsWith('video/')) {
     const video = await prepareVideoFromFile(file)

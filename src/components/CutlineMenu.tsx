@@ -6,6 +6,7 @@ import type { ThemeMode } from '../theme/themeStore'
 import ShortcutsSubmenu from './ShortcutsSubmenu'
 import SettingsSubmenu from './SettingsSubmenu'
 import { MenuRow } from './MenuRow'
+import { SubmenuSoundScope } from './SubmenuSoundScope'
 
 interface CutlineMenuProps {
   isOpen: boolean
@@ -79,6 +80,7 @@ export default function CutlineMenu({
         }}
         className={`theme-surface ${CHROME_CARD_CLASS}`}
       >
+        <SubmenuSoundScope>
         <div ref={shortcutsAnchorRef}>
           <MenuRow
             icon={Keyboard}
@@ -101,6 +103,7 @@ export default function CutlineMenu({
             }}
           />
         </div>
+        </SubmenuSoundScope>
       </motion.div>
 
       <AnimatePresence>

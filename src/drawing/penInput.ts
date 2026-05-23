@@ -18,6 +18,10 @@ export function isStylusTouch(touch: Touch): boolean {
   return touchType === 'stylus' || touchType === 'pen'
 }
 
+export function isFingerTouch(touch: Touch): boolean {
+  return !isStylusTouch(touch)
+}
+
 export function isCanvasCoordSane(
   x: number,
   y: number,

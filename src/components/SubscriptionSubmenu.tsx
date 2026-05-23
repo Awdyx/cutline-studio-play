@@ -24,6 +24,8 @@ import {
   useSubscriptionStore,
 } from '../subscription/subscriptionStore'
 import { usePanelAlignedSubmenuLayout } from './usePanelAlignedSubmenuLayout'
+import { playSubmenuHover, playSubmenuTap } from '../sound/submenuSound'
+import { SubmenuSoundScope } from './SubmenuSoundScope'
 
 const SUBMENU_WIDTH = 320
 const SUBMENU_GAP = 10
@@ -92,8 +94,14 @@ function ActionRow({
   return (
     <button
       type="button"
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
+      onClick={() => {
+        playSubmenuTap()
+        onClick()
+      }}
+      onMouseEnter={() => {
+        setHovered(true)
+        playSubmenuHover()
+      }}
       onMouseLeave={() => setHovered(false)}
       style={{
         display: 'flex',
@@ -172,8 +180,9 @@ export default function SubscriptionSubmenu({
       }}
       className={`theme-surface ${CHROME_CARD_CLASS}`}
       onClick={(e) => e.stopPropagation()}
-      onMouseDown={(e) => e.stopPropagation()}
-    >
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+      <SubmenuSoundScope>
       <div
         style={{
           display: 'flex',
@@ -186,7 +195,11 @@ export default function SubscriptionSubmenu({
         <button
           type="button"
           aria-label="Back"
-          onClick={onClose}
+          onClick={() => {
+            playSubmenuTap()
+            onClose()
+          }}
+          onMouseEnter={() => playSubmenuHover()}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -266,7 +279,11 @@ export default function SubscriptionSubmenu({
 
         <button
           type="button"
-          onClick={() => onManageBilling?.()}
+          onClick={() => {
+            playSubmenuTap()
+            onManageBilling?.()
+          }}
+          onMouseEnter={() => playSubmenuHover()}
           style={{
             width: '100%',
             marginTop: 4,
@@ -291,6 +308,7 @@ export default function SubscriptionSubmenu({
           onClick={() => onManageBilling?.()}
         />
       </div>
+      </SubmenuSoundScope>
     </motion.div>,
     document.body,
   )

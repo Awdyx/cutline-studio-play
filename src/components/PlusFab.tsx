@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { playSound } from '../sound/playSound'
+import { playSubmenuHover, playSubmenuTap } from '../sound/submenuSound'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Plus,
@@ -27,6 +28,8 @@ import {
   menuDividerStyle,
 } from '../styles/tokens'
 import { useShortcutUiStore } from '../shortcuts/shortcutUiStore'
+import { MenuRow } from './MenuRow'
+import { SubmenuSoundScope } from './SubmenuSoundScope'
 
 type CanvasAddType = 'space' | 'sticky' | 'text' | 'image'
 type StudyActionType = 'mcq' | 'saq' | 'mini_exam'
@@ -130,64 +133,6 @@ const FAB_VIEW_TRANSITION = {
   filter: { duration: 0.12, ease: [0.22, 1, 0.36, 1] as const },
 }
 
-function MenuRow({
-  icon: Icon,
-  label,
-  onClick,
-  dotColor,
-}: {
-  icon?: React.ElementType
-  label: string
-  onClick: () => void
-  dotColor?: string
-}) {
-  const [hovered, setHovered] = useState(false)
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        width: '100%',
-        padding: '10px 16px',
-        background: hovered ? 'rgba(0, 0, 0, 0.04)' : 'transparent',
-        border: 'none',
-        cursor: 'pointer',
-        textAlign: 'left',
-        fontFamily: font.family,
-        transition: 'background 150ms ease',
-      }}
-    >
-      {dotColor ? (
-        <span
-          style={{
-            width: 8,
-            height: 8,
-            borderRadius: '50%',
-            backgroundColor: dotColor,
-            flexShrink: 0,
-          }}
-        />
-      ) : Icon ? (
-        <Icon
-          size={16}
-          strokeWidth={1.8}
-          color={font.colorMuted}
-          style={{ flexShrink: 0 }}
-        />
-      ) : null}
-      <span style={{ fontSize: 14, fontWeight: 400, color: font.colorPrimary }}>
-        {chromeLabel(label)}
-      </span>
-    </button>
-  )
-}
-
 function SubmenuHeader({
   title,
   onBack,
@@ -208,7 +153,11 @@ function SubmenuHeader({
     >
       <button
         type="button"
-        onClick={onBack}
+        onClick={() => {
+          playSubmenuTap()
+          onBack()
+        }}
+        onMouseEnter={() => playSubmenuHover()}
         aria-label="Back"
         style={{
           display: 'flex',
@@ -238,7 +187,11 @@ function SubmenuHeader({
       </span>
       <button
         type="button"
-        onClick={onClose}
+        onClick={() => {
+          playSubmenuTap()
+          onClose()
+        }}
+        onMouseEnter={() => playSubmenuHover()}
         aria-label="Close"
         style={{
           display: 'flex',
@@ -536,6 +489,7 @@ export default function PlusFab({
               overflow: 'hidden',
             }}
           >
+            <SubmenuSoundScope>
             <div
               ref={menuStackRef}
               style={{
@@ -574,6 +528,7 @@ export default function PlusFab({
                 )}
               </AnimatePresence>
             </div>
+            </SubmenuSoundScope>
           </motion.div>
         )}
       </AnimatePresence>

@@ -1,11 +1,13 @@
-import { useCallback, useRef, useState, type RefObject } from 'react'
+import { useCallback, useMemo, useRef, useState, type RefObject } from 'react'
 import { motion } from 'framer-motion'
 import type { ReactZoomPanPinchContentRef } from 'react-zoom-pan-pinch'
+import { CANVAS_HEIGHT, CANVAS_WIDTH } from '../drawing/canvasDimensions'
 import { playSound } from '../sound/playSound'
 import { isItemFrozen } from '../canvasLock/layer'
 import { useCanvasLockStore } from '../canvasLock/canvasLockStore'
 import { useCanvasWorkspaceStore } from '../spaces/canvasWorkspaceStore'
 import DragHandle from './DragHandle'
+import { getGrabHandlePlacement } from './grabZone'
 import { useCanvasItemDrag } from './useCanvasItemDrag'
 import SpaceCardPreview from '../spaces/SpaceCardPreview'
 import { card, font, glass, SPACE_GLASS_CLASS } from '../styles/tokens'
@@ -106,6 +108,18 @@ export default function SpaceItem({
   const [hovered, setHovered] = useState(false)
   const lifted = isDragging
   const canHover = !frozen && !isLocked
+  const grabHandlePlacement = useMemo(
+    () =>
+      getGrabHandlePlacement(
+        item.x,
+        item.y,
+        item.width,
+        item.height,
+        CANVAS_WIDTH,
+        CANVAS_HEIGHT,
+      ),
+    [item.x, item.y, item.width, item.height],
+  )
 
   return (
     <motion.div
@@ -133,7 +147,10 @@ export default function SpaceItem({
       }}
     >
       {!frozen && (
-        <DragHandle onPointerDown={onGrabPointerDown} />
+        <DragHandle
+          placement={grabHandlePlacement}
+          onPointerDown={onGrabPointerDown}
+        />
       )}
 
       {/* Stacked card shadow */}

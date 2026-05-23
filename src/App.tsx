@@ -22,6 +22,7 @@ import ProfilePanel from './components/ProfilePanel'
 import PlusFab from './components/PlusFab'
 import ToolPalette from './components/ToolPalette'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
+import { useTouchUndoRedoGestures } from './hooks/useTouchUndoRedoGestures'
 import { useBackgroundMusic } from './hooks/useBackgroundMusic'
 import { usePanelSounds } from './hooks/usePanelSounds'
 import { useThemeChangeFeedback } from './hooks/useThemeChangeFeedback'
@@ -38,6 +39,10 @@ import CanvasItemZOrderMenu from './canvasItems/CanvasItemZOrderMenu'
 import SelectionBlurOverlay from './canvasItems/SelectionBlurOverlay'
 import { useCanvasFileHandlers } from './canvasItems/useCanvasFileHandlers'
 import { useCanvasLockStore } from './canvasLock/canvasLockStore'
+import CanvasLockFlattenLayer from './canvasLock/CanvasLockFlattenLayer'
+import { useCanvasLockFlatten } from './canvasLock/useCanvasLockFlatten'
+import { useCanvasLockFlattenStore } from './canvasLock/canvasLockFlattenStore'
+import { shouldFlattenCanvas } from './canvasLock/flattenVisibility'
 import { useCanvasWorkspaceStore } from './spaces/canvasWorkspaceStore'
 import SpaceBackPill from './components/SpaceBackPill'
 import SpaceTransitionOverlay from './components/SpaceTransitionOverlay'
@@ -179,6 +184,7 @@ function App() {
   const [penDown, setPenDown] = useState(false)
   const penMenu = usePenToolMenu(transformRef)
   useDrawing(canvasRef, transformRef, setPenDown, penMenu.bridgeRef, canvasMount)
+  useTouchUndoRedoGestures(penMenu.bridgeRef)
 
   const {
     imageInputRef,
@@ -207,27 +213,48 @@ function App() {
       })
   }
 
-  const itemZMenuOpen = useCanvasItemsStore((s) => s.zMenu !== null)
+  const itemSelectionMenuOpen =
+    useCanvasItemsStore((s) => s.selectedIds.length === 1)
   const itemDragActive = useCanvasItemDragStore((s) => s.activeItemId !== null)
 
   const isPenDown =
-    penDown || penMenu.state.phase !== 'idle' || itemZMenuOpen || itemDragActive
+    penDown || penMenu.state.phase !== 'idle' || itemSelectionMenuOpen || itemDragActive
   const isCanvasLocked = useCanvasLockStore((s) => s.isLocked)
+  const flattenReady = useCanvasLockFlattenStore((s) => s.ready)
+  const lockFlattenActive = shouldFlattenCanvas(isCanvasLocked)
+  const hideLiveMesh = lockFlattenActive && flattenReady
   const lockCanvas = useCanvasLockStore((s) => s.lockCanvas)
   const requestUnlock = useCanvasLockStore((s) => s.requestUnlock)
 
+  useCanvasLockFlatten(canvasRef, isCanvasLocked)
+
   useEffect(() => {
-    useCanvasWorkspaceStore.getState().hydrate()
-    useCanvasItemsStore.getState().hydrate()
-    useStrokesStore.getState().hydrate()
-    useCanvasLockStore.getState().hydrate()
-    useSoundStore.getState().hydrate()
-    clearHistory()
-    requestAnimationFrame(() => {
-      useCanvasWorkspaceStore
-        .getState()
-        .applyCameraForActiveCanvas(transformRef.current)
+    void (async () => {
+      await useCanvasWorkspaceStore.getState().hydrate()
+      useCanvasItemsStore.getState().hydrate()
+      useStrokesStore.getState().hydrate()
+      useCanvasLockStore.getState().hydrate()
+      useSoundStore.getState().hydrate()
+      clearHistory()
+      requestAnimationFrame(() => {
+        useCanvasWorkspaceStore
+          .getState()
+          .applyCameraForActiveCanvas(transformRef.current)
+      })
+    })()
+
+    const flushWorkspace = () => {
+      useCanvasWorkspaceStore.getState().flushPersistWorkspace()
+    }
+    window.addEventListener('pagehide', flushWorkspace)
+    window.addEventListener('beforeunload', flushWorkspace)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') flushWorkspace()
     })
+    return () => {
+      window.removeEventListener('pagehide', flushWorkspace)
+      window.removeEventListener('beforeunload', flushWorkspace)
+    }
   }, [])
 
   const themeMode = useThemeStore((s) => s.mode)
@@ -446,11 +473,12 @@ function App() {
             <style>{meshKeyframesCss}</style>
             {meshColors.map((color, index) => {
               const visibility = meshBlobVisibility[index] ?? 0
-              if (visibility <= 0) return null
+              if (visibility <= 0 || hideLiveMesh) return null
 
               return (
                 <div
                   key={index}
+                  data-mesh-blob
                   aria-hidden
                   style={{
                     position: 'absolute',
@@ -469,6 +497,7 @@ function App() {
                 />
               )
             })}
+            <CanvasLockFlattenLayer />
             <CanvasItemsLayer plane="below" transformRef={transformRef} />
             <DrawingLayer />
             <CanvasItemsLayer plane="above" transformRef={transformRef} />

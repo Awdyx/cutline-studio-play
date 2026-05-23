@@ -14,7 +14,7 @@ export type SpaceCanvasData = {
   strokes: Stroke[]
   annotationStrokes: Stroke[]
   name: string
-  snapshot: string | null
+  snapshotId: string | null
   camera: SpaceCamera
 }
 

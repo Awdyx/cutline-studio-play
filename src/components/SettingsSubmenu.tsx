@@ -8,6 +8,7 @@ import { useSoundStore } from '../sound/soundStore'
 import { SHORTCUTS_BY_ID } from '../shortcuts/shortcutDefs'
 import { useSubmenuPosition } from './useSubmenuPosition'
 import { MenuRow } from './MenuRow'
+import { SubmenuSoundScope } from './SubmenuSoundScope'
 import ThemeSubmenu from './ThemeSubmenu'
 import SoundSubmenu from './SoundSubmenu'
 import ShortcutTooltip from './ShortcutTooltip'
@@ -89,6 +90,7 @@ export default function SettingsSubmenu({
         onClick={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}
       >
+        <SubmenuSoundScope>
         {showCanvasLock && (
           <>
             <ShortcutTooltip
@@ -98,6 +100,7 @@ export default function SettingsSubmenu({
               <MenuRow
                 icon={isCanvasLocked ? LockOpen : Lock}
                 label={isCanvasLocked ? 'Unlock canvas' : 'Lock canvas'}
+                submenuClickSound={false}
                 onClick={() => {
                   onToggleCanvasLock()
                   onCloseMenu()
@@ -155,6 +158,7 @@ export default function SettingsSubmenu({
             }}
           />
         </div>
+        </SubmenuSoundScope>
       </motion.div>
 
       <AnimatePresence>

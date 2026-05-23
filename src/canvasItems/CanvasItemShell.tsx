@@ -1,11 +1,14 @@
+import { useMemo } from 'react'
 import { motion } from 'framer-motion'
 import type { RefObject } from 'react'
 import type { ReactZoomPanPinchContentRef } from 'react-zoom-pan-pinch'
+import { CANVAS_HEIGHT, CANVAS_WIDTH } from '../drawing/canvasDimensions'
 import { isItemFrozen } from '../canvasLock/layer'
 import { useCanvasLockStore } from '../canvasLock/canvasLockStore'
 import { useCanvasItemsStore } from './canvasItemsStore'
 import DragHandle from './DragHandle'
 import ResizeHandle from './ResizeHandle'
+import { getGrabHandlePlacement } from './grabZone'
 import { useCanvasItemDrag } from './useCanvasItemDrag'
 import { useCanvasItemResize } from './useCanvasItemResize'
 import { useDeferredCanvasTap } from '../canvas/useDeferredCanvasTap'
@@ -49,6 +52,18 @@ export default function CanvasItemShell({
   const isTextItem = item.type === 'text'
   const lifted = isDragging || isResizing
   const clipContent = item.type === 'sticky' || item.type === 'text'
+  const grabHandlePlacement = useMemo(
+    () =>
+      getGrabHandlePlacement(
+        item.x,
+        item.y,
+        item.width,
+        item.height,
+        CANVAS_WIDTH,
+        CANVAS_HEIGHT,
+      ),
+    [item.x, item.y, item.width, item.height],
+  )
 
   return (
     <motion.div
@@ -78,10 +93,13 @@ export default function CanvasItemShell({
       }}
     >
       {!frozen && (
-        <>
-          <DragHandle onPointerDown={onGrabPointerDown} />
+        <div data-lock-flatten-skip>
+          <DragHandle
+            placement={grabHandlePlacement}
+            onPointerDown={onGrabPointerDown}
+          />
           <ResizeHandle onPointerDown={onResizeDown} />
-        </>
+        </div>
       )}
       <div
         onPointerDown={(e) => {

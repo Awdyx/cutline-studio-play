@@ -1,5 +1,12 @@
 import { useMemo, type RefObject } from 'react'
 import type { ReactZoomPanPinchContentRef } from 'react-zoom-pan-pinch'
+import { useCanvasLockFlattenStore } from '../canvasLock/canvasLockFlattenStore'
+import {
+  isCommittedHiddenWhenFlattened,
+  shouldFlattenCanvas,
+  stickyNeedsAnnotationOverlay,
+} from '../canvasLock/flattenVisibility'
+import { useCanvasLockStore } from '../canvasLock/canvasLockStore'
 import {
   isAboveStrokes,
   isAnnotationItem,
@@ -9,9 +16,11 @@ import {
 import { useCanvasItemsStore } from './canvasItemsStore'
 import ImageItem from './ImageItem'
 import StickyNote from './StickyNote'
+import StickyAnnotationOverlay from './StickyAnnotationOverlay'
 import TextItem from './TextItem'
 import VideoItem from './VideoItem'
 import SpaceItem from './SpaceItem'
+import type { CanvasItem, StickyCanvasItem } from './types'
 
 export default function CanvasItemsLayer({
   transformRef,
@@ -24,6 +33,11 @@ export default function CanvasItemsLayer({
 }) {
   const items = useCanvasItemsStore((s) => s.items)
   const selectedIds = useCanvasItemsStore((s) => s.selectedIds)
+  const activeStickyId = useCanvasItemsStore((s) => s.activeStickyStroke?.stickyId ?? null)
+  const isLocked = useCanvasLockStore((s) => s.isLocked)
+  const flattenReady = useCanvasLockFlattenStore((s) => s.ready)
+  const liveGifIds = useCanvasLockFlattenStore((s) => s.liveGifIds)
+  const lockActive = shouldFlattenCanvas(isLocked)
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds])
 
   const sorted = useMemo(() => {
@@ -36,7 +50,22 @@ export default function CanvasItemsLayer({
     return [...filtered].sort((a, b) => a.zIndex - b.zIndex)
   }, [items, plane, selectedSet])
 
-  if (sorted.length === 0) return null
+  const overlayStickies = useMemo(() => {
+    if (plane === 'annotation' || !lockActive || !flattenReady) return []
+    return items.filter(
+      (item): item is StickyCanvasItem =>
+        item.type === 'sticky' &&
+        stickyNeedsAnnotationOverlay(
+          item,
+          lockActive,
+          flattenReady,
+          liveGifIds,
+          activeStickyId,
+        ),
+    )
+  }, [items, plane, lockActive, flattenReady, liveGifIds, activeStickyId])
+
+  if (sorted.length === 0 && overlayStickies.length === 0) return null
 
   const ariaLabel =
     plane === 'below'
@@ -45,45 +74,60 @@ export default function CanvasItemsLayer({
         ? 'Canvas items above drawing'
         : 'Temporary canvas annotations'
 
+  function renderItem(item: CanvasItem) {
+    const selectedIndex = selectedIds.indexOf(item.id)
+    const liftZIndex =
+      selectedIndex >= 0 ? Z_SELECTION_ABOVE_DIM + selectedIndex : undefined
+    const shellProps = {
+      transformRef,
+      onItemResizeStateChange,
+      liftZIndex,
+    }
+
+    if (
+      isCommittedHiddenWhenFlattened(item, lockActive, flattenReady, liveGifIds)
+    ) {
+      return null
+    }
+
+    if (item.type === 'sticky') {
+      return <StickyNote key={item.id} item={item} {...shellProps} />
+    }
+    if (item.type === 'text') {
+      return <TextItem key={item.id} item={item} {...shellProps} />
+    }
+    if (item.type === 'image') {
+      return <ImageItem key={item.id} item={item} {...shellProps} />
+    }
+    if (item.type === 'space') {
+      return (
+        <SpaceItem
+          key={item.id}
+          item={item}
+          transformRef={transformRef}
+          liftZIndex={liftZIndex}
+        />
+      )
+    }
+    return <VideoItem key={item.id} item={item} {...shellProps} />
+  }
+
   return (
-    <div
-      aria-label={ariaLabel}
-      style={{
-        position: 'absolute',
-        inset: 0,
-        pointerEvents: 'none',
-      }}
-    >
-      {sorted.map((item) => {
-        const selectedIndex = selectedIds.indexOf(item.id)
-        const liftZIndex =
-          selectedIndex >= 0 ? Z_SELECTION_ABOVE_DIM + selectedIndex : undefined
-        const shellProps = {
-          transformRef,
-          onItemResizeStateChange,
-          liftZIndex,
-        }
-        if (item.type === 'sticky') {
-          return <StickyNote key={item.id} item={item} {...shellProps} />
-        }
-        if (item.type === 'text') {
-          return <TextItem key={item.id} item={item} {...shellProps} />
-        }
-        if (item.type === 'image') {
-          return <ImageItem key={item.id} item={item} {...shellProps} />
-        }
-        if (item.type === 'space') {
-          return (
-            <SpaceItem
-              key={item.id}
-              item={item}
-              transformRef={transformRef}
-              liftZIndex={liftZIndex}
-            />
-          )
-        }
-        return <VideoItem key={item.id} item={item} {...shellProps} />
-      })}
-    </div>
+    <>
+      <div
+        aria-label={ariaLabel}
+        data-lock-layer={plane === 'annotation' ? 'annotation' : undefined}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+        }}
+      >
+        {sorted.map((item) => renderItem(item))}
+      </div>
+      {overlayStickies.map((item) => (
+        <StickyAnnotationOverlay key={`${item.id}-annotation`} item={item} />
+      ))}
+    </>
   )
 }

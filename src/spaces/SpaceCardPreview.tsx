@@ -9,6 +9,7 @@ import {
 import { useThemeStore } from '../theme/themeStore'
 import { useEffectiveMode } from '../theme/useEffectiveMode'
 import type { CanvasItem } from '../canvasItems/types'
+import { PreviewMediaImage } from '../canvasItems/PreviewMediaImage'
 import { useCanvasWorkspaceStore } from './canvasWorkspaceStore'
 
 function StrokePaths({
@@ -66,13 +67,12 @@ function PreviewItem({
 
   if (item.type === 'image' || item.type === 'video') {
     return (
-      <image
-        href={item.src}
+      <PreviewMediaImage
+        mediaId={item.mediaId}
         x={item.x}
         y={item.y}
         width={item.width}
         height={item.height}
-        preserveAspectRatio="xMidYMid slice"
         opacity={item.type === 'video' ? 0.92 : 1}
       />
     )

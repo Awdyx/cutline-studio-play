@@ -1,6 +1,8 @@
 export type SoundId =
   | 'itemDrop'
   | 'itemGrab'
+  | 'itemSelect'
+  | 'itemDeselect'
   | 'spawn'
   | 'lock'
   | 'unlock'
@@ -8,6 +10,8 @@ export type SoundId =
   | 'spaceExit'
   | 'menuOpen'
   | 'menuClose'
+  | 'submenuHover'
+  | 'submenuTap'
   | 'undo'
   | 'redo'
   | 'delete'

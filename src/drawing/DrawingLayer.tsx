@@ -1,6 +1,8 @@
 import { memo } from 'react'
 import { effectiveCanvasLocked } from '../canvasLock/layer'
 import { useCanvasLockStore } from '../canvasLock/canvasLockStore'
+import { useCanvasLockFlattenStore } from '../canvasLock/canvasLockFlattenStore'
+import { shouldFlattenCanvas } from '../canvasLock/flattenVisibility'
 import { useStrokesStore } from './strokesStore'
 import { resolveStrokeFill } from './colorUtils'
 import { strokeToSvgPath } from './strokePath'
@@ -42,11 +44,13 @@ function StrokeSvgLayer({
   activeStroke,
   zIndex,
   glowFilterId,
+  strokeLayer,
 }: {
   strokes: Stroke[]
   activeStroke: Stroke | null
   zIndex: number
   glowFilterId: string
+  strokeLayer: 'committed' | 'annotation'
 }) {
   const themeMode = useThemeStore((s) => s.mode)
   const effectiveMode = useEffectiveMode(themeMode)
@@ -67,6 +71,8 @@ function StrokeSvgLayer({
       height={CANVAS_HEIGHT}
       viewBox={`0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`}
       aria-hidden
+      data-lock-stroke-layer={strokeLayer}
+      data-lock-layer={strokeLayer === 'annotation' ? 'annotation' : undefined}
       style={{
         position: 'absolute',
         top: 0,
@@ -143,24 +149,31 @@ export default function DrawingLayer() {
   const annotationStrokes = useStrokesStore((s) => s.annotationStrokes)
   const activeStroke = useStrokesStore((s) => s.activeStroke)
   const isLocked = useCanvasLockStore((s) => s.isLocked)
+  const flattenReady = useCanvasLockFlattenStore((s) => s.ready)
   const lockActive = effectiveCanvasLocked(isLocked)
+  const hideCommittedStrokes =
+    shouldFlattenCanvas(isLocked) && flattenReady && strokes.length > 0
 
   const committedActive = lockActive ? null : activeStroke
   const annotationActive = lockActive ? activeStroke : null
 
   return (
     <>
-      <StrokeSvgLayer
-        strokes={strokes}
-        activeStroke={committedActive}
-        zIndex={Z_STROKES}
-        glowFilterId={HIGHLIGHTER_GLOW_FILTER_ID}
-      />
+      {!hideCommittedStrokes && (
+        <StrokeSvgLayer
+          strokes={strokes}
+          activeStroke={committedActive}
+          zIndex={Z_STROKES}
+          glowFilterId={HIGHLIGHTER_GLOW_FILTER_ID}
+          strokeLayer="committed"
+        />
+      )}
       <StrokeSvgLayer
         strokes={annotationStrokes}
         activeStroke={annotationActive}
         zIndex={Z_ANNOTATION_STROKES}
         glowFilterId={ANNOTATION_GLOW_FILTER_ID}
+        strokeLayer="annotation"
       />
     </>
   )

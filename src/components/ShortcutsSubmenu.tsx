@@ -2,6 +2,8 @@ import { useLayoutEffect, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import { CHROME_CARD_CLASS, card, chromeLabel, font } from '../styles/tokens'
+import { submenuRowHoverProps } from '../sound/submenuSound'
+import { SubmenuSoundScope } from './SubmenuSoundScope'
 import { SHORTCUT_CATEGORIES, shortcutsByCategory } from '../shortcuts/shortcutDefs'
 import { ShortcutKeycaps } from './ShortcutKeycaps'
 import { useSubmenuPosition } from './useSubmenuPosition'
@@ -47,6 +49,7 @@ export default function ShortcutsSubmenu({
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
     >
+      <SubmenuSoundScope>
       {SHORTCUT_CATEGORIES.map((category) => {
         const items = (grouped.get(category) ?? []).filter((s) => s.keys.length > 0)
         if (items.length === 0) return null
@@ -69,12 +72,15 @@ export default function ShortcutsSubmenu({
               {items.map((shortcut) => (
                 <li
                   key={shortcut.id}
+                  {...submenuRowHoverProps()}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     gap: 10,
                     padding: '7px 14px',
+                    borderRadius: 8,
+                    cursor: 'default',
                   }}
                 >
                   <span style={{ fontSize: 13, color: font.colorPrimary }}>
@@ -87,6 +93,7 @@ export default function ShortcutsSubmenu({
           </section>
         )
       })}
+      </SubmenuSoundScope>
     </motion.div>,
     document.body,
   )

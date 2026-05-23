@@ -3,7 +3,9 @@ import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import { Sun, Moon, Monitor, Check } from 'lucide-react'
 import { CHROME_CARD_CLASS, card, chromeLabel, font } from '../styles/tokens'
+import { playSubmenuHover, playSubmenuTap } from '../sound/submenuSound'
 import type { ThemeMode } from '../theme/themeStore'
+import { SubmenuSoundScope } from './SubmenuSoundScope'
 import { useSubmenuPosition } from './useSubmenuPosition'
 
 const OPTIONS: { mode: ThemeMode; icon: React.ElementType; label: string }[] = [
@@ -58,11 +60,13 @@ export default function ThemeSubmenu({
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
     >
+      <SubmenuSoundScope>
       {OPTIONS.map(({ mode, icon: Icon, label }) => (
         <button
           key={mode}
           type="button"
           onClick={() => {
+            playSubmenuTap()
             onSelect(mode)
             onClose()
           }}
@@ -80,6 +84,7 @@ export default function ThemeSubmenu({
           }}
           className="theme-surface"
           onMouseEnter={(e) => {
+            playSubmenuHover()
             e.currentTarget.style.background = 'rgba(0, 0, 0, 0.04)'
           }}
           onMouseLeave={(e) => {
@@ -93,6 +98,7 @@ export default function ThemeSubmenu({
           )}
         </button>
       ))}
+      </SubmenuSoundScope>
     </motion.div>,
     document.body,
   )
