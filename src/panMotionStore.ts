@@ -11,8 +11,10 @@ interface PanMotionState {
   intensity: number
   active: boolean
   edges: EdgeStrengths
+  zoomEdgeStrength: number
   setPanFrame: (vx: number, vy: number, edges: EdgeStrengths) => void
   setEdges: (edges: EdgeStrengths) => void
+  setZoomEdgeStrength: (strength: number) => void
   setPanStopped: () => void
 }
 
@@ -22,6 +24,7 @@ export const usePanMotionStore = create<PanMotionState>((set) => ({
   intensity: 0,
   active: false,
   edges: EMPTY_EDGE_STRENGTHS,
+  zoomEdgeStrength: 0,
 
   setPanFrame: (vx, vy, edges) => {
     const magnitude = Math.sqrt(vx * vx + vy * vy)
@@ -37,6 +40,10 @@ export const usePanMotionStore = create<PanMotionState>((set) => ({
 
   setEdges: (edges) => {
     set({ edges })
+  },
+
+  setZoomEdgeStrength: (strength) => {
+    set({ zoomEdgeStrength: strength })
   },
 
   setPanStopped: () => {

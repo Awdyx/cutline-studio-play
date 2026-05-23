@@ -272,6 +272,7 @@ input::placeholder {
   z-index: 0;
   overflow: hidden;
   touch-action: none;
+  background-color: var(--canvas-bg);
 }
 
 .cutline-canvas-viewport .react-transform-wrapper {
@@ -665,7 +666,7 @@ html[data-multi-touch] .canvas-item-resize-handle {
 
 .chrome-icon-attention {
   display: inline-flex;
-  animation: chrome-icon-attention 7.5s ease-in-out infinite;
+  animation: chrome-icon-attention 3.75s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {

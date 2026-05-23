@@ -38,9 +38,12 @@ function edgeOpacity(strength: number): number {
   return Math.min(1, strength * EDGE_OPACITY_GAIN * VIGNETTE_OPACITY)
 }
 
+const ZOOM_EDGE_VIGNETTE_GAIN = 0.72
+
 export default function TrailingVignette() {
   const edges = usePanMotionStore((s) => s.edges)
-  const visible = vignetteIsVisible(edges)
+  const zoomEdgeStrength = usePanMotionStore((s) => s.zoomEdgeStrength)
+  const visible = vignetteIsVisible(edges) || zoomEdgeStrength > 0
 
   return (
     <motion.div
@@ -65,9 +68,11 @@ export default function TrailingVignette() {
             background: edgeGradient(key),
             willChange: 'opacity',
           }}
-          animate={{ opacity: edgeOpacity(edges[key]) }}
+          animate={{ opacity: edgeOpacity(Math.max(edges[key], zoomEdgeStrength * ZOOM_EDGE_VIGNETTE_GAIN)) }}
           transition={
-            edges[key] > 0 ? directionTransition : fadeTransition(false)
+            edges[key] > 0 || zoomEdgeStrength > 0
+              ? directionTransition
+              : fadeTransition(false)
           }
         />
       ))}

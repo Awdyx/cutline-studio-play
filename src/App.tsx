@@ -58,8 +58,12 @@ import {
   CANVAS_HEIGHT,
   CANVAS_WIDTH,
   CANVAS_MAX_SCALE,
+  CANVAS_ZOOM_EDGE_PADDING,
+  CANVAS_ZOOM_MIN_EDGE_PADDING,
 } from './drawing/canvasDimensions'
 import { useCanvasViewport } from './canvas/useCanvasViewport'
+import { useCanvasZoomEdgeEase } from './canvas/useCanvasZoomEdgeEase'
+import { useCanvasPanBounce } from './canvas/useCanvasPanBounce'
 import { useCanvasCompositorWarmup } from './canvas/useCanvasCompositorWarmup'
 import CanvasSwapVeil from './canvas/CanvasSwapVeil'
 import { blurStrayTextFocus } from './platform/textFocus'
@@ -278,6 +282,8 @@ function App() {
   const transformRef = useRef<ReactZoomPanPinchContentRef | null>(null)
   const { viewportRef, viewportSize, minScale, onTransformInit, onHydrated } =
     useCanvasViewport(transformRef)
+  const zoomEdgeEase = useCanvasZoomEdgeEase(minScale)
+  const panBounce = useCanvasPanBounce()
   const canvasRef = useRef<HTMLDivElement | null>(null)
   const [canvasMount, setCanvasMount] = useState<HTMLDivElement | null>(null)
   const [appHydrated, setAppHydrated] = useState(false)
@@ -473,110 +479,118 @@ function App() {
       }}
     >
       <div ref={viewportRef} className="cutline-canvas-viewport">
-        <TransformWrapper
-          ref={transformRef}
-          initialScale={minScale}
-          minScale={minScale}
-          maxScale={CANVAS_MAX_SCALE}
-          limitToBounds
-          disablePadding
-          centerZoomedOut={false}
-          onInit={onTransformInit}
-          onPanning={(ref) => {
-            onPanning(ref)
-            useCanvasWorkspaceStore.getState().syncMainCamera(ref)
-          }}
-          onPanningStop={(ref) => {
-            onPanningStop(ref)
-            useCanvasWorkspaceStore.getState().syncMainCamera(ref)
-          }}
-          onZoomStop={(ref) => {
-            useCanvasWorkspaceStore.getState().syncMainCamera(ref)
-          }}
-          wheel={{
-            step: 0.02,
-            activationKeys: (keys) =>
-              keys.includes('Control') || keys.includes('Meta'),
-          }}
-          trackPadPanning={{
-            disabled: false,
-            excluded: [...CANVAS_PAN_EXCLUDED],
-          }}
-          panning={{
-            velocityDisabled: false,
-            disabled: isPenDown,
-            excluded: [...CANVAS_PAN_EXCLUDED],
-          }}
-          pinch={{
-            excluded: [...CANVAS_PAN_EXCLUDED],
-          }}
-          velocityAnimation={{
-            sensitivityMouse: 0.4,
-            sensitivityTouch: 0.4,
-            animationTime: 350,
-            animationType: 'easeOut',
-          }}
-          doubleClick={{ disabled: true }}
+        <div
+          ref={panBounce.bounceRef}
+          style={{ width: '100%', height: '100%' }}
         >
-          <TransformComponent
-            wrapperStyle={{
-              width: viewportSize.width,
-              height: viewportSize.height,
-              overflow: 'hidden',
-              touchAction: 'none',
+          <TransformWrapper
+            ref={transformRef}
+            initialScale={minScale}
+            minScale={Math.max(minScale - CANVAS_ZOOM_MIN_EDGE_PADDING, 0.05)}
+            maxScale={CANVAS_MAX_SCALE + CANVAS_ZOOM_EDGE_PADDING}
+            limitToBounds
+            disablePadding
+            centerZoomedOut={false}
+            onInit={onTransformInit}
+            onPanning={(ref) => {
+              onPanning(ref)
+              panBounce.onPanning(ref)
+              useCanvasWorkspaceStore.getState().syncMainCamera(ref)
             }}
-            contentStyle={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT }}
+            onPanningStop={(ref) => {
+              onPanningStop(ref)
+              panBounce.onPanningStop()
+              useCanvasWorkspaceStore.getState().syncMainCamera(ref)
+            }}
+            onZoom={zoomEdgeEase.onZoom}
+            onPinch={zoomEdgeEase.onPinch}
+            onZoomStop={zoomEdgeEase.onZoomStop}
+            onPinchStop={zoomEdgeEase.onZoomStop}
+            wheel={{
+              step: 0.02,
+              activationKeys: (keys) =>
+                keys.includes('Control') || keys.includes('Meta'),
+            }}
+            trackPadPanning={{
+              disabled: false,
+              excluded: [...CANVAS_PAN_EXCLUDED],
+            }}
+            panning={{
+              velocityDisabled: false,
+              disabled: isPenDown,
+              excluded: [...CANVAS_PAN_EXCLUDED],
+            }}
+            pinch={{
+              excluded: [...CANVAS_PAN_EXCLUDED],
+            }}
+            velocityAnimation={{
+              sensitivityMouse: 0.4,
+              sensitivityTouch: 0.4,
+              animationTime: 350,
+              animationType: 'easeOut',
+            }}
+            doubleClick={{ disabled: true }}
           >
-            <div
-              ref={(node) => {
-                canvasRef.current = node
-                setCanvasMount(node)
+            <TransformComponent
+              wrapperStyle={{
+                width: viewportSize.width,
+                height: viewportSize.height,
+                overflow: 'hidden',
+                touchAction: 'none',
               }}
-              className="cutline-draw-target draw-target cutline-canvas-bg"
-              onPointerDown={canvasSelectionPointer.onPointerDown}
-              onPointerMove={canvasSelectionPointer.onPointerMove}
-              onPointerUp={canvasSelectionPointer.onPointerUp}
-              onPointerCancel={canvasSelectionPointer.onPointerCancel}
-              style={{
-                width: CANVAS_WIDTH,
-                height: CANVAS_HEIGHT,
-                position: 'relative',
-                opacity: canvasFadeOpacity,
-                transition: canvasSwapBusy ? swapTransition : undefined,
-                pointerEvents: canvasSwapBusy ? 'none' : undefined,
-              }}
+              contentStyle={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT }}
             >
-              {meshColors.map((color, index) => {
-                const visibility = meshBlobVisibility[index] ?? 0
-                if (visibility <= 0 || hideLiveMesh) return null
+              <div
+                ref={(node) => {
+                  canvasRef.current = node
+                  setCanvasMount(node)
+                }}
+                className="cutline-draw-target draw-target cutline-canvas-bg"
+                onPointerDown={canvasSelectionPointer.onPointerDown}
+                onPointerMove={canvasSelectionPointer.onPointerMove}
+                onPointerUp={canvasSelectionPointer.onPointerUp}
+                onPointerCancel={canvasSelectionPointer.onPointerCancel}
+                style={{
+                  width: CANVAS_WIDTH,
+                  height: CANVAS_HEIGHT,
+                  position: 'relative',
+                  opacity: canvasFadeOpacity,
+                  transition: canvasSwapBusy ? swapTransition : undefined,
+                  pointerEvents: canvasSwapBusy ? 'none' : undefined,
+                }}
+              >
+                {meshColors.map((color, index) => {
+                  const visibility = meshBlobVisibility[index] ?? 0
+                  if (visibility <= 0 || hideLiveMesh) return null
 
-                return (
-                  <div
-                    key={index}
-                    data-mesh-blob
-                    aria-hidden
-                    style={{
-                      position: 'absolute',
-                      inset: 0,
-                      backgroundImage: `radial-gradient(circle, ${color} 0%, transparent 62%)`,
-                      opacity: meshLayerOpacity * visibility,
-                      backgroundSize: `${meshBlobMotion[index].size}px ${meshBlobMotion[index].size}px`,
-                      backgroundRepeat: 'no-repeat',
-                      backgroundPosition: `${meshBlobMotion[index].path[0][0]}% ${meshBlobMotion[index].path[0][1]}%`,
-                      pointerEvents: 'none',
-                    }}
-                  />
-                )
-              })}
-              <CanvasLockFlattenLayer />
-              <CanvasItemsLayer plane="below" transformRef={transformRef} />
-              <DrawingLayer />
-              <CanvasItemsLayer plane="above" transformRef={transformRef} />
-              <CanvasItemsLayer plane="annotation" transformRef={transformRef} />
-              <SelectionBlurOverlay />
-            </div>
-          </TransformComponent>
-        </TransformWrapper>
+                  return (
+                    <div
+                      key={index}
+                      data-mesh-blob
+                      aria-hidden
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        backgroundImage: `radial-gradient(circle, ${color} 0%, transparent 62%)`,
+                        opacity: meshLayerOpacity * visibility,
+                        backgroundSize: `${meshBlobMotion[index].size}px ${meshBlobMotion[index].size}px`,
+                        backgroundRepeat: 'no-repeat',
+                        backgroundPosition: `${meshBlobMotion[index].path[0][0]}% ${meshBlobMotion[index].path[0][1]}%`,
+                        pointerEvents: 'none',
+                      }}
+                    />
+                  )
+                })}
+                <CanvasLockFlattenLayer />
+                <CanvasItemsLayer plane="below" transformRef={transformRef} />
+                <DrawingLayer />
+                <CanvasItemsLayer plane="above" transformRef={transformRef} />
+                <CanvasItemsLayer plane="annotation" transformRef={transformRef} />
+                <SelectionBlurOverlay />
+              </div>
+            </TransformComponent>
+          </TransformWrapper>
+        </div>
 
         <ThemeChangePulse effectiveMode={effectiveMode} />
       </div>

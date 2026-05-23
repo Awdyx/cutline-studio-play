@@ -32,6 +32,8 @@ import {
   readCameraFromRef,
   resetToCoverFit,
 } from '../canvas/canvasCamera'
+import { hardClampScale } from '../canvas/canvasZoomEdgeEase'
+import { getCanvasMinScale } from '../drawing/canvasDimensions'
 import { captureCanvasSnapshot } from './spaceSnapshot'
 import type { SpaceCanvasItem } from '../canvasItems/types'
 import {
@@ -497,9 +499,19 @@ export const useCanvasWorkspaceStore = create<CanvasWorkspaceState>((set, get) =
   },
 
   syncMainCamera: (transformRef) => {
-    if (get().activeCanvasId !== 'main') return
+    if (get().activeCanvasId !== 'main' || !transformRef) return
     const camera = readCameraFromRef(transformRef)
-    if (camera) mainCameraCache = camera
+    if (!camera) return
+
+    const wrapper = transformRef.instance.wrapperComponent
+    const hardMin = wrapper
+      ? getCanvasMinScale(wrapper.offsetWidth, wrapper.offsetHeight)
+      : camera.scale
+
+    mainCameraCache = {
+      ...camera,
+      scale: hardClampScale(camera.scale, hardMin),
+    }
   },
 
   applyCameraForActiveCanvas: (transformRef) => {

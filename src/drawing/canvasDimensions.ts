@@ -8,6 +8,11 @@ const MIN_SCALE_COVER_FACTOR = 1.2
 
 export const CANVAS_MAX_SCALE = 2
 
+/** Soft overshoot past hard zoom limits (scale units); snaps back on release. */
+export const CANVAS_ZOOM_EDGE_PADDING = 0.1
+/** Slightly less give when zooming out — lighter settle at min zoom. */
+export const CANVAS_ZOOM_MIN_EDGE_PADDING = 0.0425
+
 /**
  * Minimum zoom scale: cover the viewport in both axes (no letterboxing), then
  * zoom in 20% further so the canvas always extends past every edge.
