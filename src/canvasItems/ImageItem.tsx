@@ -13,12 +13,10 @@ export default function ImageItem({
   item,
   transformRef,
   onItemResizeStateChange,
-  liftZIndex,
 }: {
   item: ImageCanvasItem
   transformRef: RefObject<ReactZoomPanPinchContentRef | null>
   onItemResizeStateChange?: (resizing: boolean) => void
-  liftZIndex?: number
 }) {
   const { url, status } = useMediaBlobUrl(item.mediaId, item.id)
 
@@ -27,7 +25,6 @@ export default function ImageItem({
       item={item}
       transformRef={transformRef}
       onItemResizeStateChange={onItemResizeStateChange}
-      liftZIndex={liftZIndex}
     >
       <MediaBlobFrame status={status}>
         {url ? (

@@ -13,12 +13,10 @@ export default function VideoItem({
   item,
   transformRef,
   onItemResizeStateChange,
-  liftZIndex,
 }: {
   item: VideoCanvasItem
   transformRef: RefObject<ReactZoomPanPinchContentRef | null>
   onItemResizeStateChange?: (resizing: boolean) => void
-  liftZIndex?: number
 }) {
   const [hovered, setHovered] = useState(false)
   const { url, status } = useMediaBlobUrl(item.mediaId, item.id)
@@ -28,7 +26,6 @@ export default function VideoItem({
       item={item}
       transformRef={transformRef}
       onItemResizeStateChange={onItemResizeStateChange}
-      liftZIndex={liftZIndex}
     >
       <MediaBlobFrame status={status}>
         {url ? (

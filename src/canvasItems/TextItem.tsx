@@ -3,7 +3,7 @@ import type { ReactZoomPanPinchContentRef } from 'react-zoom-pan-pinch'
 import { isItemFrozen } from '../canvasLock/layer'
 import { useCanvasLockStore } from '../canvasLock/canvasLockStore'
 import { font } from '../styles/tokens'
-import { useCanvasItemsStore } from './canvasItemsStore'
+import { useCanvasItemsStore, useItemSelected } from './canvasItemsStore'
 import CanvasItemShell from './CanvasItemShell'
 import {
   isEditorEmpty,
@@ -31,12 +31,10 @@ export default function TextItem({
   item,
   transformRef,
   onItemResizeStateChange,
-  liftZIndex,
 }: {
   item: TextCanvasItem
   transformRef: RefObject<ReactZoomPanPinchContentRef | null>
   onItemResizeStateChange?: (resizing: boolean) => void
-  liftZIndex?: number
 }) {
   const isLocked = useCanvasLockStore((s) => s.isLocked)
   const frozen = isItemFrozen(item, isLocked)
@@ -45,7 +43,7 @@ export default function TextItem({
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [showPlaceholder, setShowPlaceholder] = useState(item.text.length === 0)
   const [isEditing, setIsEditing] = useState(false)
-  const isSelected = useCanvasItemsStore((s) => s.selectedIds.includes(item.id))
+  const isSelected = useItemSelected(item.id)
   const { onGrabPointerDown } = useCanvasItemDrag(item.id)
 
   const scheduleSave = useCallback(
@@ -187,7 +185,6 @@ export default function TextItem({
       item={item}
       transformRef={transformRef}
       onItemResizeStateChange={onItemResizeStateChange}
-      liftZIndex={liftZIndex}
     >
         <div
           style={{

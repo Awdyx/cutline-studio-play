@@ -3,18 +3,16 @@ import { AnimatePresence } from 'framer-motion'
 import type { ReactZoomPanPinchContentRef } from 'react-zoom-pan-pinch'
 import { useCanvasLockFlattenStore } from '../canvasLock/canvasLockFlattenStore'
 import {
-  isCommittedHiddenWhenFlattened,
   shouldFlattenCanvas,
   stickyNeedsAnnotationOverlay,
 } from '../canvasLock/flattenVisibility'
 import { useCanvasLockStore } from '../canvasLock/canvasLockStore'
 import {
-  isAboveStrokes,
-  isAnnotationItem,
-  isBelowStrokes,
-  Z_SELECTION_ABOVE_DIM,
-} from './canvasZOrder'
-import { useCanvasItemsStore } from './canvasItemsStore'
+  useCanvasItemsStore,
+  useLiveCandidatesByPlane,
+  useSortedItemsByPlane,
+  useStickies,
+} from './canvasItemsStore'
 import { useCanvasWorkspaceStore } from '../spaces/canvasWorkspaceStore'
 import ImageItem from './ImageItem'
 import StickyNote from './StickyNote'
@@ -23,6 +21,9 @@ import TextItem from './TextItem'
 import VideoItem from './VideoItem'
 import SpaceItem from './SpaceItem'
 import type { CanvasItem, StickyCanvasItem } from './types'
+
+const EMPTY_ITEMS: readonly CanvasItem[] = []
+const EMPTY_STICKIES: readonly StickyCanvasItem[] = []
 
 export default function CanvasItemsLayer({
   transformRef,
@@ -33,42 +34,51 @@ export default function CanvasItemsLayer({
   onItemResizeStateChange?: (resizing: boolean) => void
   plane: 'below' | 'above' | 'annotation'
 }) {
-  const items = useCanvasItemsStore((s) => s.items)
   const activeCanvasId = useCanvasWorkspaceStore((s) => s.activeCanvasId)
-  const selectedIds = useCanvasItemsStore((s) => s.selectedIds)
   const activeStickyId = useCanvasItemsStore((s) => s.activeStickyStroke?.stickyId ?? null)
   const isLocked = useCanvasLockStore((s) => s.isLocked)
   const flattenReady = useCanvasLockFlattenStore((s) => s.ready)
   const liveGifIds = useCanvasLockFlattenStore((s) => s.liveGifIds)
   const lockActive = shouldFlattenCanvas(isLocked)
-  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds])
+  const flattenHidesCommitted = lockActive && flattenReady
 
-  const sorted = useMemo(() => {
-    const filtered =
-      plane === 'below'
-        ? items.filter((i) => !isAnnotationItem(i) && isBelowStrokes(i.zIndex))
-        : plane === 'above'
-          ? items.filter((i) => !isAnnotationItem(i) && isAboveStrokes(i.zIndex))
-          : items.filter(isAnnotationItem)
-    return [...filtered].sort((a, b) => a.zIndex - b.zIndex)
-  }, [items, plane, selectedSet])
+  // Sorted items per plane come from a cached derivation in the store so all
+  // three CanvasItemsLayer instances share one sort and re-renders driven by
+  // unrelated state changes don't re-run the comparator.
+  const planeItems = useSortedItemsByPlane(plane)
 
-  const overlayStickies = useMemo(() => {
-    if (plane === 'annotation' || !lockActive || !flattenReady) return []
-    return items.filter(
-      (item): item is StickyCanvasItem =>
-        item.type === 'sticky' &&
-        stickyNeedsAnnotationOverlay(
-          item,
-          lockActive,
-          flattenReady,
-          liveGifIds,
-          activeStickyId,
-        ),
+  // When the canvas is flattened, committed items are baked into the bitmap
+  // layer — iterate only the small live-candidate list (spaces + GIFs) for
+  // the below/above planes and skip the full items array entirely.
+  const liveBelow = useLiveCandidatesByPlane('below')
+  const liveAbove = useLiveCandidatesByPlane('above')
+  const renderable: readonly CanvasItem[] = useMemo(() => {
+    if (!flattenHidesCommitted || plane === 'annotation') return planeItems
+    const candidates = plane === 'below' ? liveBelow : liveAbove
+    if (candidates.length === 0) return EMPTY_ITEMS
+    return candidates.filter(
+      (item) => item.type === 'space' || liveGifIds.has(item.id),
     )
-  }, [items, plane, lockActive, flattenReady, liveGifIds, activeStickyId])
+  }, [flattenHidesCommitted, plane, planeItems, liveBelow, liveAbove, liveGifIds])
 
-  if (sorted.length === 0 && overlayStickies.length === 0) return null
+  // Overlay stickies are typically a small subset of all items; pull from the
+  // cached sticky-only list rather than scanning every item on every render.
+  const allStickies = useStickies()
+  const overlayStickies: readonly StickyCanvasItem[] = useMemo(() => {
+    if (plane === 'annotation' || !lockActive || !flattenReady) return EMPTY_STICKIES
+    if (allStickies.length === 0) return EMPTY_STICKIES
+    return allStickies.filter((item) =>
+      stickyNeedsAnnotationOverlay(
+        item,
+        lockActive,
+        flattenReady,
+        liveGifIds,
+        activeStickyId,
+      ),
+    )
+  }, [allStickies, plane, lockActive, flattenReady, liveGifIds, activeStickyId])
+
+  if (renderable.length === 0 && overlayStickies.length === 0) return null
 
   const ariaLabel =
     plane === 'below'
@@ -78,19 +88,9 @@ export default function CanvasItemsLayer({
         : 'Temporary canvas annotations'
 
   function renderItem(item: CanvasItem) {
-    const selectedIndex = selectedIds.indexOf(item.id)
-    const liftZIndex =
-      selectedIndex >= 0 ? Z_SELECTION_ABOVE_DIM + selectedIndex : undefined
     const shellProps = {
       transformRef,
       onItemResizeStateChange,
-      liftZIndex,
-    }
-
-    if (
-      isCommittedHiddenWhenFlattened(item, lockActive, flattenReady, liveGifIds)
-    ) {
-      return null
     }
 
     if (item.type === 'sticky') {
@@ -109,7 +109,6 @@ export default function CanvasItemsLayer({
           item={item}
           transformRef={transformRef}
           onItemResizeStateChange={onItemResizeStateChange}
-          liftZIndex={liftZIndex}
         />
       )
     }
@@ -129,7 +128,7 @@ export default function CanvasItemsLayer({
         }}
       >
         <AnimatePresence initial={false}>
-          {sorted.map((item) => renderItem(item))}
+          {renderable.map((item) => renderItem(item))}
         </AnimatePresence>
       </div>
       {overlayStickies.map((item) => (

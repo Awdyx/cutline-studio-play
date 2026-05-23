@@ -5,10 +5,16 @@ import type { ReactZoomPanPinchContentRef } from 'react-zoom-pan-pinch'
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from '../drawing/canvasDimensions'
 import { isItemFrozen } from '../canvasLock/layer'
 import { useCanvasLockStore } from '../canvasLock/canvasLockStore'
-import { useCanvasItemsStore } from './canvasItemsStore'
+import {
+  useCanvasItemsStore,
+  useItemIsSoleSelected,
+  useItemSelected,
+  useItemSelectionIndex,
+  useItemZOrderPulse,
+} from './canvasItemsStore'
 import DragHandle from './DragHandle'
 import ResizeHandle from './ResizeHandle'
-import { getSoleSelectedItemId } from './canvasItemZMenuLayout'
+import { Z_SELECTION_ABOVE_DIM } from './canvasZOrder'
 import { getGrabHandlePlacement } from './grabZone'
 import { useCanvasItemDrag } from './useCanvasItemDrag'
 import { useCanvasItemResize } from './useCanvasItemResize'
@@ -26,14 +32,11 @@ export default function CanvasItemShell({
   item,
   transformRef,
   onItemResizeStateChange,
-  liftZIndex,
   children,
 }: {
   item: CanvasItem
   transformRef: RefObject<ReactZoomPanPinchContentRef | null>
   onItemResizeStateChange?: (resizing: boolean) => void
-  /** When set, item is raised above the selection blur overlay. */
-  liftZIndex?: number
   children: React.ReactNode
 }) {
   const { isDragging, onGrabPointerDown } = useCanvasItemDrag(item.id)
@@ -48,15 +51,16 @@ export default function CanvasItemShell({
 
   const isLocked = useCanvasLockStore((s) => s.isLocked)
   const frozen = isItemFrozen(item, isLocked)
-  const selectedIds = useCanvasItemsStore((s) => s.selectedIds)
-  const zOrderPulse = useCanvasItemsStore((s) => s.zOrderPulse)
-  const isSelected = liftZIndex != null || selectedIds.includes(item.id)
-  const hideDragHandle = getSoleSelectedItemId(selectedIds) === item.id
+  const isSelected = useItemSelected(item.id)
+  const selectionIndex = useItemSelectionIndex(item.id)
+  const isSoleSelected = useItemIsSoleSelected(item.id)
+  const zOrderPulse = useItemZOrderPulse(item.id)
+  const hideDragHandle = isSoleSelected
   const [zPulseClass, setZPulseClass] = useState<string | null>(null)
   const lastZPulseNonce = useRef(0)
 
   useEffect(() => {
-    if (!zOrderPulse || zOrderPulse.id !== item.id) return
+    if (!zOrderPulse) return
     if (zOrderPulse.nonce === lastZPulseNonce.current) return
     lastZPulseNonce.current = zOrderPulse.nonce
     setZPulseClass(
@@ -66,13 +70,14 @@ export default function CanvasItemShell({
     )
     const timer = window.setTimeout(() => setZPulseClass(null), 360)
     return () => window.clearTimeout(timer)
-  }, [zOrderPulse, item.id])
+  }, [zOrderPulse])
   const selectItem = useCanvasItemsStore((s) => s.selectItem)
   const itemTap = useDeferredCanvasTap((e) => {
     if (shouldSkipItemSelectForOutsideDismiss(item.id)) return
     selectItem(item.id, e.shiftKey)
   })
-  const displayZIndex = liftZIndex ?? item.zIndex
+  const displayZIndex =
+    selectionIndex >= 0 ? Z_SELECTION_ABOVE_DIM + selectionIndex : item.zIndex
   const isFlatItem =
     item.type === 'text' || item.type === 'image' || item.type === 'video'
   const lifted = isDragging || isResizing

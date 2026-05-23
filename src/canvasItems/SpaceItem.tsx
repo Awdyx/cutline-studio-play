@@ -10,11 +10,16 @@ import { useDeferredCanvasTap } from '../canvas/useDeferredCanvasTap'
 import { useCanvasNavigationStore } from '../canvas/canvasNavigationStore'
 import { shouldSkipItemSelectForOutsideDismiss } from '../canvas/canvasSelectionDismiss'
 import DragHandle from './DragHandle'
-import { getSoleSelectedItemId } from './canvasItemZMenuLayout'
+import { Z_SELECTION_ABOVE_DIM } from './canvasZOrder'
 import { getGrabHandlePlacement } from './grabZone'
 import { useCanvasItemDrag } from './useCanvasItemDrag'
 import { useSpacePreviewPanDrag } from './useSpacePreviewPanDrag'
-import { useCanvasItemsStore } from './canvasItemsStore'
+import {
+  useCanvasItemsStore,
+  useItemIsSoleSelected,
+  useItemSelected,
+  useItemSelectionIndex,
+} from './canvasItemsStore'
 import SpaceCardPreview from '../spaces/SpaceCardPreview'
 import { card, font, glass, SPACE_GLASS_CLASS } from '../styles/tokens'
 import type { SpaceCanvasItem } from './types'
@@ -33,16 +38,15 @@ function dist(x1: number, y1: number, x2: number, y2: number): number {
 export default function SpaceItem({
   item,
   transformRef,
-  liftZIndex,
 }: {
   item: SpaceCanvasItem
   transformRef: RefObject<ReactZoomPanPinchContentRef | null>
-  liftZIndex?: number
+  /** Accepted for API parity with other items; ignored. */
+  onItemResizeStateChange?: (resizing: boolean) => void
 }) {
   const isLocked = useCanvasLockStore((s) => s.isLocked)
   const frozen = isItemFrozen(item, isLocked)
   const spaceMeta = useCanvasWorkspaceStore((s) => s.spaces[item.id])
-  const selectedIds = useCanvasItemsStore((s) => s.selectedIds)
   const selectItem = useCanvasItemsStore((s) => s.selectItem)
   const displayName = spaceMeta?.name ?? item.name
   const hasPreviewContent =
@@ -67,8 +71,12 @@ export default function SpaceItem({
     onPreviewAdjustPointerCancel,
   } = useSpacePreviewPanDrag(item, previewRef, isPreviewAdjusting)
 
-  const isSelected = liftZIndex != null || selectedIds.includes(item.id)
-  const hideDragHandle = getSoleSelectedItemId(selectedIds) === item.id
+  const isSelected = useItemSelected(item.id)
+  const selectionIndex = useItemSelectionIndex(item.id)
+  const isSoleSelected = useItemIsSoleSelected(item.id)
+  const hideDragHandle = isSoleSelected
+  const displayZIndex =
+    selectionIndex >= 0 ? Z_SELECTION_ABOVE_DIM + selectionIndex : item.zIndex
 
   const enterSpace = useCallback(() => {
     if (useCanvasWorkspaceStore.getState().canvasSwapBusy) return
@@ -203,7 +211,7 @@ export default function SpaceItem({
         top: item.y,
         width: item.width,
         height: item.height,
-        zIndex: liftZIndex ?? item.zIndex,
+        zIndex: displayZIndex,
         transformOrigin: 'top left',
         overflow: 'visible',
         pointerEvents: 'none',

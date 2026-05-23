@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObje
 import type { ReactZoomPanPinchContentRef } from 'react-zoom-pan-pinch'
 import { isItemFrozen } from '../canvasLock/layer'
 import { useCanvasLockStore } from '../canvasLock/canvasLockStore'
-import { useCanvasItemsStore } from './canvasItemsStore'
+import { useCanvasItemsStore, useItemSelected } from './canvasItemsStore'
 import CanvasItemShell from './CanvasItemShell'
 import StickyStrokesSvg from './StickyStrokesSvg'
 import {
@@ -23,12 +23,10 @@ export default function StickyNote({
   item,
   transformRef,
   onItemResizeStateChange,
-  liftZIndex,
 }: {
   item: StickyCanvasItem
   transformRef: RefObject<ReactZoomPanPinchContentRef | null>
   onItemResizeStateChange?: (resizing: boolean) => void
-  liftZIndex?: number
 }) {
   const themeMode = useThemeStore((s) => s.mode)
   const effectiveMode = useEffectiveMode(themeMode)
@@ -40,7 +38,7 @@ export default function StickyNote({
   const shouldFocusRef = useRef(false)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [isEditing, setIsEditing] = useState(false)
-  const isSelected = useCanvasItemsStore((s) => s.selectedIds.includes(item.id))
+  const isSelected = useItemSelected(item.id)
   const { onGrabPointerDown } = useCanvasItemDrag(item.id)
   const scheduleSave = useCallback(
     (text: string) => {
@@ -141,7 +139,6 @@ export default function StickyNote({
       item={item}
       transformRef={transformRef}
       onItemResizeStateChange={onItemResizeStateChange}
-      liftZIndex={liftZIndex}
     >
       <div
         style={{

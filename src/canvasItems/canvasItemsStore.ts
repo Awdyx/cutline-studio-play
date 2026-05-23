@@ -19,6 +19,9 @@ import { duplicateMediaForItem } from '../media/workspaceMediaMigration'
 import { scheduleMediaBlobGc } from '../media/mediaBlobGc'
 import { generateItemId } from './itemId'
 import {
+  isAboveStrokes,
+  isAnnotationItem,
+  isBelowStrokes,
   nextZIndexForLayer,
   zIndexForBringToFront,
   zIndexForRaiseInPlane,
@@ -876,3 +879,180 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
     persistItems({ immediate: true })
   },
 }))
+
+// ─── Derived view caches ──────────────────────────────────────────────────
+// Module-level memoization keyed by the underlying array reference. Because
+// every items mutation produces a new array via .map/.filter/.concat, we can
+// rebuild derived structures lazily on first read and reuse stable refs for
+// every subsequent selector call until items changes again.
+
+export type ItemPlane = 'below' | 'above' | 'annotation'
+
+type ItemsDerived = {
+  itemsById: ReadonlyMap<string, CanvasItem>
+  sortedBelow: readonly CanvasItem[]
+  sortedAbove: readonly CanvasItem[]
+  sortedAnnotation: readonly CanvasItem[]
+  /** Spaces + images in the below plane, sorted by zIndex. */
+  liveCandidatesBelow: readonly CanvasItem[]
+  /** Spaces + images in the above plane, sorted by zIndex. */
+  liveCandidatesAbove: readonly CanvasItem[]
+  /** All committed stickies, sorted by zIndex (used for annotation overlay search). */
+  stickies: readonly StickyCanvasItem[]
+}
+
+const EMPTY_ITEMS_DERIVED: ItemsDerived = {
+  itemsById: new Map(),
+  sortedBelow: [],
+  sortedAbove: [],
+  sortedAnnotation: [],
+  liveCandidatesBelow: [],
+  liveCandidatesAbove: [],
+  stickies: [],
+}
+
+let lastItemsRef: readonly CanvasItem[] | null = null
+let cachedItemsDerived: ItemsDerived = EMPTY_ITEMS_DERIVED
+
+function byZIndex(a: CanvasItem, b: CanvasItem): number {
+  return a.zIndex - b.zIndex
+}
+
+function deriveItems(items: readonly CanvasItem[]): ItemsDerived {
+  if (items === lastItemsRef) return cachedItemsDerived
+
+  if (items.length === 0) {
+    lastItemsRef = items
+    cachedItemsDerived = EMPTY_ITEMS_DERIVED
+    return cachedItemsDerived
+  }
+
+  const itemsById = new Map<string, CanvasItem>()
+  const below: CanvasItem[] = []
+  const above: CanvasItem[] = []
+  const annotation: CanvasItem[] = []
+  const liveBelow: CanvasItem[] = []
+  const liveAbove: CanvasItem[] = []
+  const stickies: StickyCanvasItem[] = []
+
+  for (const item of items) {
+    itemsById.set(item.id, item)
+
+    if (item.type === 'sticky') stickies.push(item)
+
+    if (isAnnotationItem(item)) {
+      annotation.push(item)
+      continue
+    }
+
+    const isLiveCandidate = item.type === 'space' || item.type === 'image'
+    if (isBelowStrokes(item.zIndex)) {
+      below.push(item)
+      if (isLiveCandidate) liveBelow.push(item)
+    } else if (isAboveStrokes(item.zIndex)) {
+      above.push(item)
+      if (isLiveCandidate) liveAbove.push(item)
+    }
+  }
+
+  below.sort(byZIndex)
+  above.sort(byZIndex)
+  annotation.sort(byZIndex)
+  liveBelow.sort(byZIndex)
+  liveAbove.sort(byZIndex)
+  stickies.sort(byZIndex)
+
+  cachedItemsDerived = {
+    itemsById,
+    sortedBelow: below,
+    sortedAbove: above,
+    sortedAnnotation: annotation,
+    liveCandidatesBelow: liveBelow,
+    liveCandidatesAbove: liveAbove,
+    stickies,
+  }
+  lastItemsRef = items
+  return cachedItemsDerived
+}
+
+const EMPTY_SELECTED_SET: ReadonlySet<string> = new Set()
+const EMPTY_SELECTED_INDICES: ReadonlyMap<string, number> = new Map()
+
+let lastSelectedIdsRef: readonly string[] | null = null
+let cachedSelectedSet: ReadonlySet<string> = EMPTY_SELECTED_SET
+let cachedSelectedIndices: ReadonlyMap<string, number> = EMPTY_SELECTED_INDICES
+
+function deriveSelection(selectedIds: readonly string[]): {
+  set: ReadonlySet<string>
+  indices: ReadonlyMap<string, number>
+} {
+  if (selectedIds === lastSelectedIdsRef) {
+    return { set: cachedSelectedSet, indices: cachedSelectedIndices }
+  }
+  if (selectedIds.length === 0) {
+    lastSelectedIdsRef = selectedIds
+    cachedSelectedSet = EMPTY_SELECTED_SET
+    cachedSelectedIndices = EMPTY_SELECTED_INDICES
+    return { set: cachedSelectedSet, indices: cachedSelectedIndices }
+  }
+  const set = new Set(selectedIds)
+  const indices = new Map<string, number>()
+  for (let i = 0; i < selectedIds.length; i++) {
+    indices.set(selectedIds[i], i)
+  }
+  lastSelectedIdsRef = selectedIds
+  cachedSelectedSet = set
+  cachedSelectedIndices = indices
+  return { set, indices }
+}
+
+// ─── Per-item selector hooks ──────────────────────────────────────────────
+// These return primitives (or stable references) so Zustand's Object.is bail
+// keeps any per-item component from re-rendering unless its own slice changed.
+
+export function useSortedItemsByPlane(plane: ItemPlane): readonly CanvasItem[] {
+  return useCanvasItemsStore((s) => {
+    const d = deriveItems(s.items)
+    if (plane === 'below') return d.sortedBelow
+    if (plane === 'above') return d.sortedAbove
+    return d.sortedAnnotation
+  })
+}
+
+export function useLiveCandidatesByPlane(
+  plane: 'below' | 'above',
+): readonly CanvasItem[] {
+  return useCanvasItemsStore((s) => {
+    const d = deriveItems(s.items)
+    return plane === 'below' ? d.liveCandidatesBelow : d.liveCandidatesAbove
+  })
+}
+
+export function useStickies(): readonly StickyCanvasItem[] {
+  return useCanvasItemsStore((s) => deriveItems(s.items).stickies)
+}
+
+export function useItemSelected(id: string): boolean {
+  return useCanvasItemsStore((s) =>
+    deriveSelection(s.selectedIds).set.has(id),
+  )
+}
+
+export function useItemSelectionIndex(id: string): number {
+  return useCanvasItemsStore((s) => {
+    const idx = deriveSelection(s.selectedIds).indices.get(id)
+    return idx == null ? -1 : idx
+  })
+}
+
+export function useItemIsSoleSelected(id: string): boolean {
+  return useCanvasItemsStore(
+    (s) => s.selectedIds.length === 1 && s.selectedIds[0] === id,
+  )
+}
+
+export function useItemZOrderPulse(id: string): ZOrderPulse | null {
+  return useCanvasItemsStore((s) =>
+    s.zOrderPulse && s.zOrderPulse.id === id ? s.zOrderPulse : null,
+  )
+}
