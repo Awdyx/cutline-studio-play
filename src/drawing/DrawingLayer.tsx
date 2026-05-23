@@ -4,6 +4,7 @@ import { useCanvasLockStore } from '../canvasLock/canvasLockStore'
 import { useCanvasLockFlattenStore } from '../canvasLock/canvasLockFlattenStore'
 import { shouldFlattenCanvas } from '../canvasLock/flattenVisibility'
 import { useStrokesStore } from './strokesStore'
+import { useCanvasWorkspaceStore } from '../spaces/canvasWorkspaceStore'
 import { resolveStrokeFill } from './colorUtils'
 import { strokeToSvgPath } from './strokePath'
 import { useThemeStore } from '../theme/themeStore'
@@ -146,6 +147,7 @@ function StrokeSvgLayer({
 }
 
 export default function DrawingLayer() {
+  const activeCanvasId = useCanvasWorkspaceStore((s) => s.activeCanvasId)
   const strokes = useStrokesStore((s) => s.strokes)
   const annotationStrokes = useStrokesStore((s) => s.annotationStrokes)
   const activeStroke = useStrokesStore((s) => s.activeStroke)
@@ -156,7 +158,7 @@ export default function DrawingLayer() {
     shouldFlattenCanvas(isLocked) && flattenReady && strokes.length > 0
 
   return (
-    <>
+    <div key={activeCanvasId} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
       {!hideCommittedStrokes && (
         <StrokeSvgLayer
           strokes={strokes}
@@ -182,6 +184,6 @@ export default function DrawingLayer() {
           strokeLayer={lockActive ? 'annotation' : 'committed'}
         />
       )}
-    </>
+    </div>
   )
 }

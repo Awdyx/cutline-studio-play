@@ -59,6 +59,7 @@ export default function SpaceBackPill({
   onExit: () => void
 }) {
   const activeCanvasId = useCanvasWorkspaceStore((s) => s.activeCanvasId)
+  const canvasSwapSpaceId = useCanvasWorkspaceStore((s) => s.canvasSwapSpaceId)
   const getSpaceName = useCanvasWorkspaceStore((s) => s.getSpaceName)
   const updateSpaceName = useCanvasWorkspaceStore((s) => s.updateSpaceName)
 
@@ -68,7 +69,8 @@ export default function SpaceBackPill({
   const inputRef = useRef<HTMLInputElement>(null)
   const measureRef = useRef<HTMLSpanElement>(null)
 
-  const spaceId = activeCanvasId === 'main' ? null : activeCanvasId
+  const spaceId =
+    activeCanvasId !== 'main' ? activeCanvasId : canvasSwapSpaceId
   const name = spaceId ? getSpaceName(spaceId) : ''
   const showingPlaceholder = !editing && isDefaultSpaceName(name)
   const measureText = editing

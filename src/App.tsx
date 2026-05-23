@@ -45,7 +45,6 @@ import { useCanvasLockFlattenStore } from './canvasLock/canvasLockFlattenStore'
 import { shouldFlattenCanvas } from './canvasLock/flattenVisibility'
 import { useCanvasWorkspaceStore } from './spaces/canvasWorkspaceStore'
 import SpaceBackPill, { SPACE_BACK_PILL_MOTION } from './components/SpaceBackPill'
-import SpaceTransitionOverlay from './components/SpaceTransitionOverlay'
 import CutlineMenu from './components/CutlineMenu'
 import { NEWS_POSTS } from './content/news'
 import type { Notification, NotificationTab, NewsTab } from './types'
@@ -61,8 +60,8 @@ import {
   CANVAS_MAX_SCALE,
 } from './drawing/canvasDimensions'
 import { useCanvasViewport } from './canvas/useCanvasViewport'
-import { useCanvasMeshPauseWhile } from './canvas/useCanvasMeshPause'
 import { useCanvasCompositorWarmup } from './canvas/useCanvasCompositorWarmup'
+import CanvasSwapVeil from './canvas/CanvasSwapVeil'
 import { blurStrayTextFocus } from './platform/textFocus'
 import { useShortcutUiStore } from './shortcuts/shortcutUiStore'
 
@@ -297,31 +296,27 @@ function App() {
   } = useCanvasFileHandlers(transformRef, viewportRef, canvasRef)
 
   const isInsideSpace = useCanvasWorkspaceStore((s) => s.activeCanvasId !== 'main')
-  const spaceTransitionPhase = useCanvasWorkspaceStore((s) => s.transition.phase)
-  const [showSpaceBackPill, setShowSpaceBackPill] = useState(false)
-  const canvasFaded =
-    spaceTransitionPhase === 'entering' || spaceTransitionPhase === 'exiting'
+  const canvasSwapMode = useCanvasWorkspaceStore((s) => s.canvasSwapMode)
+  const canvasSwapPhase = useCanvasWorkspaceStore((s) => s.canvasSwapPhase)
+  const canvasFadeOpacity = useCanvasWorkspaceStore((s) => s.canvasFadeOpacity)
+  const canvasVeilOpacity = useCanvasWorkspaceStore((s) => s.canvasVeilOpacity)
+  const canvasFadeMs = useCanvasWorkspaceStore((s) => s.canvasFadeMs)
+  const canvasFadeEase = useCanvasWorkspaceStore((s) => s.canvasFadeEase)
+  const canvasSwapBusy = useCanvasWorkspaceStore((s) => s.canvasSwapBusy)
 
-  useCanvasMeshPauseWhile(canvasFaded)
+  // Drive transitions from the store so per-mode ease (e.g. exit reveal) reaches the DOM.
+  const swapTransition = `opacity ${canvasFadeMs}ms ${canvasFadeEase}`
+
+  const showSpaceBackPill = isInsideSpace
 
   useCanvasCompositorWarmup(canvasRef, appHydrated && canvasMount !== null)
 
-  useEffect(() => {
-    if (isInsideSpace) setShowSpaceBackPill(true)
-  }, [isInsideSpace])
-
   const handleExitSpace = () => {
-    setShowSpaceBackPill(false)
-    const workspace = useCanvasWorkspaceStore.getState()
+    if (useCanvasWorkspaceStore.getState().canvasSwapBusy) return
     playSound('spaceExit')
-    void workspace
-      .captureExitSnapshot(transformRef.current, canvasRef.current)
-      .then(() => {
-        workspace.beginExitSpace(transformRef.current)
-        window.setTimeout(() => {
-          workspace.completeExitSpace(transformRef.current)
-        }, 280)
-      })
+    useCanvasWorkspaceStore
+      .getState()
+      .exitSpace(transformRef.current, canvasRef.current)
   }
 
   const itemDragActive = useCanvasItemDragStore((s) => s.activeItemId !== null)
@@ -546,8 +541,9 @@ function App() {
                 width: CANVAS_WIDTH,
                 height: CANVAS_HEIGHT,
                 position: 'relative',
-                transition: 'opacity 280ms ease-out',
-                opacity: canvasFaded ? 0 : 1,
+                opacity: canvasFadeOpacity,
+                transition: canvasSwapBusy ? swapTransition : undefined,
+                pointerEvents: canvasSwapBusy ? 'none' : undefined,
               }}
             >
               {meshColors.map((color, index) => {
@@ -582,6 +578,13 @@ function App() {
           </TransformComponent>
         </TransformWrapper>
       </div>
+
+      {canvasSwapBusy && (
+        <CanvasSwapVeil
+          opacity={canvasVeilOpacity}
+          transition={swapTransition}
+        />
+      )}
 
       <MotionIndicator />
       <TrailingVignette />
@@ -624,14 +627,24 @@ function App() {
         onStudyAction={(action) => console.log('study action', action)}
       />
 
-      <SpaceTransitionOverlay />
-      <AnimatePresence>
-        {showSpaceBackPill && (
-          <motion.div key="space-back-pill" {...SPACE_BACK_PILL_MOTION}>
-            <SpaceBackPill onExit={handleExitSpace} />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {showSpaceBackPill && (
+        <div
+          style={{
+            ...SPACE_BACK_PILL_MOTION.style,
+            opacity:
+              canvasSwapMode === 'exit' && canvasSwapPhase === 'blank'
+                ? canvasFadeOpacity
+                : 1,
+            transition:
+              canvasSwapMode === 'exit' && canvasSwapPhase === 'blank'
+                ? swapTransition
+                : undefined,
+            pointerEvents: canvasSwapBusy ? 'none' : undefined,
+          }}
+        >
+          <SpaceBackPill onExit={handleExitSpace} />
+        </div>
+      )}
 
       <AnimatePresence>
         {openPanel === 'cutline' && (

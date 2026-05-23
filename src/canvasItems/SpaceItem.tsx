@@ -41,7 +41,6 @@ export default function SpaceItem({
 }) {
   const isLocked = useCanvasLockStore((s) => s.isLocked)
   const frozen = isItemFrozen(item, isLocked)
-  const transitionPhase = useCanvasWorkspaceStore((s) => s.transition.phase)
   const spaceMeta = useCanvasWorkspaceStore((s) => s.spaces[item.id])
   const selectedIds = useCanvasItemsStore((s) => s.selectedIds)
   const selectItem = useCanvasItemsStore((s) => s.selectItem)
@@ -72,16 +71,12 @@ export default function SpaceItem({
   const hideDragHandle = getSoleSelectedItemId(selectedIds) === item.id
 
   const enterSpace = useCallback(() => {
-    const el = cardRef.current
-    if (!el || transitionPhase !== 'idle') return
-    const rect = el.getBoundingClientRect()
-    const workspace = useCanvasWorkspaceStore.getState()
+    if (useCanvasWorkspaceStore.getState().canvasSwapBusy) return
     playSound('spaceEnter')
-    workspace.beginEnterSpace(item.id, rect)
-    setTimeout(() => {
-      workspace.completeEnterSpace(transformRef.current)
-    }, 280)
-  }, [item.id, transformRef, transitionPhase])
+    useCanvasWorkspaceStore
+      .getState()
+      .enterSpace(item.id, transformRef.current)
+  }, [item.id, transformRef])
 
   const shellSelectTap = useDeferredCanvasTap((e) => {
     if (shouldSkipItemSelectForOutsideDismiss(item.id)) return

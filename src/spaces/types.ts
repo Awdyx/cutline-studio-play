@@ -18,15 +18,6 @@ export type SpaceCanvasData = {
   camera: SpaceCamera
 }
 
-export type SpaceTransitionPhase = 'idle' | 'entering' | 'exiting'
-
-export type SpaceTransitionState = {
-  phase: SpaceTransitionPhase
-  spaceId: string | null
-  /** Viewport rect of the space card at transition start (client coords). */
-  cardRect: DOMRect | null
-}
-
 export const DEFAULT_SPACE_NAME = 'Untitled space'
 export const SPACE_NAME_MAX_LENGTH = 25
 

@@ -33,7 +33,6 @@ import {
   resetToCoverFit,
 } from '../canvas/canvasCamera'
 import { captureCanvasSnapshot } from './spaceSnapshot'
-import { spaceCardClientRect } from './spaceCardRect'
 import type { SpaceCanvasItem } from '../canvasItems/types'
 import {
   DEFAULT_SPACE_CAMERA,
@@ -42,13 +41,41 @@ import {
   type ActiveCanvasId,
   type SpaceCamera,
   type SpaceCanvasData,
-  type SpaceTransitionState,
 } from './types'
+
+/** Reveal (0→1) — slow soft landing at the end. */
+export const CANVAS_SWAP_FADE_IN_MS = 760
+export const CANVAS_SWAP_FADE_IN_EASE = 'cubic-bezier(0.14, 1, 0.28, 1)'
+
+/**
+ * Exit reveal — sustained s-curve so visible motion fills the full duration.
+ * The default IN ease is extremely front-loaded (~93% opacity by 25% of time),
+ * leaving dead-air at the end that reads as abrupt when landing on the familiar
+ * main canvas.
+ */
+export const CANVAS_SWAP_EXIT_REVEAL_EASE = 'cubic-bezier(0.4, 0, 0.2, 1)'
+
+/** Blank (1→0) — quicker to leave, still eased (not a hard cut). */
+export const CANVAS_SWAP_FADE_OUT_MS = 380
+export const CANVAS_SWAP_FADE_OUT_EASE = 'cubic-bezier(0.58, 0, 0.78, 0.38)'
+
+export type CanvasSwapMode = 'enter' | 'exit' | null
+export type CanvasSwapPhase = 'blank' | 'reveal' | null
 
 type CanvasWorkspaceState = {
   activeCanvasId: ActiveCanvasId
   spaces: Record<string, SpaceCanvasData>
-  transition: SpaceTransitionState
+  /** 0 while swapping; animates 1↔0 around workspace changes. */
+  canvasFadeOpacity: number
+  /** Canvas-colored veil crossfades with content during blank/reveal. */
+  canvasVeilOpacity: number
+  canvasFadeMs: number
+  canvasFadeEase: string
+  canvasSwapBusy: boolean
+  canvasSwapMode: CanvasSwapMode
+  canvasSwapPhase: CanvasSwapPhase
+  /** Space id kept visible on the back pill through exit fade. */
+  canvasSwapSpaceId: string | null
   hydrate: () => Promise<void>
   isInsideSpace: () => boolean
   isOnMainCanvas: () => boolean
@@ -64,15 +91,11 @@ type CanvasWorkspaceState = {
   updateSpaceSnapshot: (spaceId: string, snapshotDataUrl: string | null) => Promise<void>
   saveCameraForActive: (camera: SpaceCamera) => void
   getCameraForSpace: (spaceId: string) => SpaceCamera
-  beginEnterSpace: (spaceId: string, cardRect: DOMRect) => void
-  completeEnterSpace: (transformRef: ReactZoomPanPinchContentRef | null) => void
-  beginExitSpace: (transformRef: ReactZoomPanPinchContentRef | null) => void
-  captureExitSnapshot: (
+  enterSpace: (spaceId: string, transformRef: ReactZoomPanPinchContentRef | null) => void
+  exitSpace: (
     transformRef: ReactZoomPanPinchContentRef | null,
-    canvasEl: HTMLElement | null,
-  ) => Promise<void>
-  completeExitSpace: (transformRef: ReactZoomPanPinchContentRef | null) => void
-  setTransitionIdle: () => void
+    canvasEl?: HTMLElement | null,
+  ) => void
   syncMainCamera: (transformRef: ReactZoomPanPinchContentRef | null) => void
   applyCameraForActiveCanvas: (
     transformRef: ReactZoomPanPinchContentRef | null,
@@ -118,6 +141,76 @@ function snapshotForPersist(): LoadedWorkspace {
   return workspaceSnapshot(useCanvasWorkspaceStore.getState())
 }
 
+/** Fade out, swap workspace + camera while invisible, then fade in. */
+function runCanvasSpaceSwap(
+  set: (
+    partial: Partial<
+      Pick<
+        CanvasWorkspaceState,
+        | 'canvasFadeOpacity'
+        | 'canvasVeilOpacity'
+        | 'canvasFadeMs'
+        | 'canvasFadeEase'
+        | 'canvasSwapBusy'
+        | 'canvasSwapMode'
+        | 'canvasSwapPhase'
+        | 'canvasSwapSpaceId'
+      >
+    >,
+  ) => void,
+  get: () => CanvasWorkspaceState,
+  mode: 'enter' | 'exit',
+  performSwap: () => void,
+  opts?: { exitSpaceId?: string },
+) {
+  if (get().canvasSwapBusy) return
+
+  set({
+    canvasSwapBusy: true,
+    canvasSwapMode: mode,
+    canvasSwapPhase: 'blank',
+    canvasSwapSpaceId: opts?.exitSpaceId ?? null,
+    canvasFadeMs: CANVAS_SWAP_FADE_OUT_MS,
+    canvasFadeEase: CANVAS_SWAP_FADE_OUT_EASE,
+    canvasFadeOpacity: 1,
+    canvasVeilOpacity: 0,
+  })
+
+  requestAnimationFrame(() => {
+    set({ canvasFadeOpacity: 0, canvasVeilOpacity: 1 })
+  })
+
+  window.setTimeout(() => {
+    performSwap()
+
+    const revealEase =
+      mode === 'exit'
+        ? CANVAS_SWAP_EXIT_REVEAL_EASE
+        : CANVAS_SWAP_FADE_IN_EASE
+    set({
+      canvasSwapPhase: 'reveal',
+      canvasFadeMs: CANVAS_SWAP_FADE_IN_MS,
+      canvasFadeEase: revealEase,
+    })
+
+    // Let swapped content paint at opacity 0 before crossfading in.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        set({ canvasFadeOpacity: 1, canvasVeilOpacity: 0 })
+        window.setTimeout(() => {
+          set({
+            canvasSwapBusy: false,
+            canvasSwapMode: null,
+            canvasSwapPhase: null,
+            canvasSwapSpaceId: null,
+            canvasVeilOpacity: 0,
+          })
+        }, CANVAS_SWAP_FADE_IN_MS)
+      })
+    })
+  }, CANVAS_SWAP_FADE_OUT_MS)
+}
+
 export function isWorkspaceHydrated(): boolean {
   return workspaceHydrated
 }
@@ -125,7 +218,14 @@ export function isWorkspaceHydrated(): boolean {
 export const useCanvasWorkspaceStore = create<CanvasWorkspaceState>((set, get) => ({
   activeCanvasId: 'main',
   spaces: {},
-  transition: { phase: 'idle', spaceId: null, cardRect: null },
+  canvasFadeOpacity: 1,
+  canvasVeilOpacity: 0,
+  canvasFadeMs: CANVAS_SWAP_FADE_IN_MS,
+  canvasFadeEase: CANVAS_SWAP_FADE_IN_EASE,
+  canvasSwapBusy: false,
+  canvasSwapMode: null,
+  canvasSwapPhase: null,
+  canvasSwapSpaceId: null,
 
   hydrate: async () => {
     workspaceHydrated = false
@@ -381,10 +481,18 @@ export const useCanvasWorkspaceStore = create<CanvasWorkspaceState>((set, get) =
   getCameraForSpace: (spaceId) =>
     get().spaces[spaceId]?.camera ?? DEFAULT_SPACE_CAMERA,
 
-  beginEnterSpace: (spaceId, cardRect) => {
-    useCanvasItemsStore.getState().clearSelection({ silent: true })
-    set({
-      transition: { phase: 'entering', spaceId, cardRect },
+  enterSpace: (spaceId, transformRef) => {
+    runCanvasSpaceSwap(set, get, 'enter', () => {
+      useCanvasItemsStore.getState().clearSelection({ silent: true })
+
+      const savedMain = readCameraFromRef(transformRef)
+      if (savedMain) mainCameraCache = savedMain
+
+      get().flushActiveToSlot()
+      get().loadActiveFromSlot(spaceId)
+      clearHistory()
+      get().applyCameraForActiveCanvas(transformRef)
+      get().flushPersistWorkspace()
     })
   },
 
@@ -440,92 +548,44 @@ export const useCanvasWorkspaceStore = create<CanvasWorkspaceState>((set, get) =
     }
   },
 
-  completeEnterSpace: (transformRef) => {
-    const { transition } = get()
-    const spaceId = transition.spaceId
-    if (!spaceId) return
-
-    const savedMain = readCameraFromRef(transformRef)
-    if (savedMain) mainCameraCache = savedMain
-
-    get().flushActiveToSlot()
-    get().loadActiveFromSlot(spaceId)
-    clearHistory()
-
-    get().applyCameraForActiveCanvas(transformRef)
-
-    set({
-      transition: { phase: 'idle', spaceId: null, cardRect: null },
-    })
-    get().flushPersistWorkspace()
-  },
-
-  beginExitSpace: (transformRef) => {
+  exitSpace: (transformRef, canvasEl) => {
     const { activeCanvasId } = get()
     if (activeCanvasId === 'main') return
 
-    const spaceItem = mainItemsCache.find(
-      (i): i is SpaceCanvasItem =>
-        i.id === activeCanvasId && i.type === 'space',
-    )
-    const cardRect =
-      spaceItem && transformRef
-        ? spaceCardClientRect(spaceItem, transformRef, mainCameraCache)
-        : null
-
-    set({
-      transition: {
-        phase: 'exiting',
-        spaceId: activeCanvasId,
-        cardRect,
-      },
-    })
-  },
-
-  captureExitSnapshot: async (transformRef, canvasEl) => {
-    const { activeCanvasId } = get()
-    if (activeCanvasId === 'main' || !canvasEl) return
-
+    const spaceId = activeCanvasId
     const camera = readCameraFromRef(transformRef)
     if (camera) get().saveCameraForActive(camera)
 
-    get().flushActiveToSlot()
-
-    const snapshot = await captureCanvasSnapshot(canvasEl)
-    if (snapshot) await get().updateSpaceSnapshot(activeCanvasId, snapshot)
-  },
-
-  completeExitSpace: (transformRef) => {
-    const { activeCanvasId, transition } = get()
-    const spaceId = transition.spaceId ?? activeCanvasId
-    if (spaceId === 'main' || !spaceId) return
-
-    get().flushActiveToSlot()
-    get().loadActiveFromSlot('main')
-    clearHistory()
-
-    const cached = mainCameraCache ?? DEFAULT_SPACE_CAMERA
-    if (
-      isUninitializedMainCamera(cached) ||
-      !isCameraPlausible(cached, transformRef)
-    ) {
-      resetToCoverFit(transformRef)
-    } else {
-      applyCameraToRef(transformRef, cached)
+    const swapDoneMs = CANVAS_SWAP_FADE_OUT_MS + CANVAS_SWAP_FADE_IN_MS
+    if (canvasEl) {
+      // Capture in parallel with the fade — never block the reveal crossfade.
+      void captureCanvasSnapshot(canvasEl).then((snapshot) => {
+        if (!snapshot) return
+        window.setTimeout(() => {
+          void get().updateSpaceSnapshot(spaceId, snapshot)
+        }, swapDoneMs)
+      })
     }
-    const synced = readCameraFromRef(transformRef)
-    if (synced) mainCameraCache = synced
 
-    set({
-      transition: { phase: 'idle', spaceId: null, cardRect: null },
-    })
-    get().flushPersistWorkspace()
-  },
+    runCanvasSpaceSwap(set, get, 'exit', () => {
+      get().flushActiveToSlot()
+      get().loadActiveFromSlot('main')
+      clearHistory()
 
-  setTransitionIdle: () => {
-    set({
-      transition: { phase: 'idle', spaceId: null, cardRect: null },
-    })
+      const cached = mainCameraCache ?? DEFAULT_SPACE_CAMERA
+      if (
+        isUninitializedMainCamera(cached) ||
+        !isCameraPlausible(cached, transformRef)
+      ) {
+        resetToCoverFit(transformRef)
+      } else {
+        applyCameraToRef(transformRef, cached)
+      }
+      const synced = readCameraFromRef(transformRef)
+      if (synced) mainCameraCache = synced
+
+      get().flushPersistWorkspace()
+    }, { exitSpaceId: spaceId })
   },
 }))
 

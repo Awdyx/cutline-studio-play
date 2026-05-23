@@ -15,6 +15,7 @@ import {
   Z_SELECTION_ABOVE_DIM,
 } from './canvasZOrder'
 import { useCanvasItemsStore } from './canvasItemsStore'
+import { useCanvasWorkspaceStore } from '../spaces/canvasWorkspaceStore'
 import ImageItem from './ImageItem'
 import StickyNote from './StickyNote'
 import StickyAnnotationOverlay from './StickyAnnotationOverlay'
@@ -33,6 +34,7 @@ export default function CanvasItemsLayer({
   plane: 'below' | 'above' | 'annotation'
 }) {
   const items = useCanvasItemsStore((s) => s.items)
+  const activeCanvasId = useCanvasWorkspaceStore((s) => s.activeCanvasId)
   const selectedIds = useCanvasItemsStore((s) => s.selectedIds)
   const activeStickyId = useCanvasItemsStore((s) => s.activeStickyStroke?.stickyId ?? null)
   const isLocked = useCanvasLockStore((s) => s.isLocked)
@@ -117,6 +119,7 @@ export default function CanvasItemsLayer({
   return (
     <>
       <div
+        key={activeCanvasId}
         aria-label={ariaLabel}
         data-lock-layer={plane === 'annotation' ? 'annotation' : undefined}
         style={{
