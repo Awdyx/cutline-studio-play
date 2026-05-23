@@ -17,6 +17,7 @@ import { useCanvasNavigationTracking } from './canvas/useCanvasNavigationTrackin
 import { useDeferredCanvasTap } from './canvas/useDeferredCanvasTap'
 import TopBar from './components/TopBar'
 import NotificationsPanel from './components/NotificationsPanel'
+import NewsPanel from './components/NewsPanel'
 import ProfilePanel from './components/ProfilePanel'
 import PlusFab from './components/PlusFab'
 import ToolPalette from './components/ToolPalette'
@@ -41,9 +42,8 @@ import { useCanvasWorkspaceStore } from './spaces/canvasWorkspaceStore'
 import SpaceBackPill from './components/SpaceBackPill'
 import SpaceTransitionOverlay from './components/SpaceTransitionOverlay'
 import CutlineMenu from './components/CutlineMenu'
-import WhatsNewPanel from './components/WhatsNewPanel'
-import UnlockAnnotationsModal from './components/UnlockAnnotationsModal'
-import type { Notification, NotificationTab } from './types'
+import { NEWS_POSTS } from './content/news'
+import type { Notification, NotificationTab, NewsTab } from './types'
 import { meshBlobVisibilities } from './theme/paletteGenerator'
 import { useThemeCssVars } from './theme/useThemeCssVars'
 import { useThemeStore } from './theme/themeStore'
@@ -125,7 +125,7 @@ const meshKeyframesCss = meshBlobMotion
 const placeholderNotifications: Notification[] = [
   {
     id: '1',
-    avatar: { initial: 'S', color: '#7c5cbf' },
+    avatar: { initial: 'S', color: '#9484b8' },
     message: 'Sofia commented on your HU canvas',
     timestamp: '2h ago',
     isUnread: true,
@@ -133,7 +133,7 @@ const placeholderNotifications: Notification[] = [
   },
   {
     id: '2',
-    avatar: { initial: 'M', color: '#3a86c8' },
+    avatar: { initial: 'M', color: '#6a9bc8' },
     message: 'New question added to CE Lecture 4',
     timestamp: '5h ago',
     isUnread: true,
@@ -141,7 +141,7 @@ const placeholderNotifications: Notification[] = [
   },
   {
     id: '3',
-    avatar: { initial: 'T', color: '#3ecf6e' },
+    avatar: { initial: 'T', color: '#5cb88a' },
     message: 'Tom shared "Biochem Finals" with you',
     timestamp: '1d ago',
     isUnread: false,
@@ -150,10 +150,10 @@ const placeholderNotifications: Notification[] = [
 ]
 
 type OpenPanel =
+  | 'news'
   | 'notifications'
   | 'profile'
   | 'cutline'
-  | 'whats-new'
   | null
 
 function App() {
@@ -213,14 +213,8 @@ function App() {
   const isPenDown =
     penDown || penMenu.state.phase !== 'idle' || itemZMenuOpen || itemDragActive
   const isCanvasLocked = useCanvasLockStore((s) => s.isLocked)
-  const unlockModalOpen = useCanvasLockStore((s) => s.unlockModalOpen)
   const lockCanvas = useCanvasLockStore((s) => s.lockCanvas)
   const requestUnlock = useCanvasLockStore((s) => s.requestUnlock)
-  const cancelUnlock = useCanvasLockStore((s) => s.cancelUnlock)
-  const keepAnnotationsAndUnlock = useCanvasLockStore((s) => s.keepAnnotationsAndUnlock)
-  const discardAnnotationsAndUnlock = useCanvasLockStore(
-    (s) => s.discardAnnotationsAndUnlock,
-  )
 
   useEffect(() => {
     useCanvasWorkspaceStore.getState().hydrate()
@@ -243,14 +237,15 @@ function App() {
 
   const [openPanel, setOpenPanel] = useState<OpenPanel>(null)
   const [activeTab, setActiveTab] = useState<NotificationTab>('all')
+  const [activeNewsTab, setActiveNewsTab] = useState<NewsTab>('all')
 
   function openOnly(panel: OpenPanel) {
     setOpenPanel((current) => (current === panel ? null : panel))
   }
 
   const closePanel = () => setOpenPanel(null)
-  useKeyboardShortcuts(unlockModalOpen, openPanel, cancelUnlock, closePanel)
-  usePanelSounds(openPanel, unlockModalOpen)
+  useKeyboardShortcuts(openPanel, closePanel)
+  usePanelSounds(openPanel)
   useBackgroundMusic()
 
   useEffect(() => {
@@ -260,6 +255,7 @@ function App() {
   }, [])
 
   const unreadCount = placeholderNotifications.filter((n) => n.isUnread).length
+  const newsCount = NEWS_POSTS.filter((p) => p.isNew).length
 
   return (
     <div
@@ -282,6 +278,8 @@ function App() {
         cutlineMenuOpen={openPanel === 'cutline'}
         transformRef={transformRef}
         onCutlineClick={() => openOnly('cutline')}
+        newsCount={newsCount}
+        onNewsClick={() => openOnly('news')}
         onNotificationClick={() => openOnly('notifications')}
         onProfileClick={() => openOnly('profile')}
       />
@@ -321,10 +319,6 @@ function App() {
             onClose={() => setOpenPanel(null)}
             mode={themeMode}
             onModeChange={setMode}
-            onNavigate={(dest) => {
-              if (dest === 'whats-new') setOpenPanel('whats-new')
-              else console.log('cutline navigate', dest)
-            }}
             isCanvasLocked={isCanvasLocked}
             showCanvasLock={!isInsideSpace}
             onToggleCanvasLock={() => {
@@ -336,8 +330,16 @@ function App() {
       </AnimatePresence>
 
       <AnimatePresence>
-        {openPanel === 'whats-new' && (
-          <WhatsNewPanel key="whats-new" isOpen onClose={closePanel} />
+        {openPanel === 'news' && (
+          <NewsPanel
+            key="news"
+            isOpen
+            onClose={() => setOpenPanel(null)}
+            posts={NEWS_POSTS}
+            activeTab={activeNewsTab}
+            onTabChange={setActiveNewsTab}
+            onPostClick={(id) => console.log('news post clicked', id)}
+          />
         )}
       </AnimatePresence>
 
@@ -352,18 +354,6 @@ function App() {
             onTabChange={setActiveTab}
             onMarkAllRead={() => console.log('mark all read')}
             onNotificationClick={(id) => console.log('notification clicked', id)}
-          />
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {unlockModalOpen && (
-          <UnlockAnnotationsModal
-            key="unlock-annotations"
-            isOpen
-            onKeep={keepAnnotationsAndUnlock}
-            onDiscard={discardAnnotationsAndUnlock}
-            onCancel={cancelUnlock}
           />
         )}
       </AnimatePresence>

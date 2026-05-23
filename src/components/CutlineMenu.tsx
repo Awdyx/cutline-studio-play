@@ -1,20 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Keyboard, Settings, Sparkles, ChevronRight } from 'lucide-react'
-import { CHROME_CARD_CLASS, card, font, menuDividerStyle } from '../styles/tokens'
+import { Keyboard, Settings, ChevronRight } from 'lucide-react'
+import { CHROME_CARD_CLASS, card, font } from '../styles/tokens'
 import type { ThemeMode } from '../theme/themeStore'
 import ShortcutsSubmenu from './ShortcutsSubmenu'
 import SettingsSubmenu from './SettingsSubmenu'
 import { MenuRow } from './MenuRow'
-
-export type CutlineMenuDestination = 'whats-new'
 
 interface CutlineMenuProps {
   isOpen: boolean
   onClose: () => void
   mode: ThemeMode
   onModeChange: (mode: ThemeMode) => void
-  onNavigate: (destination: CutlineMenuDestination) => void
   isCanvasLocked: boolean
   onToggleCanvasLock: () => void
   /** Lock is main-canvas-only; hidden inside a space. */
@@ -26,7 +23,6 @@ export default function CutlineMenu({
   onClose,
   mode,
   onModeChange,
-  onNavigate,
   isCanvasLocked,
   onToggleCanvasLock,
   showCanvasLock = true,
@@ -79,7 +75,7 @@ export default function CutlineMenu({
           fontFamily: font.family,
           color: font.colorPrimary,
           zIndex: 30,
-          overflow: 'visible',
+          overflow: 'hidden',
         }}
         className={`theme-surface ${CHROME_CARD_CLASS}`}
       >
@@ -105,14 +101,6 @@ export default function CutlineMenu({
             }}
           />
         </div>
-
-        <div style={menuDividerStyle} />
-
-        <MenuRow
-          icon={Sparkles}
-          label="What's new"
-          onClick={() => onNavigate('whats-new')}
-        />
       </motion.div>
 
       <AnimatePresence>

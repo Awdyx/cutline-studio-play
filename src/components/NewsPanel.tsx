@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { BellOff } from 'lucide-react'
+import { Newspaper } from 'lucide-react'
 import {
   CHROME_CARD_CLASS,
   CHROME_PRESERVE_CASE_CLASS,
@@ -8,43 +8,37 @@ import {
   chromeLabel,
   font,
 } from '../styles/tokens'
-import type { Notification, NotificationTab } from '../types'
+import type { NewsPost, NewsTab } from '../types'
 
-interface NotificationsPanelProps {
+interface NewsPanelProps {
   isOpen: boolean
   onClose: () => void
-  notifications: Notification[]
-  activeTab: NotificationTab
-  onTabChange: (tab: NotificationTab) => void
-  onMarkAllRead: () => void
-  onNotificationClick: (id: string) => void
+  posts: NewsPost[]
+  activeTab: NewsTab
+  onTabChange: (tab: NewsTab) => void
+  onPostClick: (id: string) => void
 }
 
-const TABS: { key: NotificationTab; label: string }[] = [
+const TABS: { key: NewsTab; label: string }[] = [
   { key: 'all', label: 'All' },
-  { key: 'unread', label: 'Unread' },
-  { key: 'mentions', label: 'Mentions' },
+  { key: 'blogs', label: 'Blogs' },
+  { key: 'updates', label: 'Updates' },
 ]
 
-/** Balanced contrast — readable without the original heavy black. */
 const panelTone = {
   title: font.colorPrimary,
   tabActive: font.colorPrimary,
   tabInactive: font.colorMuted,
   tabUnderline: 'rgba(26, 34, 48, 0.55)',
-  messageUnread: font.colorPrimary,
-  messageRead: font.colorMuted,
-  unreadDot: 'var(--ui-accent)',
   rowHover: 'rgba(20, 30, 50, 0.04)',
-  avatarOpacity: 0.9,
 } as const
 
 const cardBase: React.CSSProperties = {
   position: 'fixed',
   top: 64,
-  right: 80,
+  right: 124,
   width: 360,
-  maxHeight: 480,
+  maxHeight: 'min(72vh, 520px)',
   background: card.bg,
   border: card.border,
   boxShadow: card.shadow,
@@ -57,25 +51,28 @@ const cardBase: React.CSSProperties = {
   overflow: 'hidden',
 }
 
-function NotificationRow({
-  n,
-  onClick,
-}: {
-  n: Notification
-  onClick: () => void
-}) {
+const categoryLabel: Record<NewsPost['category'], string> = {
+  blog: 'Blog',
+  update: 'Update',
+}
+
+function NewsRow({ post, onClick }: { post: NewsPost; onClick: () => void }) {
   const [hovered, setHovered] = useState(false)
+  const hasHighlights = (post.highlights?.length ?? 0) > 0
+
   return (
     <button
+      type="button"
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'flex-start',
-        gap: 12,
+        gap: 6,
         width: '100%',
-        padding: '11px 16px',
+        padding: '12px 16px',
         background: hovered ? panelTone.rowHover : 'transparent',
         border: 'none',
         cursor: 'pointer',
@@ -84,60 +81,110 @@ function NotificationRow({
         fontFamily: font.family,
       }}
     >
-      <span
+      <div
         style={{
-          width: 32,
-          height: 32,
-          borderRadius: '50%',
-          backgroundColor: n.avatar.color,
-          opacity: panelTone.avatarOpacity,
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: 12,
-          fontWeight: 600,
-          color: '#fff',
-          flexShrink: 0,
-          letterSpacing: '0.02em',
+          gap: 8,
+          width: '100%',
         }}
       >
-        {n.avatar.initial}
-      </span>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p
-          className={CHROME_PRESERVE_CASE_CLASS}
-          style={{
-            margin: 0,
-            fontSize: 13,
-            fontWeight: n.isUnread ? 500 : 400,
-            color: n.isUnread ? panelTone.messageUnread : panelTone.messageRead,
-            lineHeight: '1.5',
-          }}
-        >
-          {n.message}
-        </p>
-        <p
-          style={{
-            margin: '3px 0 0',
-            fontSize: 12,
-            color: font.colorMuted,
-          }}
-        >
-          {n.timestamp}
-        </p>
-      </div>
-      {n.isUnread && (
+        {post.version && (
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: '0.04em',
+              color: 'var(--ui-accent)',
+            }}
+          >
+            v{post.version}
+          </span>
+        )}
         <span
           style={{
-            width: 6,
-            height: 6,
-            borderRadius: '50%',
-            backgroundColor: panelTone.unreadDot,
-            opacity: 0.7,
-            flexShrink: 0,
-            marginTop: 6,
+            fontSize: 10,
+            fontWeight: 600,
+            letterSpacing: '0.04em',
+            color: post.version ? font.colorMuted : 'var(--ui-accent)',
+            textTransform: 'lowercase',
           }}
-        />
+        >
+          {chromeLabel(categoryLabel[post.category])}
+        </span>
+        {post.isNew && (
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 600,
+              letterSpacing: '0.03em',
+              color: font.colorMuted,
+              textTransform: 'lowercase',
+            }}
+          >
+            {chromeLabel('new')}
+          </span>
+        )}
+        {post.date && (
+          <span
+            style={{
+              marginLeft: 'auto',
+              fontSize: 12,
+              color: font.colorMuted,
+              flexShrink: 0,
+            }}
+          >
+            {post.date}
+          </span>
+        )}
+      </div>
+      <p
+        className={CHROME_PRESERVE_CASE_CLASS}
+        style={{
+          margin: 0,
+          fontSize: 14,
+          fontWeight: 600,
+          color: font.colorPrimary,
+          lineHeight: 1.35,
+        }}
+      >
+        {post.title}
+      </p>
+      {hasHighlights ? (
+        <ul
+          style={{
+            margin: '2px 0 0',
+            paddingLeft: 18,
+            listStyle: 'disc',
+          }}
+        >
+          {post.highlights!.map((item) => (
+            <li
+              key={item}
+              style={{
+                fontSize: 13,
+                lineHeight: 1.45,
+                color: font.colorMuted,
+                marginBottom: 4,
+              }}
+            >
+              {chromeLabel(item)}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        post.summary && (
+          <p
+            style={{
+              margin: 0,
+              fontSize: 13,
+              color: font.colorMuted,
+              lineHeight: 1.45,
+            }}
+          >
+            {post.summary}
+          </p>
+        )
       )}
     </button>
   )
@@ -155,23 +202,22 @@ function EmptyState() {
         gap: 10,
       }}
     >
-      <BellOff size={22} color={font.colorFaint} strokeWidth={1.5} />
+      <Newspaper size={22} color={font.colorFaint} strokeWidth={1.5} />
       <p style={{ margin: 0, fontSize: 13, color: font.colorMuted }}>
-        {chromeLabel("You're all caught up.")}
+        {chromeLabel('No posts in this section yet.')}
       </p>
     </div>
   )
 }
 
-export default function NotificationsPanel({
+export default function NewsPanel({
   isOpen,
   onClose,
-  notifications,
+  posts,
   activeTab,
   onTabChange,
-  onMarkAllRead,
-  onNotificationClick,
-}: NotificationsPanelProps) {
+  onPostClick,
+}: NewsPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -180,7 +226,7 @@ export default function NotificationsPanel({
       if (
         panelRef.current &&
         !panelRef.current.contains(e.target as Node) &&
-        !(e.target as Element).closest('[data-panel-trigger="notifications"]')
+        !(e.target as Element).closest('[data-panel-trigger="news"]')
       ) {
         onClose()
       }
@@ -189,9 +235,9 @@ export default function NotificationsPanel({
     return () => document.removeEventListener('mousedown', handleMouseDown)
   }, [isOpen, onClose])
 
-  const filtered = notifications.filter((n) => {
-    if (activeTab === 'unread') return n.isUnread
-    if (activeTab === 'mentions') return n.type === 'mention'
+  const filtered = posts.filter((post) => {
+    if (activeTab === 'blogs') return post.category === 'blog'
+    if (activeTab === 'updates') return post.category === 'update'
     return true
   })
 
@@ -205,36 +251,27 @@ export default function NotificationsPanel({
       exit={{ opacity: 0, scale: 0.96, y: -4 }}
       transition={{ duration: 0.18, ease: 'easeOut' }}
     >
-      {/* Header */}
       <div
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
           padding: '16px 16px 0',
           flexShrink: 0,
         }}
       >
         <span style={{ fontSize: 16, fontWeight: 600, color: panelTone.title }}>
-          {chromeLabel('Notifications')}
+          {chromeLabel('News')}
         </span>
-        <button
-          onClick={onMarkAllRead}
+        <p
           style={{
-            background: 'none',
-            border: 'none',
-            padding: 0,
-            cursor: 'pointer',
-            fontSize: 13,
+            margin: '4px 0 0',
+            fontSize: 12,
             color: font.colorMuted,
-            fontFamily: font.family,
+            lineHeight: 1.4,
           }}
         >
-          {chromeLabel('Mark all read')}
-        </button>
+          {chromeLabel('Blogs, release notes, and product updates')}
+        </p>
       </div>
 
-      {/* Tabs */}
       <div
         style={{
           display: 'flex',
@@ -246,6 +283,7 @@ export default function NotificationsPanel({
         {TABS.map(({ key, label }) => (
           <button
             key={key}
+            type="button"
             onClick={() => onTabChange(key)}
             style={{
               background: 'none',
@@ -269,17 +307,12 @@ export default function NotificationsPanel({
         ))}
       </div>
 
-      {/* List */}
       <div style={{ overflowY: 'auto', flex: 1 }}>
         {filtered.length === 0 ? (
           <EmptyState />
         ) : (
-          filtered.map((n) => (
-            <NotificationRow
-              key={n.id}
-              n={n}
-              onClick={() => onNotificationClick(n.id)}
-            />
+          filtered.map((post) => (
+            <NewsRow key={post.id} post={post} onClick={() => onPostClick(post.id)} />
           ))
         )}
       </div>

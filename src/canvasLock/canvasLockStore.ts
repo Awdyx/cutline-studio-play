@@ -17,13 +17,9 @@ import {
 
 type CanvasLockState = {
   isLocked: boolean
-  unlockModalOpen: boolean
   hydrate: () => void
   lockCanvas: () => void
   requestUnlock: () => void
-  cancelUnlock: () => void
-  keepAnnotationsAndUnlock: () => void
-  discardAnnotationsAndUnlock: () => void
   /** Removes all annotation-layer items and strokes; committed content is untouched. */
   clearAllAnnotations: () => void
 }
@@ -34,50 +30,20 @@ function persistLock(isLocked: boolean) {
   if (persistEnabled) saveCanvasLockToStorage(isLocked)
 }
 
-export const useCanvasLockStore = create<CanvasLockState>((set, get) => ({
-  isLocked: false,
-  unlockModalOpen: false,
-
-  hydrate: () => {
-    const isLocked = loadCanvasLockFromStorage()
-    set({ isLocked })
-    persistEnabled = true
-  },
-
-  lockCanvas: () => {
-    if (get().isLocked) return
-    set({ isLocked: true, unlockModalOpen: false })
-    persistLock(true)
+export const useCanvasLockStore = create<CanvasLockState>((set, get) => {
+  function finishUnlock() {
+    set({ isLocked: false })
+    persistLock(false)
     clearHistory()
-    playSound('lock')
-  },
+    playSound('unlock')
+  }
 
-  requestUnlock: () => {
-    if (!get().isLocked) return
-    const items = useCanvasItemsStore.getState().items
-    const annotationStrokes = useStrokesStore.getState().annotationStrokes
-    if (!hasAnyAnnotations(items, annotationStrokes)) {
-      set({ isLocked: false })
-      persistLock(false)
-      playSound('unlock')
-      return
-    }
-    set({ unlockModalOpen: true })
-  },
-
-  cancelUnlock: () => {
-    set({ unlockModalOpen: false })
-  },
-
-  keepAnnotationsAndUnlock: () => {
+  function mergeAnnotationsAndUnlock() {
     const mergedItems = mergeAnnotationsIntoCommitted(
       useCanvasItemsStore.getState().items,
     )
     const strokesStore = useStrokesStore.getState()
-    const mergedStrokes = [
-      ...strokesStore.strokes,
-      ...strokesStore.annotationStrokes,
-    ]
+    const mergedStrokes = [...strokesStore.strokes, ...strokesStore.annotationStrokes]
 
     useCanvasItemsStore.setState({ items: mergedItems, activeStickyStroke: null, zMenu: null })
     useStrokesStore.setState({
@@ -88,29 +54,35 @@ export const useCanvasLockStore = create<CanvasLockState>((set, get) => ({
     scheduleSaveCanvasItems(mergedItems)
     scheduleSaveStrokes(mergedStrokes, [])
 
-    set({ isLocked: false, unlockModalOpen: false })
-    persistLock(false)
-    clearHistory()
-    playSound('unlock')
+    finishUnlock()
+  }
+
+  return {
+  isLocked: false,
+
+  hydrate: () => {
+    const isLocked = loadCanvasLockFromStorage()
+    set({ isLocked })
+    persistEnabled = true
   },
 
-  discardAnnotationsAndUnlock: () => {
-    const items = discardAnnotationsFromItems(useCanvasItemsStore.getState().items)
-    const committedStrokes = useStrokesStore.getState().strokes
-
-    useCanvasItemsStore.setState({ items, activeStickyStroke: null, zMenu: null })
-    useStrokesStore.setState({
-      strokes: committedStrokes,
-      annotationStrokes: [],
-      activeStroke: null,
-    })
-    scheduleSaveCanvasItems(items)
-    scheduleSaveStrokes(committedStrokes, [])
-
-    set({ isLocked: false, unlockModalOpen: false })
-    persistLock(false)
+  lockCanvas: () => {
+    if (get().isLocked) return
+    set({ isLocked: true })
+    persistLock(true)
     clearHistory()
-    playSound('unlock')
+    playSound('lock')
+  },
+
+  requestUnlock: () => {
+    if (!get().isLocked) return
+    const items = useCanvasItemsStore.getState().items
+    const annotationStrokes = useStrokesStore.getState().annotationStrokes
+    if (!hasAnyAnnotations(items, annotationStrokes)) {
+      finishUnlock()
+      return
+    }
+    mergeAnnotationsAndUnlock()
   },
 
   clearAllAnnotations: () => {
@@ -132,4 +104,5 @@ export const useCanvasLockStore = create<CanvasLockState>((set, get) => ({
     scheduleSaveCanvasItems(nextItems)
     scheduleSaveStrokes(committedStrokes, [])
   },
-}))
+  }
+})

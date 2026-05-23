@@ -2,18 +2,14 @@ import { useEffect, useRef } from 'react'
 import { playSound } from '../sound/playSound'
 
 const PANEL_IDS = new Set([
+  'news',
   'notifications',
   'profile',
   'cutline',
-  'whats-new',
 ])
 
-export function usePanelSounds(
-  openPanel: string | null,
-  unlockModalOpen: boolean,
-) {
+export function usePanelSounds(openPanel: string | null) {
   const prevPanel = useRef<string | null>(null)
-  const prevModal = useRef(false)
 
   useEffect(() => {
     const wasPanel = prevPanel.current
@@ -24,9 +20,4 @@ export function usePanelSounds(
 
     prevPanel.current = openPanel
   }, [openPanel])
-
-  useEffect(() => {
-    if (!prevModal.current && unlockModalOpen) playSound('modalOpen')
-    prevModal.current = unlockModalOpen
-  }, [unlockModalOpen])
 }

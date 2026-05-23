@@ -82,7 +82,7 @@ export default function SettingsSubmenu({
           boxShadow: card.shadow,
           borderRadius: card.radius,
           fontFamily: font.family,
-          overflow: 'visible',
+          overflow: 'hidden',
           zIndex: 40,
         }}
         className={`theme-surface ${CHROME_CARD_CLASS}`}

@@ -1,11 +1,13 @@
-export type WhatsNewRelease = {
+import type { NewsPost } from '../types'
+
+type ReleaseSource = {
   version: string
   title: string
   highlights: string[]
 }
 
-/** Rough release notes inferred from repo history and shipped features. */
-export const WHATS_NEW_RELEASES: WhatsNewRelease[] = [
+/** Shipped versions — surfaced under Updates in the news panel. */
+const RELEASES: ReleaseSource[] = [
   {
     version: '2.0',
     title: 'Cutline menu & polish',
@@ -52,7 +54,7 @@ export const WHATS_NEW_RELEASES: WhatsNewRelease[] = [
     version: '1.1',
     title: 'Frosted UI shell',
     highlights: [
-      'Top bar with notifications and profile panels',
+      'Top bar with notifications, news, and profile panels',
       'Plus FAB to add canvas items and study actions',
       'Shared glass tokens so chrome blurs the canvas behind it',
       'Panel open/close sounds',
@@ -68,4 +70,41 @@ export const WHATS_NEW_RELEASES: WhatsNewRelease[] = [
       'Viewport-fixed UI that stays put while the canvas moves',
     ],
   },
+]
+
+function releaseToPost(release: ReleaseSource): NewsPost {
+  return {
+    id: `release-${release.version}`,
+    category: 'update',
+    title: release.title,
+    version: release.version,
+    highlights: release.highlights,
+    isNew: release.version === '2.0',
+  }
+}
+
+const BLOG_POSTS: NewsPost[] = [
+  {
+    id: 'study-spaces',
+    category: 'blog',
+    title: 'How we designed study spaces',
+    summary:
+      'Why nested boards beat infinite canvases when you are revising for exams.',
+    date: 'May 12, 2026',
+    isNew: true,
+  },
+  {
+    id: 'sound-design',
+    category: 'blog',
+    title: 'Sound design on the canvas',
+    summary:
+      'Subtle audio cues for menus, tools, and space transitions without breaking focus.',
+    date: 'Apr 28, 2026',
+  },
+]
+
+/** Product blogs and release updates shown to all users in the news panel. */
+export const NEWS_POSTS: NewsPost[] = [
+  ...BLOG_POSTS,
+  ...RELEASES.map(releaseToPost),
 ]

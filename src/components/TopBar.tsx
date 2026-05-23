@@ -1,5 +1,5 @@
 import { useState, type RefObject } from 'react'
-import { Bell } from 'lucide-react'
+import { Bell, Newspaper } from 'lucide-react'
 import type { ReactZoomPanPinchContentRef } from 'react-zoom-pan-pinch'
 import { CHROME_GLASS_CLASS, CHROME_PRESERVE_CASE_CLASS, glass, font } from '../styles/tokens'
 import CanvasSearchBar from './CanvasSearchBar'
@@ -86,6 +86,8 @@ interface UserClusterProps {
     avatarImageUrl?: string | null
   }
   unreadCount: number
+  newsCount: number
+  onNewsClick: () => void
   onNotificationClick: () => void
   onProfileClick: () => void
 }
@@ -93,12 +95,47 @@ interface UserClusterProps {
 export function UserCluster({
   user,
   unreadCount,
+  newsCount,
+  onNewsClick,
   onNotificationClick,
   onProfileClick,
 }: UserClusterProps) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
       <button
+        type="button"
+        onClick={onNewsClick}
+        aria-label="News"
+        data-panel-trigger="news"
+        className={`theme-surface ${CHROME_GLASS_CLASS}`}
+        style={{
+          ...islandBase,
+          background: glass.bg,
+          position: 'relative',
+          padding: 10,
+          cursor: 'pointer',
+        }}
+      >
+        <Newspaper size={16} color="var(--ui-text)" strokeWidth={1.8} />
+        {newsCount > 0 && (
+          <span
+            aria-label={`${newsCount} new posts`}
+            style={{
+              position: 'absolute',
+              top: 6,
+              right: 6,
+              width: 7,
+              height: 7,
+              borderRadius: '50%',
+              backgroundColor: '#f05050',
+              boxShadow: '0 0 0 1.5px rgba(255,255,255,0.8)',
+            }}
+          />
+        )}
+      </button>
+
+      <button
+        type="button"
         onClick={onNotificationClick}
         aria-label="Notifications"
         data-panel-trigger="notifications"
@@ -168,8 +205,10 @@ interface TopBarProps {
   cutlineMenuOpen?: boolean
   transformRef: RefObject<ReactZoomPanPinchContentRef | null>
   onCutlineClick: () => void
+  onNewsClick: () => void
   onNotificationClick: () => void
   onProfileClick: () => void
+  newsCount: number
 }
 
 export default function TopBar({
@@ -178,8 +217,10 @@ export default function TopBar({
   cutlineMenuOpen = false,
   transformRef,
   onCutlineClick,
+  onNewsClick,
   onNotificationClick,
   onProfileClick,
+  newsCount,
 }: TopBarProps) {
   return (
     <div
@@ -213,6 +254,8 @@ export default function TopBar({
         <UserCluster
           user={user}
           unreadCount={unreadCount}
+          newsCount={newsCount}
+          onNewsClick={onNewsClick}
           onNotificationClick={onNotificationClick}
           onProfileClick={onProfileClick}
         />

@@ -34,17 +34,7 @@ function fireToast(shortcutId: string) {
   })
 }
 
-function handleEscape(
-  unlockModalOpen: boolean,
-  cancelUnlock: () => void,
-  openPanel: string | null,
-  closePanel: () => void,
-): boolean {
-  if (unlockModalOpen) {
-    cancelUnlock()
-    return true
-  }
-
+function handleEscape(openPanel: string | null, closePanel: () => void): boolean {
   const ui = useShortcutUiStore.getState()
   if (ui.canvasSearch?.isDropdownOpen()) {
     ui.canvasSearch.closeDropdown()
@@ -87,9 +77,7 @@ function handleEscape(
 }
 
 export function useKeyboardShortcuts(
-  unlockModalOpen: boolean,
   openPanel: string | null,
-  cancelUnlock: () => void,
   closePanel: () => void,
 ) {
   const undo = useStrokesStore((s) => s.undo)
@@ -102,7 +90,7 @@ export function useKeyboardShortcuts(
 
       if (e.key === 'Escape') {
         if (
-          handleEscape(unlockModalOpen, cancelUnlock, openPanel, closePanel)
+          handleEscape(openPanel, closePanel)
         ) {
           e.preventDefault()
         }
@@ -186,5 +174,5 @@ export function useKeyboardShortcuts(
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [undo, redo, unlockModalOpen, openPanel, cancelUnlock, closePanel])
+  }, [undo, redo, openPanel, closePanel])
 }

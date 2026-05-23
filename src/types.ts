@@ -8,3 +8,20 @@ export type Notification = {
   isUnread: boolean
   type: 'all' | 'mention'
 }
+
+export type NewsTab = 'all' | 'blogs' | 'updates'
+
+export type NewsCategory = 'blog' | 'update'
+
+export type NewsPost = {
+  id: string
+  category: NewsCategory
+  title: string
+  /** Teaser for blog-style posts; release notes use highlights instead. */
+  summary?: string
+  date?: string
+  /** Shipped version label for release-note posts. */
+  version?: string
+  highlights?: string[]
+  isNew?: boolean
+}
