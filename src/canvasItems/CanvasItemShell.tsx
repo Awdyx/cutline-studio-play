@@ -81,7 +81,7 @@ export default function CanvasItemShell({
   const isFlatItem =
     item.type === 'text' || item.type === 'image' || item.type === 'video'
   const lifted = isDragging || isResizing
-  const clipContent = item.type === 'sticky' || item.type === 'text'
+  const clipContent = item.type === 'sticky'
   const grabHandlePlacement = useMemo(
     () =>
       getGrabHandlePlacement(

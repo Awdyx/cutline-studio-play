@@ -1,13 +1,14 @@
 import { create } from 'zustand'
 import { pushUndoSnapshot, clearHistory } from '../canvasHistory/canvasHistory'
 import { playSound } from '../sound/playSound'
-import { scheduleSaveCanvasItems } from '../canvasItems/canvasItemsPersistence'
 import { useCanvasItemsStore } from '../canvasItems/canvasItemsStore'
-import { scheduleSaveStrokes } from '../drawing/strokesPersistence'
 import { useStrokesStore } from '../drawing/strokesStore'
+import { useCanvasWorkspaceStore } from '../spaces/canvasWorkspaceStore'
 import {
-  discardAnnotationsFromItems,
+  clearLayerItems,
+  effectiveCanvasLocked,
   hasAnyAnnotations,
+  hasClearableLayerContent,
   mergeAnnotationsIntoCommitted,
 } from './layer'
 import {
@@ -20,7 +21,10 @@ type CanvasLockState = {
   hydrate: () => void
   lockCanvas: () => void
   requestUnlock: () => void
-  /** Removes all annotation-layer items and strokes; committed content is untouched. */
+  /**
+   * Locked: removes annotation-layer items and strokes; committed content is untouched.
+   * Unlocked: removes all drawable content (strokes, stickies, text); media and spaces remain.
+   */
   clearAllAnnotations: () => void
 }
 
@@ -51,8 +55,7 @@ export const useCanvasLockStore = create<CanvasLockState>((set, get) => {
       annotationStrokes: [],
       activeStroke: null,
     })
-    scheduleSaveCanvasItems(mergedItems)
-    scheduleSaveStrokes(mergedStrokes, [])
+    useCanvasWorkspaceStore.getState().flushPersistWorkspace()
 
     finishUnlock()
   }
@@ -86,24 +89,28 @@ export const useCanvasLockStore = create<CanvasLockState>((set, get) => {
   },
 
   clearAllAnnotations: () => {
+    const isLocked = get().isLocked
     const items = useCanvasItemsStore.getState().items
-    const annotationStrokes = useStrokesStore.getState().annotationStrokes
-    if (!hasAnyAnnotations(items, annotationStrokes)) return
+    const { strokes, annotationStrokes } = useStrokesStore.getState()
+    if (!hasClearableLayerContent(items, strokes, annotationStrokes, isLocked)) {
+      return
+    }
 
     pushUndoSnapshot()
 
-    const nextItems = discardAnnotationsFromItems(items)
-    const committedStrokes = useStrokesStore.getState().strokes
+    const lockActive = effectiveCanvasLocked(isLocked)
+    const nextItems = clearLayerItems(items, isLocked)
+    const nextStrokes = lockActive ? strokes : []
+    const nextAnnotationStrokes: typeof annotationStrokes = []
 
     useCanvasItemsStore.setState({ items: nextItems, activeStickyStroke: null })
     useStrokesStore.setState({
-      strokes: committedStrokes,
-      annotationStrokes: [],
+      strokes: nextStrokes,
+      annotationStrokes: nextAnnotationStrokes,
       activeStroke: null,
     })
-    scheduleSaveCanvasItems(nextItems)
-    scheduleSaveStrokes(committedStrokes, [])
-    playSound('clearAnnotations')
+    useCanvasWorkspaceStore.getState().flushPersistWorkspace()
+    playSound('wipeCanvas')
   },
   }
 })

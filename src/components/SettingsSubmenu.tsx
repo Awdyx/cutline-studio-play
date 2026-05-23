@@ -5,13 +5,11 @@ import { Sun, Moon, Monitor, ChevronRight, Lock, LockOpen, Volume2 } from 'lucid
 import { CHROME_CARD_CLASS, card, chromeLabel, font, menuDividerStyle } from '../styles/tokens'
 import type { ThemeMode } from '../theme/themeStore'
 import { useSoundStore } from '../sound/soundStore'
-import { SHORTCUTS_BY_ID } from '../shortcuts/shortcutDefs'
 import { useSubmenuPosition } from './useSubmenuPosition'
 import { MenuRow } from './MenuRow'
 import { SubmenuSoundScope } from './SubmenuSoundScope'
 import ThemeSubmenu from './ThemeSubmenu'
 import SoundSubmenu from './SoundSubmenu'
-import ShortcutTooltip from './ShortcutTooltip'
 
 const MODE_LABELS: Record<ThemeMode, string> = {
   light: 'Light',
@@ -93,20 +91,15 @@ export default function SettingsSubmenu({
         <SubmenuSoundScope>
         {showCanvasLock && (
           <>
-            <ShortcutTooltip
-              keys={SHORTCUTS_BY_ID['toggle-lock'].keys}
-              style={{ display: 'block', width: '100%' }}
-            >
-              <MenuRow
-                icon={isCanvasLocked ? LockOpen : Lock}
-                label={isCanvasLocked ? 'Unlock canvas' : 'Lock canvas'}
-                submenuClickSound={false}
-                onClick={() => {
-                  onToggleCanvasLock()
-                  onCloseMenu()
-                }}
-              />
-            </ShortcutTooltip>
+            <MenuRow
+              icon={isCanvasLocked ? LockOpen : Lock}
+              label={isCanvasLocked ? 'Unlock canvas' : 'Lock canvas'}
+              submenuClickSound={false}
+              onClick={() => {
+                onToggleCanvasLock()
+                onCloseMenu()
+              }}
+            />
             <div style={menuDividerStyle} />
           </>
         )}

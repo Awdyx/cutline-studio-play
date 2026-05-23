@@ -39,6 +39,12 @@ export function useThemeCssVars() {
         ? 'rgba(20, 30, 50, 0.08)'
         : 'rgba(255, 255, 255, 0.1)',
     )
+    root.style.setProperty(
+      '--ui-tab-underline',
+      effectiveMode === 'light'
+        ? 'rgba(26, 34, 48, 0.55)'
+        : 'rgba(255, 255, 255, 0.52)',
+    )
     root.style.setProperty('--vignette', p.vignetteColor)
     root.style.setProperty('--vignette-rgba', p.vignetteRgba)
     root.style.setProperty('--vignette-rgba-mid', p.vignetteRgbaMid)

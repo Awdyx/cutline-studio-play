@@ -355,6 +355,7 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
     dismissEmptyTextItemsOnDeselect(get, set, prevSelected)
     scheduleMediaBlobGc()
     persistItems({ immediate: true })
+    playSound('deleteElement', { layer: true })
   },
 
   duplicateSelected: () => {
@@ -420,7 +421,6 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
     set({ items: next, selectedIds: [id] })
     dismissEmptyTextItemsOnDeselect(get, set, prevSelected)
     persistItems({ immediate: true })
-    playSound('spawn')
     return id
   },
 
@@ -450,7 +450,6 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
     })
     dismissEmptyTextItemsOnDeselect(get, set, prevSelected)
     persistItems({ immediate: true })
-    playSound('spawn')
     return id
   },
 
@@ -474,7 +473,6 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
     const next = [...items, image]
     set({ items: next })
     persistItems({ immediate: true })
-    playSound('spawn')
     return mediaId
   },
 
@@ -498,7 +496,6 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
     const next = [...items, video]
     set({ items: next })
     persistItems({ immediate: true })
-    playSound('spawn')
     return mediaId
   },
 
@@ -528,7 +525,6 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
       .getState()
       .addSpaceData(id, DEFAULT_SPACE_NAME, { persist: false })
     persistItems({ immediate: true })
-    playSound('spawn')
     return id
   },
 
@@ -695,6 +691,7 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
     if (target && (target.type === 'image' || target.type === 'video')) {
       scheduleMediaBlobGc()
     }
+    playSound('deleteElement', { layer: true })
   },
 
   commitStickyTextEdit: (id, text) => {

@@ -26,7 +26,13 @@ export function storedContentToHtml(stored: string): string {
 }
 
 export function readEditorHtml(el: HTMLElement): string {
+  if (isEditorEmpty(el)) return ''
   return el.innerHTML
+}
+
+export function ensureEditorCaretAnchor(el: HTMLElement): void {
+  if (!isEditorEmpty(el)) return
+  el.innerHTML = '<br>'
 }
 
 export function isEditorEmpty(el: HTMLElement): boolean {
@@ -48,7 +54,7 @@ function rectContainsPoint(rect: DOMRect, x: number, y: number): boolean {
   return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom
 }
 
-/** True when a pointer is over visible text (or the empty placeholder box), not surrounding padding. */
+/** True when a pointer is over visible text (or the empty editor box), not surrounding padding. */
 export function isPointerOverTextContent(
   editor: HTMLElement,
   clientX: number,

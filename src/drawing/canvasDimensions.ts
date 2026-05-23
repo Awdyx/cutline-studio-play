@@ -6,7 +6,7 @@ export const CANVAS_ASPECT = CANVAS_WIDTH / CANVAS_HEIGHT
 /** Stay 20% more zoomed-in than the edge-to-edge cover fit (scale × 1.2). */
 const MIN_SCALE_COVER_FACTOR = 1.2
 
-export const CANVAS_MAX_SCALE = 4
+export const CANVAS_MAX_SCALE = 2
 
 /**
  * Minimum zoom scale: cover the viewport in both axes (no letterboxing), then

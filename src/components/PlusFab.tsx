@@ -390,7 +390,7 @@ export default function PlusFab({
 
   function handleAddToCanvas(type: CanvasAddType) {
     onAddToCanvas(type)
-    closeMenu()
+    closeMenu({ silent: true })
   }
 
   function handleStudyItemClick(type: StudyActionType | 'tutor') {

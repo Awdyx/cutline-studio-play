@@ -32,7 +32,6 @@ const panelTone = {
   title: font.colorPrimary,
   tabActive: font.colorPrimary,
   tabInactive: font.colorMuted,
-  tabUnderline: 'rgba(26, 34, 48, 0.55)',
   rowHover: 'rgba(20, 30, 50, 0.04)',
 } as const
 
@@ -285,7 +284,7 @@ export default function NewsPanel({
               border: 'none',
               borderBottom:
                 activeTab === key
-                  ? `2px solid ${panelTone.tabUnderline}`
+                  ? '2px solid var(--ui-tab-underline)'
                   : '2px solid transparent',
               padding: '6px 12px',
               cursor: 'pointer',

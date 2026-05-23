@@ -6,6 +6,7 @@ import { font } from '../styles/tokens'
 import { useCanvasItemsStore, useItemSelected } from './canvasItemsStore'
 import CanvasItemShell from './CanvasItemShell'
 import {
+  ensureEditorCaretAnchor,
   isEditorEmpty,
   isPointerOverTextContent,
   readEditorHtml,
@@ -41,7 +42,7 @@ export default function TextItem({
   const editorRef = useRef<HTMLDivElement>(null)
   const shouldFocusRef = useRef(false)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [showPlaceholder, setShowPlaceholder] = useState(item.text.length === 0)
+  const [editorEmpty, setEditorEmpty] = useState(item.text.length === 0)
   const [isEditing, setIsEditing] = useState(false)
   const isSelected = useItemSelected(item.id)
   const { onGrabPointerDown } = useCanvasItemDrag(item.id)
@@ -78,12 +79,13 @@ export default function TextItem({
     if (el.innerHTML !== html) {
       el.innerHTML = html
     }
-    setShowPlaceholder(isEditorEmpty(el))
+    setEditorEmpty(isEditorEmpty(el))
   }, [item.text])
 
   const focusEditor = useCallback((atEnd = true) => {
     const el = editorRef.current
     if (!el) return
+    ensureEditorCaretAnchor(el)
     el.focus({ preventScroll: true })
     if (!atEnd) return
     const range = document.createRange()
@@ -128,7 +130,7 @@ export default function TextItem({
       const el = editorRef.current
       if (el) {
         scheduleSave(readEditorHtml(el))
-        setShowPlaceholder(isEditorEmpty(el))
+        setEditorEmpty(isEditorEmpty(el))
       }
       return true
     },
@@ -203,7 +205,6 @@ export default function TextItem({
             suppressContentEditableWarning
             tabIndex={isEditing ? 0 : -1}
             enterKeyHint="done"
-            data-placeholder={showPlaceholder ? 'Type something…' : undefined}
             onPointerDown={(e) => {
               if (e.pointerType === 'pen') {
                 e.preventDefault()
@@ -231,7 +232,7 @@ export default function TextItem({
             const el = editorRef.current
             if (!el) return
             scheduleSave(readEditorHtml(el))
-            setShowPlaceholder(isEditorEmpty(el))
+            setEditorEmpty(isEditorEmpty(el))
           }}
           onBlur={() => {
             setIsEditing(false)
@@ -246,12 +247,12 @@ export default function TextItem({
             }
           }}
             style={{
-              padding: 0,
+              padding: '0 2px',
               fontSize: 16,
               lineHeight: 1.45,
               fontFamily: font.family,
               color: font.colorPrimary,
-              overflow: 'auto',
+              overflow: 'visible',
               wordBreak: 'break-word',
               outline: 'none',
               background: 'transparent',
@@ -262,7 +263,7 @@ export default function TextItem({
               maxWidth: '100%',
               width: 'fit-content',
             }}
-            className={`canvas-text-editor${showPlaceholder ? ' canvas-text-editor--empty' : ''}`}
+            className={`canvas-text-editor${editorEmpty ? ' canvas-text-editor--empty' : ''}`}
           />
         </div>
     </CanvasItemShell>

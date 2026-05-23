@@ -1,34 +1,37 @@
 import type { SoundId } from './types'
 
 /**
- * Per-sound trim before the SFX compressor. Reference weight ≈ short UI blips (menuOpen,
- * itemSelect). Tune by ear — goal is equal perceived loudness at default SFX master.
+ * Per-sound trim before the SFX compressor. Normalized to menuOpen perceived loudness
+ * (short UI blip reference) using synthesis peak, duration, and layer count.
+ * Tune by ear — small nudges only.
  */
 export const SOUND_LEVELS: Record<SoundId, number> = {
-  submenuTap: 1.05,
+  submenuTap: 1.22,
   menuOpen: 1,
-  menuClose: 1,
-  itemSelect: 1,
-  itemDeselect: 0.95,
-  clearAnnotations: 1,
-  profileOpen: 0.7,
-  profileClose: 0.66,
-  itemGrab: 0.72,
-  itemDrop: 0.32,
-  spawn: 0.55,
-  lock: 0.38,
-  unlock: 0.42,
-  spaceEnter: 0.58,
-  spaceExit: 0.58,
-  submenuHover: 0.82,
-  undo: 0.72,
-  redo: 0.72,
-  modalOpen: 0.56,
-  themeToLight: 0.52,
-  themeToDark: 0.52,
-  zOrderFront: 0.78,
-  zOrderBack: 0.78,
+  menuClose: 1.16,
+  itemSelect: 1.16,
+  itemDeselect: 1.47,
+  /** Hand-tuned — excluded from global normalization (duration-weighted trim broke wipe > single hierarchy). */
+  deleteElement: 0.92,
+  wipeCanvas: 0.96,
+  profileOpen: 0.8,
+  profileClose: 1.3,
+  itemGrab: 0.38,
+  itemDrop: 0.09,
+  spawn: 0.95,
+  lock: 0.09,
+  unlock: 0.1,
+  spaceEnter: 0.2,
+  spaceExit: 0.2,
+  submenuHover: 0.37,
+  undo: 0.24,
+  redo: 0.24,
+  modalOpen: 0.18,
+  themeToLight: 0.13,
+  themeToDark: 0.13,
+  zOrderFront: 0.53,
+  zOrderBack: 0.56,
 }
 
-/** Trim for looping drag / resize noise (pre-compressor). */
-export const CONTINUOUS_SFX_LEVEL = 0.72
+/** Trim for looping drag / resize noise (pre-compressor). Bed sits below one-shot blips. */
+export const CONTINUOUS_SFX_LEVEL = 0.28

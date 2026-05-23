@@ -16,14 +16,12 @@ import {
 import { useHistoryUiStore } from '../canvasHistory/canvasHistory'
 import { useCanvasItemsStore } from '../canvasItems/canvasItemsStore'
 import { hasStylusInput } from '../drawing/penInput'
-import { hasAnyAnnotations } from '../canvasLock/layer'
+import { hasClearableLayerContent } from '../canvasLock/layer'
 import { useCanvasLockStore } from '../canvasLock/canvasLockStore'
 import { useStrokesStore } from '../drawing/strokesStore'
 import { useToolStore } from '../drawing/toolStore'
 import ToolColorPopover from './ToolColorPopover'
-import { SHORTCUTS_BY_ID } from '../shortcuts/shortcutDefs'
 import { useShortcutUiStore, type ChromeMenuSoundOpts } from '../shortcuts/shortcutUiStore'
-import ShortcutTooltip from './ShortcutTooltip'
 import { SubmenuSoundScope, useSubmenuSoundScope } from './SubmenuSoundScope'
 import { isSwapChromeMenuTarget } from './chromeMenuDismiss'
 import { useCanvasMeshPauseWhile } from '../canvas/useCanvasMeshPause'
@@ -96,25 +94,25 @@ function ToolRowButton({
 function PenFabMenuContent({
   canUndo,
   canRedo,
-  hasAnnotations,
+  hasClearableContent,
   mode,
   onUndo,
   onRedo,
   onPenClick,
   onHighlighterClick,
   onEraserClick,
-  onClearAnnotations,
+  onClearLayer,
 }: {
   canUndo: boolean
   canRedo: boolean
-  hasAnnotations: boolean
+  hasClearableContent: boolean
   mode: ReturnType<typeof useToolStore.getState>['mode']
   onUndo: () => void
   onRedo: () => void
   onPenClick: () => void
   onHighlighterClick: () => void
   onEraserClick: () => void
-  onClearAnnotations: () => void
+  onClearLayer: () => void
 }) {
   const isErase = mode === 'erase'
 
@@ -127,36 +125,32 @@ function PenFabMenuContent({
         padding: '8px',
       }}
     >
-      <ShortcutTooltip keys={SHORTCUTS_BY_ID.undo.keys}>
-        <ToolRowButton
-          label="Undo"
-          submenuClickSound={false}
-          onClick={() => {
-            if (canUndo) onUndo()
-          }}
-        >
-          <Undo2
-            size={18}
-            strokeWidth={2}
-            style={{ opacity: canUndo ? 1 : 0.5 }}
-          />
-        </ToolRowButton>
-      </ShortcutTooltip>
-      <ShortcutTooltip keys={SHORTCUTS_BY_ID.redo.keys}>
-        <ToolRowButton
-          label="Redo"
-          submenuClickSound={false}
-          onClick={() => {
-            if (canRedo) onRedo()
-          }}
-        >
-          <Redo2
-            size={18}
-            strokeWidth={2}
-            style={{ opacity: canRedo ? 1 : 0.5 }}
-          />
-        </ToolRowButton>
-      </ShortcutTooltip>
+      <ToolRowButton
+        label="Undo"
+        submenuClickSound={false}
+        onClick={() => {
+          if (canUndo) onUndo()
+        }}
+      >
+        <Undo2
+          size={18}
+          strokeWidth={2}
+          style={{ opacity: canUndo ? 1 : 0.5 }}
+        />
+      </ToolRowButton>
+      <ToolRowButton
+        label="Redo"
+        submenuClickSound={false}
+        onClick={() => {
+          if (canRedo) onRedo()
+        }}
+      >
+        <Redo2
+          size={18}
+          strokeWidth={2}
+          style={{ opacity: canRedo ? 1 : 0.5 }}
+        />
+      </ToolRowButton>
 
       <div style={menuDividerVerticalStyle} />
 
@@ -181,15 +175,15 @@ function PenFabMenuContent({
       <div style={menuDividerVerticalStyle} />
 
       <ToolRowButton
-        label="Clear temporary annotations"
+        label="Clear layer"
         onClick={() => {
-          if (hasAnnotations) onClearAnnotations()
+          if (hasClearableContent) onClearLayer()
         }}
       >
         <Trash2
           size={18}
           strokeWidth={2}
-          style={{ opacity: hasAnnotations ? 1 : 0.5 }}
+          style={{ opacity: hasClearableContent ? 1 : 0.5 }}
         />
       </ToolRowButton>
     </div>
@@ -208,7 +202,8 @@ export default function PenFab() {
   const canRedo = useHistoryUiStore((s) => s.canRedo)
   const undo = useStrokesStore((s) => s.undo)
   const redo = useStrokesStore((s) => s.redo)
-  const clearAllAnnotations = useCanvasLockStore((s) => s.clearAllAnnotations)
+  const clearLayer = useCanvasLockStore((s) => s.clearAllAnnotations)
+  const isCanvasLocked = useCanvasLockStore((s) => s.isLocked)
 
   const mode = useToolStore((s) => s.mode)
   const setMode = useToolStore((s) => s.setMode)
@@ -220,7 +215,7 @@ export default function PenFab() {
   const [colorPopover, setColorPopover] = useState<'pen' | 'highlighter' | null>(
     null,
   )
-  const [hasAnnotations, setHasAnnotations] = useState(false)
+  const [hasClearableContent, setHasClearableContent] = useState(false)
   const reduceMotion = useReducedMotion()
 
   const containerRef = useRef<HTMLDivElement>(null)
@@ -269,26 +264,41 @@ export default function PenFab() {
       const id = requestAnimationFrame(() => setMenuVisible(true))
       return () => cancelAnimationFrame(id)
     }
-    setMenuVisible(false)
+    // Mirror entry: hold visible one frame, then run the reverse CSS transition.
+    const id = requestAnimationFrame(() => setMenuVisible(false))
     const timer = window.setTimeout(() => setMenuMounted(false), PEN_FAB_MENU_TRANSITION_MS)
-    return () => window.clearTimeout(timer)
+    return () => {
+      cancelAnimationFrame(id)
+      window.clearTimeout(timer)
+    }
   }, [isOpen])
 
   useEffect(() => {
     if (!isOpen) return
 
-    const refreshAnnotations = () => {
-      setHasAnnotations(
-        hasAnyAnnotations(
-          useCanvasItemsStore.getState().items,
-          useStrokesStore.getState().annotationStrokes,
+    const refreshClearable = () => {
+      const { items } = useCanvasItemsStore.getState()
+      const { strokes, annotationStrokes } = useStrokesStore.getState()
+      setHasClearableContent(
+        hasClearableLayerContent(
+          items,
+          strokes,
+          annotationStrokes,
+          useCanvasLockStore.getState().isLocked,
         ),
       )
     }
 
-    refreshAnnotations()
-    return useCanvasItemsStore.subscribe(refreshAnnotations)
-  }, [isOpen])
+    refreshClearable()
+    const unsubItems = useCanvasItemsStore.subscribe(refreshClearable)
+    const unsubStrokes = useStrokesStore.subscribe(refreshClearable)
+    const unsubLock = useCanvasLockStore.subscribe(refreshClearable)
+    return () => {
+      unsubItems()
+      unsubStrokes()
+      unsubLock()
+    }
+  }, [isOpen, isCanvasLocked])
 
   useEffect(() => {
     if (isOpen) return
@@ -386,10 +396,6 @@ export default function PenFab() {
         right: `calc(${PEN_FAB_RIGHT}px + env(safe-area-inset-right, 0px))`,
         zIndex: 21,
         pointerEvents: 'none',
-        display: 'flex',
-        flexDirection: 'row',
-        alignItems: 'flex-end',
-        gap: 12,
       }}
     >
       {menuMounted && (
@@ -411,14 +417,14 @@ export default function PenFab() {
             <PenFabMenuContent
               canUndo={canUndo}
               canRedo={canRedo}
-              hasAnnotations={hasAnnotations}
+              hasClearableContent={hasClearableContent}
               mode={mode}
               onUndo={undo}
               onRedo={redo}
               onPenClick={handlePenClick}
               onHighlighterClick={handleHighlighterClick}
               onEraserClick={handleEraserClick}
-              onClearAnnotations={clearAllAnnotations}
+              onClearLayer={clearLayer}
             />
             <AnimatePresence initial={false}>
               {colorPopover && (

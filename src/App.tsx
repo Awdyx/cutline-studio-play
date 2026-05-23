@@ -26,10 +26,10 @@ import { useTouchUndoRedoGestures } from './hooks/useTouchUndoRedoGestures'
 import { useBackgroundMusic } from './hooks/useBackgroundMusic'
 import { usePanelSounds } from './hooks/usePanelSounds'
 import { useThemeChangeFeedback } from './hooks/useThemeChangeFeedback'
-import ThemeAmbientPulse from './components/ThemeAmbientPulse'
 import { useSoundStore } from './sound/soundStore'
 import { playSound } from './sound/playSound'
 import ActionToast from './components/ActionToast'
+import ThemeChangePulse from './components/ThemeChangePulse'
 import { clearHistory } from './canvasHistory/canvasHistory'
 import { useStrokesStore } from './drawing/strokesStore'
 import { useCanvasItemsStore } from './canvasItems/canvasItemsStore'
@@ -270,7 +270,7 @@ function App() {
   const themeModeStore = useThemeStore((s) => s.mode)
   const effectiveMode = useEffectiveMode(themeModeStore)
   const { generated } = useThemeCssVars()
-  const themePulse = useThemeChangeFeedback(effectiveMode, themeModeStore)
+  useThemeChangeFeedback(effectiveMode, themeModeStore)
   const meshColors = generated.meshColors
   const meshBlobVisibility = meshBlobVisibilities(palette.blobDepth)
   const meshLayerOpacity = effectiveMode === 'light' ? 0.92 : 0.88
@@ -577,6 +577,8 @@ function App() {
             </div>
           </TransformComponent>
         </TransformWrapper>
+
+        <ThemeChangePulse effectiveMode={effectiveMode} />
       </div>
 
       {canvasSwapBusy && (
@@ -588,7 +590,6 @@ function App() {
 
       <MotionIndicator />
       <TrailingVignette />
-      <ThemeAmbientPulse pulse={themePulse} />
       <ActionToast />
 
       <TopBar
@@ -691,9 +692,6 @@ function App() {
             onNotificationClick={(id) => console.log('notification clicked', id)}
             onVisitActorCanvas={(handle) =>
               console.log('visit actor canvas', handle)
-            }
-            onDeleteNotification={(id) =>
-              setNotifications((prev) => prev.filter((n) => n.id !== id))
             }
           />
         )}

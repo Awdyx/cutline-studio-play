@@ -1,12 +1,6 @@
-import { useRef, useEffect, useState, useCallback, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react'
-import {
-  motion,
-  useMotionValue,
-  useTransform,
-  animate,
-  type PanInfo,
-} from 'framer-motion'
-import { BellOff, Trash2 } from 'lucide-react'
+import { useRef, type CSSProperties } from 'react'
+import { motion } from 'framer-motion'
+import { BellOff } from 'lucide-react'
 import {
   CHROME_CARD_CLASS,
   CHROME_PRESERVE_CASE_CLASS,
@@ -33,7 +27,6 @@ interface NotificationsPanelProps {
   activeTab: NotificationTab
   onTabChange: (tab: NotificationTab) => void
   onNotificationClick: (id: string) => void
-  onDeleteNotification: (id: string) => void
   onVisitActorCanvas?: (handle: string) => void
 }
 
@@ -47,7 +40,6 @@ const panelTone = {
   title: font.colorPrimary,
   tabActive: font.colorPrimary,
   tabInactive: font.colorMuted,
-  tabUnderline: 'rgba(26, 34, 48, 0.55)',
   rowHover: 'rgba(20, 30, 50, 0.04)',
 } as const
 
@@ -57,7 +49,6 @@ const opacity = {
   subtitle: 0.68,
   tabActive: 1,
   tabInactive: 0.52,
-  tabUnderline: 0.42,
   timestamp: 0.46,
   emptyIcon: 0.4,
   emptyText: 0.62,
@@ -137,174 +128,41 @@ function NotificationMessage({
   )
 }
 
-const SWIPE_REVEAL_PX = 64
-const ACTION_RADIUS = 11
-const DELETE_BACKDROP_INSET = { top: 6, right: 8, bottom: 6, left: 6 }
-const SWIPE_RUBBER_BAND = 0.22
-const swipeSpring = { type: 'spring' as const, stiffness: 260, damping: 34, mass: 1.05 }
-const TRACKPAD_WHEEL_SNAP_MS = 200
-const TRACKPAD_WHEEL_SCALE = 0.88
-const collapseSpring = { type: 'spring' as const, stiffness: 360, damping: 32, mass: 0.9 }
-
-function applySwipeX(raw: number): number {
-  if (raw > 0) return raw * SWIPE_RUBBER_BAND
-  if (raw >= -SWIPE_REVEAL_PX) return raw
-  const excess = -raw - SWIPE_REVEAL_PX
-  return -(SWIPE_REVEAL_PX + excess * SWIPE_RUBBER_BAND)
-}
-
-function resolveSwipeOpen(offset: number, velocityX = 0): boolean {
-  if (velocityX > 380) return false
-  if (velocityX < -420) return true
-  return offset < -SWIPE_REVEAL_PX * 0.42
-}
-
 function NotificationRow({
   n,
   onClick,
-  onDelete,
   onVisitActorCanvas,
-  isRevealed,
-  onReveal,
-  onCloseReveal,
 }: {
   n: Notification
   onClick: () => void
-  onDelete: () => void
   onVisitActorCanvas?: (handle: string) => void
-  isRevealed: boolean
-  onReveal: () => void
-  onCloseReveal: () => void
 }) {
-  const [dragging, setDragging] = useState(false)
-  const [isRemoving, setIsRemoving] = useState(false)
-  const [rowHeight, setRowHeight] = useState<number | 'auto'>('auto')
-  const deletingRef = useRef(false)
-  const shellRef = useRef<HTMLDivElement>(null)
-  const rowRef = useRef<HTMLDivElement>(null)
-  const wheelSnapTimerRef = useRef<number | null>(null)
-  const wheelActiveRef = useRef(false)
-  const x = useMotionValue(0)
-  const removeFade = useMotionValue(1)
-  const deleteOpacity = useTransform(
-    x,
-    [0, -12, -SWIPE_REVEAL_PX * 0.55, -SWIPE_REVEAL_PX],
-    [0, 0, 0.45, 1],
-  )
-
-  useEffect(() => {
-    if (isRemoving) return
-    animate(x, isRevealed ? -SWIPE_REVEAL_PX : 0, swipeSpring)
-  }, [isRevealed, isRemoving, x])
-
-  const snapReveal = useCallback(
-    (open: boolean) => {
-      if (isRemoving) return
-      if (open) onReveal()
-      else onCloseReveal()
-      animate(x, open ? -SWIPE_REVEAL_PX : 0, swipeSpring)
-    },
-    [isRemoving, onCloseReveal, onReveal, x],
-  )
-
-  const finishSwipe = useCallback(
-    (offset: number) => {
-      wheelActiveRef.current = false
-      setDragging(false)
-      snapReveal(resolveSwipeOpen(offset))
-    },
-    [snapReveal],
-  )
-
-  useEffect(() => {
-    const el = rowRef.current
-    if (!el) return
-
-    const handleWheel = (e: WheelEvent) => {
-      if (isRemoving) return
-      const absX = Math.abs(e.deltaX)
-      const absY = Math.abs(e.deltaY)
-      if (absX < 2 || absX <= absY) return
-
-      e.preventDefault()
-
-      if (!wheelActiveRef.current) {
-        wheelActiveRef.current = true
-        setDragging(true)
-        if (!isRevealed) onCloseReveal()
-      }
-
-      const next = applySwipeX(x.get() - e.deltaX * TRACKPAD_WHEEL_SCALE)
-      x.set(next)
-
-      if (wheelSnapTimerRef.current !== null) {
-        window.clearTimeout(wheelSnapTimerRef.current)
-      }
-      wheelSnapTimerRef.current = window.setTimeout(() => {
-        wheelSnapTimerRef.current = null
-        finishSwipe(x.get())
-      }, TRACKPAD_WHEEL_SNAP_MS)
-    }
-
-    el.addEventListener('wheel', handleWheel, { passive: false })
-    return () => {
-      el.removeEventListener('wheel', handleWheel)
-      if (wheelSnapTimerRef.current !== null) {
-        window.clearTimeout(wheelSnapTimerRef.current)
-      }
-    }
-  }, [finishSwipe, isRevealed, isRemoving, onCloseReveal, x])
-
-  function handleDragEnd(_: unknown, info: PanInfo) {
-    if (isRemoving) return
-    wheelActiveRef.current = false
-    setDragging(false)
-    snapReveal(resolveSwipeOpen(info.offset.x, info.velocity.x))
-  }
-
-  function handleRowClick() {
-    if (isRemoving) return
-    if (isRevealed) {
-      snapReveal(false)
-      return
-    }
-    onCloseReveal()
-    onClick()
-  }
-
-  const handleDelete = useCallback(
-    async (e: ReactMouseEvent<HTMLButtonElement>) => {
-      e.stopPropagation()
-      e.preventDefault()
-      if (isRemoving) return
-
-      setIsRemoving(true)
-      deletingRef.current = true
-      onCloseReveal()
-      wheelActiveRef.current = false
-      setDragging(false)
-
-      await animate(removeFade, 0, { duration: 0.16, ease: 'easeOut' })
-
-      const measured = shellRef.current?.offsetHeight ?? 0
-      if (measured > 0) {
-        setRowHeight(measured)
-        await new Promise<void>((resolve) => {
-          requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-        })
-        setRowHeight(0)
-      } else {
-        deletingRef.current = false
-        onDelete()
-      }
-    },
-    [isRemoving, onCloseReveal, onDelete, removeFade, x],
-  )
-
   const actorProfile = n.actor ? NOTIFICATION_ACTOR_PROFILES[n.actor] : undefined
 
-  const rowBody = (
-    <>
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onClick()
+        }
+      }}
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 12,
+        width: '100%',
+        padding: '14px 16px',
+        background: 'transparent',
+        boxShadow: 'none',
+        cursor: 'pointer',
+        textAlign: 'left',
+        fontFamily: font.family,
+      }}
+    >
       {actorProfile ? (
         <NotificationActorProfileAvatarTrigger
           profile={actorProfile}
@@ -355,140 +213,7 @@ function NotificationRow({
           {chromeLabel(n.timestamp)}
         </span>
       </div>
-    </>
-  )
-
-  return (
-    <motion.div
-      layout
-      initial={false}
-      animate={{ height: rowHeight }}
-      transition={{ height: { duration: 0.22, ease: [0.4, 0, 0.2, 1] }, layout: collapseSpring }}
-      style={{ overflow: 'hidden' }}
-      onAnimationComplete={() => {
-        if (deletingRef.current && rowHeight === 0) {
-          deletingRef.current = false
-          onDelete()
-        }
-      }}
-    >
-      <div
-        ref={shellRef}
-        style={{
-          position: 'relative',
-          width: '100%',
-          overflow: 'hidden',
-        }}
-      >
-        <motion.div
-          aria-hidden
-          style={{
-            position: 'absolute',
-            right: 0,
-            top: 0,
-            bottom: 0,
-            width: SWIPE_REVEAL_PX,
-            boxSizing: 'border-box',
-            padding: `${DELETE_BACKDROP_INSET.top}px ${DELETE_BACKDROP_INSET.right}px ${DELETE_BACKDROP_INSET.bottom}px ${DELETE_BACKDROP_INSET.left}px`,
-            display: 'flex',
-            alignItems: 'stretch',
-            justifyContent: 'center',
-            opacity: deleteOpacity,
-            pointerEvents: isRemoving ? 'none' : isRevealed || dragging ? 'auto' : 'none',
-            zIndex: 0,
-          }}
-        >
-          <button
-            type="button"
-            aria-label="Delete notification"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={handleDelete}
-            style={{
-              width: '100%',
-              height: '100%',
-              borderRadius: ACTION_RADIUS,
-              border: 'none',
-              background: 'rgba(196, 78, 78, 0.14)',
-              color: '#c44e4e',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              flexShrink: 0,
-            }}
-          >
-            <Trash2 size={16} strokeWidth={2} />
-          </button>
-        </motion.div>
-
-        <motion.div
-          ref={rowRef}
-          role="button"
-          tabIndex={isRemoving ? -1 : 0}
-          drag={isRemoving ? false : 'x'}
-          dragConstraints={{ left: -SWIPE_REVEAL_PX, right: 0 }}
-          dragElastic={{ left: 0.18, right: 0.18 }}
-          dragDirectionLock
-          dragMomentum={false}
-          onDragStart={() => {
-            if (isRemoving) return
-            wheelActiveRef.current = false
-            setDragging(true)
-            if (!isRevealed) onCloseReveal()
-          }}
-          onDragEnd={handleDragEnd}
-          onClick={handleRowClick}
-          onKeyDown={(e) => {
-            if (isRemoving) return
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault()
-              handleRowClick()
-            }
-          }}
-          style={{
-            x,
-            opacity: isRemoving ? removeFade : 1,
-            position: 'relative',
-            zIndex: 1,
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: 12,
-            width: '100%',
-            padding: '14px 16px',
-            background: 'transparent',
-            boxShadow: 'none',
-            cursor: isRemoving ? 'default' : 'pointer',
-            textAlign: 'left',
-            fontFamily: font.family,
-            touchAction: 'pan-y',
-            pointerEvents: isRemoving ? 'none' : 'auto',
-          }}
-        >
-          {rowBody}
-        </motion.div>
-      </div>
-    </motion.div>
-  )
-}
-
-function AllDeletedEmptyState() {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 4 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1], delay: 0.08 }}
-      style={{
-        flex: 1,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '24px',
-      }}
-    >
-      <p style={{ margin: 0, fontSize: 13, color: font.colorMuted, opacity: opacity.emptyText }}>
-        {chromeLabel('No new notifications')}
-      </p>
-    </motion.div>
+    </div>
   )
 }
 
@@ -526,15 +251,9 @@ export default function NotificationsPanel({
   activeTab,
   onTabChange,
   onNotificationClick,
-  onDeleteNotification,
   onVisitActorCanvas,
 }: NotificationsPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null)
-  const [revealedId, setRevealedId] = useState<string | null>(null)
-
-  useEffect(() => {
-    setRevealedId(null)
-  }, [activeTab])
 
   const filtered = notifications.filter((n) => {
     if (activeTab === 'unread') return n.isUnread
@@ -608,7 +327,7 @@ export default function NotificationsPanel({
               border: 'none',
               borderBottom:
                 activeTab === key
-                  ? `2px solid rgba(26, 34, 48, ${opacity.tabUnderline})`
+                  ? '2px solid var(--ui-tab-underline)'
                   : '2px solid transparent',
               padding: '6px 12px',
               cursor: 'pointer',
@@ -636,9 +355,7 @@ export default function NotificationsPanel({
           padding: '4px 0 12px',
         }}
       >
-        {notifications.length === 0 ? (
-          <AllDeletedEmptyState />
-        ) : filtered.length === 0 ? (
+        {filtered.length === 0 ? (
           <EmptyState tab={activeTab} />
         ) : (
           <div
@@ -652,11 +369,7 @@ export default function NotificationsPanel({
               <NotificationRow
                 key={n.id}
                 n={n}
-                isRevealed={revealedId === n.id}
-                onReveal={() => setRevealedId(n.id)}
-                onCloseReveal={() => setRevealedId(null)}
                 onClick={() => onNotificationClick(n.id)}
-                onDelete={() => onDeleteNotification(n.id)}
                 onVisitActorCanvas={onVisitActorCanvas}
               />
             ))}
@@ -667,11 +380,7 @@ export default function NotificationsPanel({
               <NotificationRow
                 key={n.id}
                 n={n}
-                isRevealed={revealedId === n.id}
-                onReveal={() => setRevealedId(n.id)}
-                onCloseReveal={() => setRevealedId(null)}
                 onClick={() => onNotificationClick(n.id)}
-                onDelete={() => onDeleteNotification(n.id)}
                 onVisitActorCanvas={onVisitActorCanvas}
               />
             ))}

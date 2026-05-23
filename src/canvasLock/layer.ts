@@ -76,3 +76,33 @@ export function discardAnnotationsFromItems(items: CanvasItem[]): CanvasItem[] {
       return { ...rest, annotationStrokes: [] }
     })
 }
+
+/** Images (incl. GIFs), videos, and space widgets survive a full layer clear. */
+export function isPreservedCanvasItem(item: CanvasItem): boolean {
+  return (
+    item.type === 'image' || item.type === 'video' || item.type === 'space'
+  )
+}
+
+export function hasClearableLayerContent(
+  items: CanvasItem[],
+  strokes: import('../drawing/types').Stroke[],
+  annotationStrokes: import('../drawing/types').Stroke[],
+  isLocked: boolean,
+): boolean {
+  if (effectiveCanvasLocked(isLocked)) {
+    return hasAnyAnnotations(items, annotationStrokes)
+  }
+  if (strokes.length > 0 || annotationStrokes.length > 0) return true
+  return items.some((item) => !isPreservedCanvasItem(item))
+}
+
+export function clearLayerItems(
+  items: CanvasItem[],
+  isLocked: boolean,
+): CanvasItem[] {
+  if (effectiveCanvasLocked(isLocked)) {
+    return discardAnnotationsFromItems(items)
+  }
+  return items.filter(isPreservedCanvasItem)
+}

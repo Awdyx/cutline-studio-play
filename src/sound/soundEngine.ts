@@ -183,80 +183,6 @@ function sweep(
   track(src)
 }
 
-/** Soft ambient dissolve — bassy wind breath (Monument Valley / Nintendo delete). */
-function ambientDissolve(
-  context: AudioContext,
-  t0: number,
-  duration: number,
-  peak: number,
-  subHz: number,
-  subEndMul: number,
-  windLpStart: number,
-  windLpEnd: number,
-): void {
-  const attack = 0.016
-  const bus = context.createGain()
-  bus.gain.setValueAtTime(0.0001, t0)
-  bus.gain.exponentialRampToValueAtTime(Math.max(peak, 0.0002), t0 + attack)
-  bus.gain.exponentialRampToValueAtTime(0.0001, t0 + duration)
-  bus.connect(sfxOut())
-
-  const sub = context.createOscillator()
-  sub.type = 'sine'
-  sub.frequency.setValueAtTime(subHz, t0)
-  sub.frequency.exponentialRampToValueAtTime(
-    Math.max(subHz * subEndMul, 28),
-    t0 + duration * 0.72,
-  )
-  const subMix = context.createGain()
-  subMix.gain.value = 0.5
-  sub.connect(subMix)
-  subMix.connect(bus)
-  sub.start(t0)
-  sub.stop(t0 + duration + 0.04)
-  track(sub)
-
-  const body = context.createOscillator()
-  body.type = 'triangle'
-  body.frequency.setValueAtTime(subHz * 2.01, t0)
-  body.frequency.exponentialRampToValueAtTime(
-    Math.max(subHz * subEndMul * 2, 50),
-    t0 + duration * 0.68,
-  )
-  const bodyMix = context.createGain()
-  bodyMix.gain.value = 0.11
-  body.connect(bodyMix)
-  bodyMix.connect(bus)
-  body.start(t0)
-  body.stop(t0 + duration + 0.04)
-  track(body)
-
-  const len = Math.max(1, Math.floor(context.sampleRate * duration))
-  const buf = context.createBuffer(1, len, context.sampleRate)
-  const data = buf.getChannelData(0)
-  let pink = 0
-  for (let i = 0; i < len; i++) {
-    const white = Math.random() * 2 - 1
-    pink = pink * 0.94 + white * 0.06
-    data[i] = pink * (1 - i / len)
-  }
-  const wind = context.createBufferSource()
-  wind.buffer = buf
-  const lp = context.createBiquadFilter()
-  lp.type = 'lowpass'
-  lp.Q.value = 0.35
-  lp.frequency.setValueAtTime(windLpStart, t0)
-  lp.frequency.exponentialRampToValueAtTime(Math.max(windLpEnd, 35), t0 + duration * 0.78)
-  const windMix = context.createGain()
-  windMix.gain.value = 0.36
-  wind.connect(lp)
-  lp.connect(windMix)
-  windMix.connect(bus)
-  wind.start(t0)
-  wind.stop(t0 + duration + 0.04)
-  track(wind)
-}
-
 /** Slow breathing pad — soft ambient layer for theme shifts. */
 function createSoftStartBus(context: AudioContext, start: number): GainNode {
   const bus = context.createGain()
@@ -530,9 +456,98 @@ function itemDeselectTick(context: AudioContext, t0: number): void {
   canvasObjectTap(context, t0, 312, 0.015, 0.095, { startMul: 1.06, endMul: 0.88 })
 }
 
-/** Clear temporary annotations — deeper, longer wind exhale. */
-function clearAnnotationsTick(context: AudioContext, t0: number): void {
-  ambientDissolve(context, t0, 0.36, 0.042, 68, 0.76, 380, 65)
+/** Airy delete — filtered noise breath with downward sweep, single peak. */
+function airyDeleteDissolve(
+  context: AudioContext,
+  t0: number,
+  duration: number,
+  peak: number,
+  opts: {
+    attack: number
+    filterStart: number
+    filterEnd: number
+    subHz: number
+    subEndMul: number
+    noiseGain: number
+    subGain: number
+  },
+): void {
+  const bus = context.createGain()
+  bus.gain.setValueAtTime(0.0001, t0)
+  bus.gain.exponentialRampToValueAtTime(Math.max(peak, 0.0002), t0 + opts.attack)
+  bus.gain.exponentialRampToValueAtTime(0.0001, t0 + duration)
+  bus.connect(sfxOut())
+
+  const sub = context.createOscillator()
+  sub.type = 'sine'
+  sub.frequency.setValueAtTime(opts.subHz, t0)
+  sub.frequency.exponentialRampToValueAtTime(
+    Math.max(opts.subHz * opts.subEndMul, 28),
+    t0 + duration * 0.76,
+  )
+  const subMix = context.createGain()
+  subMix.gain.value = opts.subGain
+  sub.connect(subMix)
+  subMix.connect(bus)
+  sub.start(t0)
+  sub.stop(t0 + duration + 0.04)
+  track(sub)
+
+  const len = Math.max(1, Math.floor(context.sampleRate * duration))
+  const buf = context.createBuffer(1, len, context.sampleRate)
+  const data = buf.getChannelData(0)
+  let pink = 0
+  for (let i = 0; i < len; i++) {
+    const white = Math.random() * 2 - 1
+    pink = pink * 0.93 + white * 0.07
+    const t = i / len
+    const tail = duration < 0.28 ? 1 - t * t * 0.28 : 1
+    data[i] = pink * tail
+  }
+  const wind = context.createBufferSource()
+  wind.buffer = buf
+  const lp = context.createBiquadFilter()
+  lp.type = 'lowpass'
+  lp.Q.value = 0.38
+  lp.frequency.setValueAtTime(opts.filterStart, t0)
+  lp.frequency.exponentialRampToValueAtTime(
+    Math.max(opts.filterEnd, 40),
+    t0 + duration * 0.84,
+  )
+  const windMix = context.createGain()
+  windMix.gain.value = opts.noiseGain
+  wind.connect(lp)
+  lp.connect(windMix)
+  windMix.connect(bus)
+  wind.start(t0)
+  wind.stop(t0 + duration + 0.04)
+  track(wind)
+}
+
+/** Single element delete — short airy exhale (~185 ms), same timbre as wipe. */
+function deleteElementTick(context: AudioContext, t0: number): void {
+  airyDeleteDissolve(context, t0, 0.185, 0.036, {
+    attack: 0.016,
+    filterStart: 940,
+    filterEnd: 175,
+    subHz: 74,
+    subEndMul: 0.62,
+    noiseGain: 0.44,
+    subGain: 0.22,
+  })
+}
+
+/** Wipe canvas — same character, longer and fuller (~460 ms). */
+function wipeCanvasTick(context: AudioContext, t0: number): void {
+  airyDeleteDissolve(context, t0, 0.46, 0.039, {
+    attack: 0.02,
+    filterStart: 940,
+    filterEnd: 175,
+    subHz: 70,
+    subEndMul: 0.6,
+    noiseGain: 0.46,
+    subGain: 0.3,
+  })
 }
 
 /** Social profile peek — soft hello arpeggio (no space-style sweep). */
@@ -561,6 +576,16 @@ function profileCloseTick(context: AudioContext, t0: number): void {
   noiseBurst(context, 0.016, 0.0015, t0 + 0.018, 680, 0.22)
 }
 
+/** New canvas element placed — single soft warm knock. */
+function spawnTick(context: AudioContext, t0: number): void {
+  canvasObjectTap(context, t0, 318, 0.016, 0.095, {
+    startMul: 1.06,
+    endMul: 0.9,
+    filterStart: 920,
+    filterEnd: 560,
+  })
+}
+
 const PLAYERS: Record<SoundId, (context: AudioContext, t0: number) => void> = {
   itemGrab(context, t0) {
     itemGrabLift(context, t0)
@@ -580,8 +605,7 @@ const PLAYERS: Record<SoundId, (context: AudioContext, t0: number) => void> = {
   },
 
   spawn(context, t0) {
-    sweep(context, 220, 680, 0.11, 0.1, t0)
-    tone(context, 520, 0.08, 0.002, 0.04, t0 + 0.1)
+    spawnTick(context, t0)
   },
 
   lock(context, t0) {
@@ -636,8 +660,12 @@ const PLAYERS: Record<SoundId, (context: AudioContext, t0: number) => void> = {
     tone(context, 880, 0.09, 0.001, 0.028, t0 + 0.045)
   },
 
-  clearAnnotations(context, t0) {
-    clearAnnotationsTick(context, t0)
+  deleteElement(context, t0) {
+    deleteElementTick(context, t0)
+  },
+
+  wipeCanvas(context, t0) {
+    wipeCanvasTick(context, t0)
   },
 
   modalOpen(context, t0) {
