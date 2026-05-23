@@ -1,13 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
+import { playSound } from '../sound/playSound'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Eraser, Highlighter, Pen, Redo2, Trash2, Undo2 } from 'lucide-react'
-import { card, font, glass } from '../styles/tokens'
+import { CHROME_GLASS_CLASS, card, font, glass } from '../styles/tokens'
+import { useHistoryUiStore } from '../canvasHistory/canvasHistory'
+import { useCanvasItemsStore } from '../canvasItems/canvasItemsStore'
+import { hasAnyAnnotations } from '../canvasLock/layer'
+import { useCanvasLockStore } from '../canvasLock/canvasLockStore'
 import { useStrokesStore } from '../drawing/strokesStore'
 import { resolveHighlighterColor, resolvePenColor } from '../drawing/colorUtils'
 import { useToolStore } from '../drawing/toolStore'
 import { useThemeStore } from '../theme/themeStore'
 import { useEffectiveMode } from '../theme/useEffectiveMode'
 import ToolColorPopover from './ToolColorPopover'
+import { SHORTCUTS_BY_ID } from '../shortcuts/shortcutDefs'
+import { useShortcutUiStore } from '../shortcuts/shortcutUiStore'
+import ShortcutTooltip from './ShortcutTooltip'
 
 const FAB_SIZE = 52
 const FAB_GAP = 12
@@ -83,12 +91,14 @@ function ColorDot({ color }: { color: string }) {
 }
 
 export default function ToolPalette() {
-  const pastLen = useStrokesStore((s) => s.past.length)
-  const futureLen = useStrokesStore((s) => s.future.length)
-  const strokeCount = useStrokesStore((s) => s.strokes.length)
+  const canUndo = useHistoryUiStore((s) => s.canUndo)
+  const canRedo = useHistoryUiStore((s) => s.canRedo)
+  const items = useCanvasItemsStore((s) => s.items)
+  const annotationStrokes = useStrokesStore((s) => s.annotationStrokes)
+  const hasAnnotations = hasAnyAnnotations(items, annotationStrokes)
   const undo = useStrokesStore((s) => s.undo)
   const redo = useStrokesStore((s) => s.redo)
-  const clearAll = useStrokesStore((s) => s.clearAll)
+  const clearAllAnnotations = useCanvasLockStore((s) => s.clearAllAnnotations)
 
   const themeMode = useThemeStore((s) => s.mode)
   const effectiveMode = useEffectiveMode(themeMode)
@@ -108,13 +118,31 @@ export default function ToolPalette() {
     null,
   )
   const containerRef = useRef<HTMLDivElement>(null)
+  const isOpenRef = useRef(isOpen)
+  isOpenRef.current = isOpen
+  const colorPopoverRef = useRef(colorPopover)
+  colorPopoverRef.current = colorPopover
 
   const isErase = mode === 'erase'
 
   function closeAll() {
+    if (isOpenRef.current || colorPopoverRef.current) playSound('menuClose')
     setIsOpen(false)
     setColorPopover(null)
   }
+
+  function openPalette() {
+    playSound('menuOpen')
+    setIsOpen(true)
+  }
+
+  useEffect(() => {
+    useShortcutUiStore.getState().registerToolPalette({
+      close: closeAll,
+      isOpen: () => isOpenRef.current || colorPopoverRef.current !== null,
+    })
+    return () => useShortcutUiStore.getState().registerToolPalette(null)
+  }, [])
 
   useEffect(() => {
     if (!isOpen && !colorPopover) return
@@ -193,7 +221,7 @@ export default function ToolPalette() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.94, y: 8 }}
             transition={{ duration: 0.18, ease: 'easeOut' }}
-            className="theme-surface"
+            className={`theme-surface ${CHROME_GLASS_CLASS}`}
             style={{
               position: 'relative',
               display: 'flex',
@@ -205,37 +233,39 @@ export default function ToolPalette() {
               marginBottom: FAB_GAP,
               borderRadius: 999,
               background: glass.bg,
-              backdropFilter: glass.blur,
-              WebkitBackdropFilter: glass.blur,
               border: glass.border,
               boxShadow: glass.shadow,
               fontFamily: font.family,
             }}
           >
-            <ToolButton
-              label="Undo"
-              onClick={() => {
-                if (pastLen > 0) undo()
-              }}
-            >
-              <Undo2
-                size={18}
-                strokeWidth={2}
-                style={{ opacity: pastLen === 0 ? 0.5 : 1 }}
-              />
-            </ToolButton>
-            <ToolButton
-              label="Redo"
-              onClick={() => {
-                if (futureLen > 0) redo()
-              }}
-            >
-              <Redo2
-                size={18}
-                strokeWidth={2}
-                style={{ opacity: futureLen === 0 ? 0.5 : 1 }}
-              />
-            </ToolButton>
+            <ShortcutTooltip keys={SHORTCUTS_BY_ID.undo.keys}>
+              <ToolButton
+                label="Undo"
+                onClick={() => {
+                  if (canUndo) undo()
+                }}
+              >
+                <Undo2
+                  size={18}
+                  strokeWidth={2}
+                  style={{ opacity: canUndo ? 1 : 0.5 }}
+                />
+              </ToolButton>
+            </ShortcutTooltip>
+            <ShortcutTooltip keys={SHORTCUTS_BY_ID.redo.keys}>
+              <ToolButton
+                label="Redo"
+                onClick={() => {
+                  if (canRedo) redo()
+                }}
+              >
+                <Redo2
+                  size={18}
+                  strokeWidth={2}
+                  style={{ opacity: canRedo ? 1 : 0.5 }}
+                />
+              </ToolButton>
+            </ShortcutTooltip>
 
             <div style={dividerStyle} />
 
@@ -262,15 +292,15 @@ export default function ToolPalette() {
             <div style={dividerStyle} />
 
             <ToolButton
-              label="Clear all strokes"
+              label="Clear temporary annotations"
               onClick={() => {
-                if (strokeCount > 0) clearAll()
+                if (hasAnnotations) clearAllAnnotations()
               }}
             >
               <Trash2
                 size={18}
                 strokeWidth={2}
-                style={{ opacity: strokeCount === 0 ? 0.5 : 1 }}
+                style={{ opacity: hasAnnotations ? 1 : 0.5 }}
               />
             </ToolButton>
           </motion.div>
@@ -284,13 +314,13 @@ export default function ToolPalette() {
         aria-expanded={isOpen}
         onClick={() => {
           if (isOpen) closeAll()
-          else setIsOpen(true)
+          else openPalette()
         }}
         onMouseEnter={() => setFabHovered(true)}
         onMouseLeave={() => setFabHovered(false)}
         animate={{ scale: fabHovered ? 1.05 : 1 }}
         transition={{ duration: 0.2, ease: 'easeOut' }}
-        className="theme-surface"
+        className={`theme-surface ${CHROME_GLASS_CLASS}`}
         style={{
           width: FAB_SIZE,
           height: FAB_SIZE,
@@ -300,8 +330,6 @@ export default function ToolPalette() {
           justifyContent: 'center',
           cursor: 'pointer',
           background: isOpen ? card.bg : glass.bg,
-          backdropFilter: glass.blur,
-          WebkitBackdropFilter: glass.blur,
           border: glass.border,
           boxShadow: fabHovered ? card.shadow : glass.shadow,
           transition:

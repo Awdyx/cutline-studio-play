@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
+import { playSound } from '../sound/playSound'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Plus,
-  Sticker,
   StickyNote,
+  Layers,
+  Type,
   Image,
   CheckSquare,
   FileText,
@@ -11,9 +13,10 @@ import {
   ChevronLeft,
   X,
 } from 'lucide-react'
-import { card, font, glass } from '../styles/tokens'
+import { CHROME_CARD_CLASS, CHROME_GLASS_CLASS, card, font, glass } from '../styles/tokens'
+import { useShortcutUiStore } from '../shortcuts/shortcutUiStore'
 
-type CanvasAddType = 'widget' | 'sticky' | 'image'
+type CanvasAddType = 'space' | 'sticky' | 'text' | 'image'
 type StudyActionType = 'mcq' | 'saq' | 'mini_exam'
 type Subject = 'HU' | 'CE' | 'CH' | 'PH'
 
@@ -23,6 +26,8 @@ interface PlusFabProps {
     type: StudyActionType
     subject: Subject
   }) => void
+  /** Spaces only exist on the main canvas — hide the option when inside a space. */
+  showSpaceOption?: boolean
 }
 
 const SUBJECTS: { code: Subject; color: string }[] = [
@@ -43,8 +48,9 @@ const ADD_TO_CANVAS_ITEMS: {
   label: string
   type: CanvasAddType
 }[] = [
-  { icon: Sticker, label: 'Widget', type: 'widget' },
+  { icon: Layers, label: 'Space', type: 'space' },
   { icon: StickyNote, label: 'Sticky note', type: 'sticky' },
+  { icon: Type, label: 'Text', type: 'text' },
   { icon: Image, label: 'Image', type: 'image' },
 ]
 
@@ -135,14 +141,20 @@ function MenuRow({
 function MainMenuContent({
   onAddToCanvas,
   onStudyItemClick,
+  showSpaceOption,
 }: {
   onAddToCanvas: (type: CanvasAddType) => void
   onStudyItemClick: (type: StudyActionType) => void
+  showSpaceOption: boolean
 }) {
+  const addItems = showSpaceOption
+    ? ADD_TO_CANVAS_ITEMS
+    : ADD_TO_CANVAS_ITEMS.filter((i) => i.type !== 'space')
+
   return (
     <>
       <p style={sectionHeaderStyle}>Add to canvas</p>
-      {ADD_TO_CANVAS_ITEMS.map(({ icon, label, type }) => (
+      {addItems.map(({ icon, label, type }) => (
         <MenuRow
           key={type}
           icon={icon}
@@ -250,7 +262,11 @@ function SubjectPickerContent({
   )
 }
 
-export default function PlusFab({ onAddToCanvas, onStudyAction }: PlusFabProps) {
+export default function PlusFab({
+  onAddToCanvas,
+  onStudyAction,
+  showSpaceOption = true,
+}: PlusFabProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [view, setView] = useState<'main' | 'subject-picker'>('main')
   const [pendingAction, setPendingAction] = useState<StudyActionType | null>(
@@ -262,6 +278,8 @@ export default function PlusFab({ onAddToCanvas, onStudyAction }: PlusFabProps) 
   )
 
   const containerRef = useRef<HTMLDivElement>(null)
+  const isOpenRef = useRef(isOpen)
+  isOpenRef.current = isOpen
 
   function resetView() {
     setView('main')
@@ -270,8 +288,14 @@ export default function PlusFab({ onAddToCanvas, onStudyAction }: PlusFabProps) 
   }
 
   function closeMenu() {
+    if (isOpenRef.current) playSound('menuClose')
     setIsOpen(false)
     resetView()
+  }
+
+  function openMenu() {
+    playSound('menuOpen')
+    setIsOpen(true)
   }
 
   function handleAddToCanvas(type: CanvasAddType) {
@@ -290,6 +314,15 @@ export default function PlusFab({ onAddToCanvas, onStudyAction }: PlusFabProps) 
     onStudyAction({ type: pendingAction, subject })
     closeMenu()
   }
+
+  useEffect(() => {
+    useShortcutUiStore.getState().registerPlusFab({
+      open: openMenu,
+      close: closeMenu,
+      isOpen: () => isOpenRef.current,
+    })
+    return () => useShortcutUiStore.getState().registerPlusFab(null)
+  }, [])
 
   useEffect(() => {
     if (!isOpen) return
@@ -340,13 +373,11 @@ export default function PlusFab({ onAddToCanvas, onStudyAction }: PlusFabProps) 
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.94, y: 8 }}
             transition={{ duration: 0.18, ease: 'easeOut' }}
-            className="theme-surface"
+            className={`theme-surface ${CHROME_CARD_CLASS}`}
             style={{
               width: 280,
               marginBottom: 12,
               background: card.bg,
-              backdropFilter: card.blur,
-              WebkitBackdropFilter: card.blur,
               border: card.border,
               boxShadow: card.shadow,
               borderRadius: card.radius,
@@ -373,6 +404,7 @@ export default function PlusFab({ onAddToCanvas, onStudyAction }: PlusFabProps) 
                   <MainMenuContent
                     onAddToCanvas={handleAddToCanvas}
                     onStudyItemClick={handleStudyItemClick}
+                    showSpaceOption={showSpaceOption}
                   />
                 </motion.div>
               ) : (
@@ -411,7 +443,7 @@ export default function PlusFab({ onAddToCanvas, onStudyAction }: PlusFabProps) 
         data-fab-trigger
         aria-label={isOpen ? 'Close menu' : 'Open menu'}
         aria-expanded={isOpen}
-        onClick={() => (isOpen ? closeMenu() : setIsOpen(true))}
+        onClick={() => (isOpen ? closeMenu() : openMenu())}
         onMouseEnter={() => setFabHovered(true)}
         onMouseLeave={() => setFabHovered(false)}
         animate={{
@@ -419,7 +451,7 @@ export default function PlusFab({ onAddToCanvas, onStudyAction }: PlusFabProps) 
           rotate: isOpen ? 45 : 0,
         }}
         transition={{ duration: 0.2, ease: 'easeOut' }}
-        className="theme-surface"
+        className={`theme-surface ${CHROME_GLASS_CLASS}`}
         style={{
           width: 52,
           height: 52,
@@ -429,8 +461,6 @@ export default function PlusFab({ onAddToCanvas, onStudyAction }: PlusFabProps) 
           justifyContent: 'center',
           cursor: 'pointer',
           background: isOpen ? 'var(--card-bg)' : glass.bg,
-          backdropFilter: glass.blur,
-          WebkitBackdropFilter: glass.blur,
           border: glass.border,
           boxShadow: fabHovered ? 'var(--card-shadow)' : glass.shadow,
           transition:

@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { User, Settings, CreditCard, HelpCircle, LogOut } from 'lucide-react'
-import { card, font } from '../styles/tokens'
+import { CHROME_CARD_CLASS, card, font } from '../styles/tokens'
 
 type ProfileDestination = 'profile' | 'preferences' | 'subscription' | 'help'
 
@@ -19,8 +19,6 @@ const cardBase: React.CSSProperties = {
   right: 16,
   width: 280,
   background: card.bg,
-  backdropFilter: card.blur,
-  WebkitBackdropFilter: card.blur,
   border: card.border,
   boxShadow: card.shadow,
   borderRadius: card.radius,
@@ -124,7 +122,7 @@ export default function ProfilePanel({
   return (
     <motion.div
       ref={panelRef}
-      className="theme-surface"
+      className={`theme-surface ${CHROME_CARD_CLASS}`}
       style={cardBase}
       initial={{ opacity: 0, scale: 0.96, y: -4 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}

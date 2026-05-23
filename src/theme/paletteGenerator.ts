@@ -1,4 +1,5 @@
 import { formatHex, formatRgb, parse } from 'culori'
+import { UI_SATURATION_BOOST } from '../styles/tokens'
 
 /** User-adjustable canvas ambience (lightness-only mesh blobs). */
 export type PaletteConfig = {
@@ -32,6 +33,10 @@ const BLOB_REVEAL_ORDER = [2, 1, 3, 0, 4] as const
 const BLOB_REVEAL_BAND = 1 / BLOB_LIGHTNESS_STOPS.length
 
 const NEUTRAL_HUE = 250
+
+function uiChroma(c: number): number {
+  return c * UI_SATURATION_BOOST
+}
 
 function clampBlobDepth(depth: number): number {
   return Math.min(MAX_BLOB_DEPTH, Math.max(0, depth))
@@ -77,28 +82,28 @@ export function generatePalette(
   const depth = clampBlobDepth(config.blobDepth)
   const spread = depth * MAX_BLOB_LIGHTNESS_DELTA
 
-  const meshBaseL = mode === 'light' ? 0.94 : 0.2
+  const meshBaseL = mode === 'light' ? 0.94 : 0.24
 
   const meshColors = BLOB_LIGHTNESS_STOPS.map((stop) =>
     neutral(meshBaseL + stop * spread),
   )
 
-  const vignetteColor = neutral(mode === 'light' ? 0.22 : 0.08, 0.004)
+  const vignetteColor = neutral(mode === 'light' ? 0.22 : 0.12, uiChroma(0.004))
   const vignetteRgba = hexToRgba(vignetteColor, mode === 'light' ? 0.18 : 0.28)
 
-  const uiText = neutral(mode === 'light' ? 0.22 : 0.93, 0.006)
-  const uiTextMuted = neutral(mode === 'light' ? 0.48 : 0.68, 0.008)
-  const uiTextFaint = neutral(mode === 'light' ? 0.7 : 0.5, 0.006)
-  const uiBg = neutral(mode === 'light' ? 0.98 : 0.12, 0.004)
+  const uiText = neutral(mode === 'light' ? 0.22 : 0.93, uiChroma(0.006))
+  const uiTextMuted = neutral(mode === 'light' ? 0.48 : 0.68, uiChroma(0.008))
+  const uiTextFaint = neutral(mode === 'light' ? 0.7 : 0.5, uiChroma(0.006))
+  const uiBg = neutral(mode === 'light' ? 0.98 : 0.18, uiChroma(0.004))
 
   const uiGlassBg =
-    mode === 'light' ? 'rgba(255, 255, 255, 0.55)' : 'rgba(32, 34, 38, 0.55)'
+    mode === 'light' ? 'rgba(255, 255, 255, 0.55)' : 'rgba(34, 36, 40, 0.55)'
   const uiGlassBorder =
     mode === 'light' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(255, 255, 255, 0.08)'
   const uiCardBg =
-    mode === 'light' ? 'rgba(255, 255, 255, 0.72)' : 'rgba(42, 44, 48, 0.72)'
+    mode === 'light' ? 'rgba(255, 255, 255, 0.72)' : 'rgba(44, 46, 50, 0.72)'
 
-  const uiAccent = neutral(mode === 'light' ? 0.42 : 0.72, 0.01)
+  const uiAccent = neutral(mode === 'light' ? 0.42 : 0.72, uiChroma(0.01))
 
   return {
     meshColors,
@@ -122,6 +127,15 @@ export function canvasBackgroundColor(
 ): string {
   const depth = clampBlobDepth(config.blobDepth)
   const spread = depth * MAX_BLOB_LIGHTNESS_DELTA
-  const baseCanvasL = mode === 'light' ? 0.965 : 0.145
+  const baseCanvasL = mode === 'light' ? 0.965 : 0.2
   return neutral(baseCanvasL + BLOB_LIGHTNESS_STOPS[2] * spread * 0.35)
+}
+
+/** Sticky note surface — warm paper in light mode; lifted light grey on dark canvas. */
+export function resolveStickyColor(mode: 'light' | 'dark'): string {
+  return mode === 'light' ? '#F4EFCE' : neutral(0.30, uiChroma(0.006))
+}
+
+export function resolveStickyTextColor(mode: 'light' | 'dark'): string {
+  return mode === 'light' ? '#423a24' : neutral(0.9, uiChroma(0.006))
 }

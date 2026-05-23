@@ -1,4 +1,5 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
+import { UI_SATURATION_BOOST } from '../styles/tokens'
 import { generatePalette } from './paletteGenerator'
 import { useThemeStore } from './themeStore'
 import { useEffectiveMode } from './useEffectiveMode'
@@ -7,9 +8,13 @@ export function useThemeCssVars() {
   const palette = useThemeStore((s) => s.palette)
   const mode = useThemeStore((s) => s.mode)
   const effectiveMode = useEffectiveMode(mode)
+  const generated = useMemo(
+    () => generatePalette(palette, effectiveMode),
+    [palette, effectiveMode],
+  )
 
   useEffect(() => {
-    const p = generatePalette(palette, effectiveMode)
+    const p = generated
     const root = document.documentElement
 
     root.style.setProperty('--glass-bg', p.uiGlassBg)
@@ -30,10 +35,11 @@ export function useThemeCssVars() {
       : '0 8px 40px rgba(0, 0, 0, 0.4)')
     root.style.setProperty(
       '--pill-icon-halo',
-      effectiveMode === 'light' ? '#ffffff' : '#121820',
+      effectiveMode === 'light' ? '#ffffff' : '#161820',
     )
+    root.style.setProperty('--ui-saturate', String(UI_SATURATION_BOOST))
     root.dataset.theme = effectiveMode
-  }, [palette, effectiveMode])
+  }, [generated, effectiveMode])
 
-  return { palette, effectiveMode, generated: generatePalette(palette, effectiveMode) }
+  return { palette, effectiveMode, generated }
 }

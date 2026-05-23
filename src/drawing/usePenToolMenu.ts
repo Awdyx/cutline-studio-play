@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import type { ReactZoomPanPinchContentRef } from 'react-zoom-pan-pinch'
+import { playSound } from '../sound/playSound'
 import { clientToCanvas } from './canvasCoords'
 import { isPenInput } from './penInput'
 import { hitTestPenToolPill } from './penToolMenuLayout'
@@ -64,16 +65,19 @@ export function usePenToolMenu(
   }
 
   const resetToIdle = () => {
+    const wasOpen = phaseRef.current === 'open'
     clearHoldTimer()
     pointerIdRef.current = null
     phaseRef.current = 'idle'
     setState(idleUi)
+    if (wasOpen) playSound('menuClose')
   }
 
   const openMenu = () => {
     const { cancelActiveStroke, cancelEraseSession } = useStrokesStore.getState()
     cancelActiveStroke()
     cancelEraseSession()
+    playSound('menuOpen')
     phaseRef.current = 'open'
     const { x, y } = anchorRef.current
     setState({

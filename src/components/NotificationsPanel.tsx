@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { BellOff } from 'lucide-react'
-import { card, font } from '../styles/tokens'
+import { CHROME_CARD_CLASS, card, font } from '../styles/tokens'
 import type { Notification, NotificationTab } from '../types'
 
 interface NotificationsPanelProps {
@@ -27,8 +27,6 @@ const cardBase: React.CSSProperties = {
   width: 360,
   maxHeight: 480,
   background: card.bg,
-  backdropFilter: card.blur,
-  WebkitBackdropFilter: card.blur,
   border: card.border,
   boxShadow: card.shadow,
   borderRadius: card.radius,
@@ -178,7 +176,7 @@ export default function NotificationsPanel({
   return (
     <motion.div
       ref={panelRef}
-      className="theme-surface"
+      className={`theme-surface ${CHROME_CARD_CLASS}`}
       style={cardBase}
       initial={{ opacity: 0, scale: 0.96, y: -4 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}

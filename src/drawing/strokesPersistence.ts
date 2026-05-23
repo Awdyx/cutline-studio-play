@@ -9,12 +9,13 @@ import {
 import type { DrawTool } from './types'
 
 export const STROKES_STORAGE_KEY = 'cutline-strokes-v1'
-const STORAGE_VERSION = 1
+const STORAGE_VERSION = 2
 const MAX_BYTES = 4 * 1024 * 1024
 
 type PersistedPayload = {
   version: number
   strokes: Stroke[]
+  annotationStrokes?: Stroke[]
 }
 
 function normalizeStroke(raw: unknown): Stroke | null {
@@ -55,49 +56,66 @@ function normalizeStroke(raw: unknown): Stroke | null {
   return stroke
 }
 
-export function loadStrokesFromStorage(): Stroke[] {
+function normalizeStrokeList(raw: unknown): Stroke[] {
+  if (!Array.isArray(raw)) return []
+  return raw.map(normalizeStroke).filter((s): s is Stroke => s !== null)
+}
+
+export function loadStrokesFromStorage(): {
+  strokes: Stroke[]
+  annotationStrokes: Stroke[]
+} {
   try {
     const raw = localStorage.getItem(STROKES_STORAGE_KEY)
-    if (!raw) return []
+    if (!raw) return { strokes: [], annotationStrokes: [] }
 
     const parsed = JSON.parse(raw) as PersistedPayload | Stroke[]
-    const list = Array.isArray(parsed)
-      ? parsed
-      : Array.isArray(parsed?.strokes)
-        ? parsed.strokes
-        : []
+    if (Array.isArray(parsed)) {
+      return { strokes: normalizeStrokeList(parsed), annotationStrokes: [] }
+    }
 
-    return list
-      .map(normalizeStroke)
-      .filter((s): s is Stroke => s !== null)
+    const strokes = normalizeStrokeList(parsed?.strokes)
+    const annotationStrokes = normalizeStrokeList(parsed?.annotationStrokes)
+    return { strokes, annotationStrokes }
   } catch (err) {
     console.warn('[DRAW] failed to load strokes from localStorage', err)
-    return []
+    return { strokes: [], annotationStrokes: [] }
   }
 }
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null
 
-export function scheduleSaveStrokes(strokes: Stroke[]): void {
+export function scheduleSaveStrokes(
+  strokes: Stroke[],
+  annotationStrokes: Stroke[] = [],
+): void {
   if (saveTimer) clearTimeout(saveTimer)
   saveTimer = setTimeout(() => {
     saveTimer = null
-    saveStrokesToStorage(strokes)
+    saveStrokesToStorage(strokes, annotationStrokes)
   }, 500)
 }
 
-export function saveStrokesToStorage(strokes: Stroke[]): void {
+export function saveStrokesToStorage(
+  strokes: Stroke[],
+  annotationStrokes: Stroke[] = [],
+): void {
   try {
-    const payload: PersistedPayload = {
-      version: STORAGE_VERSION,
-      strokes: strokes.map(({ id, points, color, size, tool, path }) => ({
+    const serialize = (list: Stroke[]) =>
+      list.map(({ id, points, color, size, tool, path }) => ({
         id,
         points,
         color,
         size,
         tool,
         path,
-      })),
+      }))
+
+    const payload: PersistedPayload = {
+      version: STORAGE_VERSION,
+      strokes: serialize(strokes),
+      annotationStrokes:
+        annotationStrokes.length > 0 ? serialize(annotationStrokes) : undefined,
     }
     const serialized = JSON.stringify(payload)
     if (serialized.length > MAX_BYTES) {

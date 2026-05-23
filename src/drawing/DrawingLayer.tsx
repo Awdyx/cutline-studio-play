@@ -1,12 +1,17 @@
 import { memo } from 'react'
+import { effectiveCanvasLocked } from '../canvasLock/layer'
+import { useCanvasLockStore } from '../canvasLock/canvasLockStore'
 import { useStrokesStore } from './strokesStore'
 import { resolveStrokeFill } from './colorUtils'
 import { strokeToSvgPath } from './strokePath'
 import { useThemeStore } from '../theme/themeStore'
 import { useEffectiveMode } from '../theme/useEffectiveMode'
 import type { Stroke } from './types'
+import { Z_ANNOTATION_STROKES, Z_STROKES } from '../canvasItems/canvasZOrder'
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from './canvasDimensions'
+
 const HIGHLIGHTER_GLOW_FILTER_ID = 'cutline-highlighter-glow'
+const ANNOTATION_GLOW_FILTER_ID = 'cutline-annotation-highlighter-glow'
 
 const CompletedStrokePath = memo(function CompletedStrokePath({
   stroke,
@@ -32,12 +37,22 @@ const ActiveStrokePath = memo(function ActiveStrokePath({
   return <path d={d} fill={fill} />
 })
 
-export default function DrawingLayer() {
-  const strokes = useStrokesStore((s) => s.strokes)
-  const activeStroke = useStrokesStore((s) => s.activeStroke)
+function StrokeSvgLayer({
+  strokes,
+  activeStroke,
+  zIndex,
+  glowFilterId,
+}: {
+  strokes: Stroke[]
+  activeStroke: Stroke | null
+  zIndex: number
+  glowFilterId: string
+}) {
   const themeMode = useThemeStore((s) => s.mode)
   const effectiveMode = useEffectiveMode(themeMode)
   const isDark = effectiveMode === 'dark'
+
+  if (strokes.length === 0 && !activeStroke) return null
 
   const highlighters = strokes.filter((s) => s.tool === 'highlighter')
   const pens = strokes.filter((s) => s.tool === 'pen')
@@ -56,23 +71,26 @@ export default function DrawingLayer() {
         position: 'absolute',
         top: 0,
         left: 0,
-        zIndex: 1,
+        zIndex,
         pointerEvents: 'none',
       }}
     >
-      {isDark && (
+      {isDark && highlighters.length + (activeStroke?.tool === 'highlighter' ? 1 : 0) > 0 && (
         <defs>
           <filter
-            id={HIGHLIGHTER_GLOW_FILTER_ID}
+            id={glowFilterId}
             x="-50%"
             y="-50%"
             width="200%"
             height="200%"
             colorInterpolationFilters="sRGB"
           >
-            <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur" />
+            <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="blur" />
+            <feComponentTransfer in="blur" result="softBlur">
+              <feFuncA type="linear" slope="0.28" intercept="0" />
+            </feComponentTransfer>
             <feMerge>
-              <feMergeNode in="blur" />
+              <feMergeNode in="softBlur" />
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
@@ -82,7 +100,7 @@ export default function DrawingLayer() {
       <g
         style={{
           mixBlendMode: highlighterBlend,
-          filter: isDark ? `url(#${HIGHLIGHTER_GLOW_FILTER_ID})` : undefined,
+          filter: isDark ? `url(#${glowFilterId})` : undefined,
         }}
       >
         {highlighters.map((stroke) => (
@@ -113,13 +131,37 @@ export default function DrawingLayer() {
       {activeStroke?.tool === 'pen' && (
         <ActiveStrokePath
           stroke={activeStroke}
-          fill={resolveStrokeFill(
-            activeStroke.color,
-            activeStroke.tool,
-            effectiveMode,
-          )}
+          fill={resolveStrokeFill(activeStroke.color, activeStroke.tool, effectiveMode)}
         />
       )}
     </svg>
+  )
+}
+
+export default function DrawingLayer() {
+  const strokes = useStrokesStore((s) => s.strokes)
+  const annotationStrokes = useStrokesStore((s) => s.annotationStrokes)
+  const activeStroke = useStrokesStore((s) => s.activeStroke)
+  const isLocked = useCanvasLockStore((s) => s.isLocked)
+  const lockActive = effectiveCanvasLocked(isLocked)
+
+  const committedActive = lockActive ? null : activeStroke
+  const annotationActive = lockActive ? activeStroke : null
+
+  return (
+    <>
+      <StrokeSvgLayer
+        strokes={strokes}
+        activeStroke={committedActive}
+        zIndex={Z_STROKES}
+        glowFilterId={HIGHLIGHTER_GLOW_FILTER_ID}
+      />
+      <StrokeSvgLayer
+        strokes={annotationStrokes}
+        activeStroke={annotationActive}
+        zIndex={Z_ANNOTATION_STROKES}
+        glowFilterId={ANNOTATION_GLOW_FILTER_ID}
+      />
+    </>
   )
 }

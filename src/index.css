@@ -43,6 +43,7 @@ button {
   --glass-shadow: 0 4px 24px rgba(20, 30, 50, 0.08);
   --card-shadow: 0 8px 40px rgba(20, 30, 50, 0.14);
   --pill-backdrop: blur(40px) saturate(180%);
+  --ui-saturate: 1;
   --pill-surface: rgba(255, 255, 255, 0.45);
   --pill-icon-halo: #ffffff;
 }
@@ -68,6 +69,68 @@ input::placeholder {
 .theme-surface {
   transition: background-color 400ms ease, color 400ms ease, border-color 400ms ease,
     box-shadow 400ms ease;
+}
+
+/* Viewport-fixed chrome only — frosted glass over the canvas (not inside pan/zoom). */
+.ui-chrome-glass {
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  backdrop-filter: blur(40px) saturate(180%);
+  filter: saturate(var(--ui-saturate, 1));
+}
+
+.ui-chrome-card {
+  -webkit-backdrop-filter: blur(48px) saturate(200%);
+  backdrop-filter: blur(48px) saturate(200%);
+  filter: saturate(var(--ui-saturate, 1));
+}
+
+@media (pointer: coarse) {
+  .ui-chrome-glass {
+    -webkit-backdrop-filter: blur(20px) saturate(170%);
+    backdrop-filter: blur(20px) saturate(170%);
+  }
+
+  .ui-chrome-card {
+    -webkit-backdrop-filter: blur(28px) saturate(185%);
+    backdrop-filter: blur(28px) saturate(185%);
+  }
+}
+
+/* Light scrim blur for modals — avoid full-canvas backdrop-filter inside pan/zoom. */
+.ui-chrome-scrim {
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+@media (pointer: coarse) {
+  .ui-chrome-scrim {
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+  }
+}
+
+/* Space cards on the canvas — frosted glass (do not use full-canvas backdrop-filter). */
+.ui-space-glass {
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  backdrop-filter: blur(10px) saturate(140%);
+  filter: saturate(var(--ui-saturate, 1));
+}
+
+@media (pointer: coarse) {
+  .ui-space-glass {
+    -webkit-backdrop-filter: blur(8px) saturate(130%);
+    backdrop-filter: blur(8px) saturate(130%);
+  }
+}
+
+/* Blur canvas behind selection (no saturate — that boosted the whole background). */
+.ui-selection-depth {
+  -webkit-backdrop-filter: blur(7px);
+  backdrop-filter: blur(7px);
+}
+
+.canvas-item-selected-focus {
+  transition: filter 220ms ease-out;
 }
 
 /* --- Pencil-hold tool pill (viewport-fixed; solid fill test — no frost) --- */
@@ -156,4 +219,107 @@ input::placeholder {
 
 .pen-tool-pill__icon-glyph {
   position: relative;
+}
+
+html.canvas-item-drag-active {
+  cursor: grabbing !important;
+  user-select: none;
+}
+
+html.canvas-item-drag-active .canvas-item-drag-handle {
+  cursor: grabbing;
+  opacity: 0.72;
+}
+
+.canvas-item-drag-handle:hover,
+.canvas-item-drag-handle:focus-visible {
+  opacity: 0.62;
+  color: rgba(30, 35, 45, 0.48);
+}
+
+.canvas-item-resize-handle:hover,
+.canvas-item-resize-handle:focus-visible {
+  opacity: 0.48;
+  color: rgba(30, 35, 45, 0.4);
+}
+
+.canvas-item-z-menu-row:hover {
+  background: rgba(20, 30, 50, 0.06);
+}
+
+.canvas-item-z-menu-row--destructive:hover {
+  background: rgba(196, 78, 78, 0.08);
+}
+
+.sticky-note-editor--show-placeholder:empty::before {
+  content: attr(data-placeholder);
+  color: rgba(61, 53, 32, 0.45);
+  pointer-events: none;
+}
+
+[data-theme='dark'] .sticky-note-editor--show-placeholder:empty::before {
+  color: rgba(228, 226, 218, 0.42);
+}
+
+/* Plain canvas text — bounds/handles only on hover or while moving/resizing */
+[data-canvas-item='text'] {
+  outline: 1px dashed transparent;
+  outline-offset: 3px;
+  transition: outline-color 120ms ease;
+}
+
+[data-canvas-item='text']:hover,
+[data-canvas-item='text']:focus-within,
+[data-canvas-item='text'][data-active] {
+  outline-color: rgba(30, 35, 45, 0.22);
+}
+
+[data-canvas-item='text'][data-selected] {
+  outline-color: transparent;
+}
+
+[data-canvas-item='text'][data-selected] .canvas-item-drag-handle,
+[data-canvas-item='text'][data-selected] .canvas-item-resize-handle {
+  opacity: 0.42;
+}
+
+[data-canvas-item='text'] .canvas-item-drag-handle,
+[data-canvas-item='text'] .canvas-item-resize-handle {
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+[data-canvas-item='text']:hover .canvas-item-drag-handle,
+[data-canvas-item='text']:focus-within .canvas-item-drag-handle,
+[data-canvas-item='text'][data-active] .canvas-item-drag-handle,
+[data-canvas-item='text']:hover .canvas-item-resize-handle,
+[data-canvas-item='text']:focus-within .canvas-item-resize-handle,
+[data-canvas-item='text'][data-active] .canvas-item-resize-handle {
+  opacity: 0.42;
+}
+
+.canvas-text-editor--empty::before {
+  content: attr(data-placeholder);
+  color: var(--ui-text-faint);
+  pointer-events: none;
+}
+
+.canvas-text-editor b,
+.canvas-text-editor strong {
+  font-weight: 600;
+}
+
+.canvas-text-editor i,
+.canvas-text-editor em {
+  font-style: italic;
+}
+
+.canvas-text-editor s,
+.canvas-text-editor strike,
+.canvas-text-editor del {
+  text-decoration: line-through;
+}
+
+.canvas-text-editor u {
+  text-decoration: underline;
 }

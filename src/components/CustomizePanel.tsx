@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { X } from 'lucide-react'
-import { card, font } from '../styles/tokens'
+import { CHROME_CARD_CLASS, card, font } from '../styles/tokens'
 import { MAX_BLOB_DEPTH } from '../theme/paletteGenerator'
 import { useThemeStore } from '../theme/themeStore'
 
@@ -114,8 +114,6 @@ export default function CustomizePanel({ isOpen, onClose }: CustomizePanelProps)
         left: 16,
         width: 340,
         background: card.bg,
-        backdropFilter: card.blur,
-        WebkitBackdropFilter: card.blur,
         border: card.border,
         boxShadow: card.shadow,
         borderRadius: 18,
@@ -124,7 +122,7 @@ export default function CustomizePanel({ isOpen, onClose }: CustomizePanelProps)
         zIndex: 30,
         padding: '16px 20px 20px',
       }}
-      className="theme-surface"
+      className={`theme-surface ${CHROME_CARD_CLASS}`}
     >
       <div
         style={{

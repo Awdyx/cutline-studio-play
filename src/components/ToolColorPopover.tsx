@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { card, font } from '../styles/tokens'
+import { CHROME_CARD_CLASS, card, font } from '../styles/tokens'
 import {
   HIGHLIGHTER_PRESETS,
   PEN_PRESETS,
@@ -150,7 +150,7 @@ export default function ToolColorPopover({ tool, onClose }: ToolColorPopoverProp
   return (
     <div
       ref={popoverRef}
-      className="theme-surface"
+      className={`theme-surface ${CHROME_CARD_CLASS}`}
       style={{
         position: 'absolute',
         bottom: 'calc(100% + 12px)',
@@ -159,8 +159,6 @@ export default function ToolColorPopover({ tool, onClose }: ToolColorPopoverProp
         width: 248,
         padding: '14px 12px',
         background: card.bg,
-        backdropFilter: card.blur,
-        WebkitBackdropFilter: card.blur,
         border: card.border,
         boxShadow: card.shadow,
         borderRadius: 16,

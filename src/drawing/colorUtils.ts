@@ -4,8 +4,8 @@ export const CONTRAST_INK = '__contrast__' as const
 /** Default pen ink on a light canvas. */
 export const CONTRAST_PEN_LIGHT = '#4f5568'
 
-/** Same ink on a dark canvas. */
-export const CONTRAST_PEN_DARK = '#e4e7ef'
+/** Same ink on a dark canvas — soft off-white, not full UI text brightness. */
+export const CONTRAST_PEN_DARK = '#d4d8e2'
 
 /** Pen inks — first swatch is theme-adaptive contrast ink. */
 export const PEN_PRESETS = [
@@ -25,15 +25,15 @@ export const HIGHLIGHTER_PRESETS = [
 
 export const DEFAULT_HIGHLIGHTER_COLOR = HIGHLIGHTER_PRESETS[0]
 
-/** Dark-mode highlighter fills — brighter and more opaque for screen/glow blending. */
+/** Dark-mode highlighter fills — slightly lifted for plus-lighter blend; keep opacity low. */
 export const HIGHLIGHTER_DARK_GLOW = [
-  'rgba(255, 238, 130, 0.62)',
-  'rgba(255, 158, 210, 0.58)',
-  'rgba(150, 200, 255, 0.58)',
+  'rgba(255, 238, 130, 0.38)',
+  'rgba(255, 158, 210, 0.36)',
+  'rgba(150, 200, 255, 0.36)',
 ] as const
 
 const LEGACY_CONTRAST_HEX = new Set(
-  [CONTRAST_PEN_LIGHT, CONTRAST_PEN_DARK, '#4f5568', '#e8ebf2', '#d8dce6'].map((c) =>
+  [CONTRAST_PEN_LIGHT, CONTRAST_PEN_DARK, '#4f5568', '#e4e7ef', '#e8ebf2', '#d8dce6'].map((c) =>
     c.toLowerCase(),
   ),
 )
@@ -77,7 +77,7 @@ function boostRgbaForDarkGlow(color: string): string {
   const r = Math.min(255, Math.round(Number(match[1]) * 1.05 + 12))
   const g = Math.min(255, Math.round(Number(match[2]) * 1.05 + 12))
   const b = Math.min(255, Math.round(Number(match[3]) * 1.05 + 12))
-  const a = Math.min(0.75, (match[4] !== undefined ? Number(match[4]) : 1) * 1.65)
+  const a = Math.min(0.48, (match[4] !== undefined ? Number(match[4]) : 1) * 1.2)
   return `rgba(${r}, ${g}, ${b}, ${a})`
 }
 

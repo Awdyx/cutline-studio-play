@@ -12,15 +12,36 @@ import { AnimatePresence } from 'framer-motion'
 import MotionIndicator from './MotionIndicator'
 import TrailingVignette from './TrailingVignette'
 import { usePanMotionHandler } from './usePanMotionHandler'
+import { CANVAS_PAN_EXCLUDED } from './canvas/canvasNavigationStore'
+import { useCanvasNavigationTracking } from './canvas/useCanvasNavigationTracking'
+import { useDeferredCanvasTap } from './canvas/useDeferredCanvasTap'
 import TopBar from './components/TopBar'
 import NotificationsPanel from './components/NotificationsPanel'
 import ProfilePanel from './components/ProfilePanel'
 import PlusFab from './components/PlusFab'
 import ToolPalette from './components/ToolPalette'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
+import { useBackgroundMusic } from './hooks/useBackgroundMusic'
+import { usePanelSounds } from './hooks/usePanelSounds'
+import { useSoundStore } from './sound/soundStore'
+import { playSound } from './sound/playSound'
+import ActionToast from './components/ActionToast'
+import { clearHistory } from './canvasHistory/canvasHistory'
 import { useStrokesStore } from './drawing/strokesStore'
+import { useCanvasItemsStore } from './canvasItems/canvasItemsStore'
+import { useCanvasItemDragStore } from './canvasItems/canvasItemDragStore'
+import CanvasItemsLayer from './canvasItems/CanvasItemsLayer'
+import CanvasItemZOrderMenu from './canvasItems/CanvasItemZOrderMenu'
+import SelectionBlurOverlay from './canvasItems/SelectionBlurOverlay'
+import { useCanvasFileHandlers } from './canvasItems/useCanvasFileHandlers'
+import { useCanvasLockStore } from './canvasLock/canvasLockStore'
+import { useCanvasWorkspaceStore } from './spaces/canvasWorkspaceStore'
+import SpaceBackPill from './components/SpaceBackPill'
+import SpaceTransitionOverlay from './components/SpaceTransitionOverlay'
 import CutlineMenu from './components/CutlineMenu'
 import CustomizePanel from './components/CustomizePanel'
+import WhatsNewPanel from './components/WhatsNewPanel'
+import UnlockAnnotationsModal from './components/UnlockAnnotationsModal'
 import type { Notification, NotificationTab } from './types'
 import {
   canvasBackgroundColor,
@@ -34,6 +55,7 @@ import {
   CANVAS_WIDTH,
   getCanvasMinScale,
 } from './drawing/canvasDimensions'
+import { prefersSolidCompositorLayers } from './platform/compositor'
 
 const meshBlobMotion = [
   {
@@ -133,11 +155,21 @@ const placeholderNotifications: Notification[] = [
   },
 ]
 
-type OpenPanel = 'notifications' | 'profile' | 'cutline' | 'customize' | null
+type OpenPanel =
+  | 'notifications'
+  | 'profile'
+  | 'cutline'
+  | 'customize'
+  | 'whats-new'
+  | null
 
 function App() {
   const [minScale, setMinScale] = useState(getCanvasMinScale)
   const onPanning = usePanMotionHandler()
+  useCanvasNavigationTracking()
+  const clearCanvasSelectionTap = useDeferredCanvasTap(() => {
+    useCanvasItemsStore.getState().clearSelection()
+  })
   const palette = useThemeStore((s) => s.palette)
   const themeModeStore = useThemeStore((s) => s.mode)
   const effectiveMode = useEffectiveMode(themeModeStore)
@@ -146,6 +178,7 @@ function App() {
   const meshBlobVisibility = meshBlobVisibilities(palette.blobDepth)
   const meshLayerOpacity = effectiveMode === 'light' ? 0.92 : 0.88
   const canvasBg = canvasBackgroundColor(palette, effectiveMode)
+  const pauseMeshMotion = prefersSolidCompositorLayers()
 
   const transformRef = useRef<ReactZoomPanPinchContentRef | null>(null)
   const canvasRef = useRef<HTMLDivElement | null>(null)
@@ -154,11 +187,60 @@ function App() {
   const penMenu = usePenToolMenu(transformRef)
   useDrawing(canvasRef, transformRef, setPenDown, penMenu.bridgeRef, canvasMount)
 
-  const isPenDown = penDown || penMenu.state.phase !== 'idle'
-  useKeyboardShortcuts()
+  const {
+    imageInputRef,
+    onImageInputChange,
+    openImagePicker,
+    spawnStickyAtViewportCenter,
+    spawnTextAtViewportCenter,
+    spawnSpaceAtViewportCenter,
+  } = useCanvasFileHandlers(transformRef, canvasRef)
+
+  const isInsideSpace = useCanvasWorkspaceStore((s) => s.activeCanvasId !== 'main')
+  const spaceTransitionPhase = useCanvasWorkspaceStore((s) => s.transition.phase)
+  const canvasFaded =
+    spaceTransitionPhase === 'entering' || spaceTransitionPhase === 'exiting'
+
+  const handleExitSpace = () => {
+    const workspace = useCanvasWorkspaceStore.getState()
+    playSound('spaceExit')
+    void workspace
+      .captureExitSnapshot(transformRef.current, canvasRef.current)
+      .then(() => {
+        workspace.beginExitSpace(transformRef.current)
+        window.setTimeout(() => {
+          workspace.completeExitSpace(transformRef.current)
+        }, 280)
+      })
+  }
+
+  const itemZMenuOpen = useCanvasItemsStore((s) => s.zMenu !== null)
+  const itemDragActive = useCanvasItemDragStore((s) => s.activeItemId !== null)
+
+  const isPenDown =
+    penDown || penMenu.state.phase !== 'idle' || itemZMenuOpen || itemDragActive
+  const isCanvasLocked = useCanvasLockStore((s) => s.isLocked)
+  const unlockModalOpen = useCanvasLockStore((s) => s.unlockModalOpen)
+  const lockCanvas = useCanvasLockStore((s) => s.lockCanvas)
+  const requestUnlock = useCanvasLockStore((s) => s.requestUnlock)
+  const cancelUnlock = useCanvasLockStore((s) => s.cancelUnlock)
+  const keepAnnotationsAndUnlock = useCanvasLockStore((s) => s.keepAnnotationsAndUnlock)
+  const discardAnnotationsAndUnlock = useCanvasLockStore(
+    (s) => s.discardAnnotationsAndUnlock,
+  )
 
   useEffect(() => {
+    useCanvasWorkspaceStore.getState().hydrate()
+    useCanvasItemsStore.getState().hydrate()
     useStrokesStore.getState().hydrate()
+    useCanvasLockStore.getState().hydrate()
+    useSoundStore.getState().hydrate()
+    clearHistory()
+    requestAnimationFrame(() => {
+      useCanvasWorkspaceStore
+        .getState()
+        .applyCameraForActiveCanvas(transformRef.current)
+    })
   }, [])
 
   const themeMode = useThemeStore((s) => s.mode)
@@ -171,18 +253,15 @@ function App() {
     setOpenPanel((current) => (current === panel ? null : panel))
   }
 
+  const closePanel = () => setOpenPanel(null)
+  useKeyboardShortcuts(unlockModalOpen, openPanel, cancelUnlock, closePanel)
+  usePanelSounds(openPanel, unlockModalOpen)
+  useBackgroundMusic()
+
   useEffect(() => {
     const handleResize = () => setMinScale(getCanvasMinScale())
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
-  }, [])
-
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpenPanel(null)
-    }
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
   }, [])
 
   const unreadCount = placeholderNotifications.filter((n) => n.isUnread).length
@@ -199,12 +278,13 @@ function App() {
     >
       <MotionIndicator />
       <TrailingVignette />
+      <ActionToast />
 
       <TopBar
         user={currentUser}
         unreadCount={unreadCount}
         cutlineMenuOpen={openPanel === 'cutline'}
-        onSearch={() => {}}
+        transformRef={transformRef}
         onCutlineClick={() => openOnly('cutline')}
         onNotificationClick={() => openOnly('notifications')}
         onProfileClick={() => openOnly('profile')}
@@ -213,11 +293,29 @@ function App() {
       <ToolPalette />
 
       <PenToolPillMenu state={penMenu.state} />
+      <CanvasItemZOrderMenu />
+
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={onImageInputChange}
+      />
 
       <PlusFab
-        onAddToCanvas={(type) => console.log('add to canvas', type)}
+        showSpaceOption={!isInsideSpace}
+        onAddToCanvas={(type) => {
+          if (type === 'sticky') spawnStickyAtViewportCenter()
+          else if (type === 'text') spawnTextAtViewportCenter()
+          else if (type === 'image') openImagePicker()
+          else if (type === 'space') spawnSpaceAtViewportCenter()
+        }}
         onStudyAction={(action) => console.log('study action', action)}
       />
+
+      <SpaceTransitionOverlay />
+      {isInsideSpace && <SpaceBackPill onExit={handleExitSpace} />}
 
       <AnimatePresence>
         {openPanel === 'cutline' && (
@@ -228,14 +326,29 @@ function App() {
             mode={themeMode}
             onModeChange={setMode}
             onCustomizeCanvas={() => setOpenPanel('customize')}
-            onNavigate={(dest) => console.log('cutline navigate', dest)}
+            onNavigate={(dest) => {
+              if (dest === 'whats-new') setOpenPanel('whats-new')
+              else console.log('cutline navigate', dest)
+            }}
+            isCanvasLocked={isCanvasLocked}
+            showCanvasLock={!isInsideSpace}
+            onToggleCanvasLock={() => {
+              if (isCanvasLocked) requestUnlock()
+              else lockCanvas()
+            }}
           />
         )}
       </AnimatePresence>
 
       <AnimatePresence>
         {openPanel === 'customize' && (
-          <CustomizePanel key="customize" isOpen onClose={() => setOpenPanel(null)} />
+          <CustomizePanel key="customize" isOpen onClose={closePanel} />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {openPanel === 'whats-new' && (
+          <WhatsNewPanel key="whats-new" isOpen onClose={closePanel} />
         )}
       </AnimatePresence>
 
@@ -250,6 +363,18 @@ function App() {
             onTabChange={setActiveTab}
             onMarkAllRead={() => console.log('mark all read')}
             onNotificationClick={(id) => console.log('notification clicked', id)}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {unlockModalOpen && (
+          <UnlockAnnotationsModal
+            key="unlock-annotations"
+            isOpen
+            onKeep={keepAnnotationsAndUnlock}
+            onDiscard={discardAnnotationsAndUnlock}
+            onCancel={cancelUnlock}
           />
         )}
       </AnimatePresence>
@@ -275,15 +400,29 @@ function App() {
         limitToBounds
         disablePadding
         centerZoomedOut={false}
-        onInit={(ref) => ref.centerView()}
-        onPanning={onPanning}
+        onInit={(ref) => {
+          useCanvasWorkspaceStore
+            .getState()
+            .applyCameraForActiveCanvas(ref)
+        }}
+        onPanning={(ref) => {
+          onPanning(ref)
+          useCanvasWorkspaceStore.getState().syncMainCamera(ref)
+        }}
         wheel={{
           step: 0.02,
           activationKeys: (keys) =>
             keys.includes('Control') || keys.includes('Meta'),
         }}
-        trackPadPanning={{ disabled: false }}
-        panning={{ velocityDisabled: false, disabled: isPenDown }}
+        trackPadPanning={{
+          disabled: false,
+          excluded: [...CANVAS_PAN_EXCLUDED],
+        }}
+        panning={{
+          velocityDisabled: false,
+          disabled: isPenDown,
+          excluded: [...CANVAS_PAN_EXCLUDED],
+        }}
         velocityAnimation={{
           sensitivityMouse: 0.4,
           sensitivityTouch: 0.4,
@@ -306,12 +445,20 @@ function App() {
               setCanvasMount(node)
             }}
             className="cutline-draw-target draw-target"
+            onPointerDown={(e) => {
+              if (e.target !== e.currentTarget) return
+              clearCanvasSelectionTap.onPointerDown(e)
+            }}
+            onPointerMove={clearCanvasSelectionTap.onPointerMove}
+            onPointerUp={clearCanvasSelectionTap.onPointerUp}
+            onPointerCancel={clearCanvasSelectionTap.onPointerCancel}
             style={{
               width: CANVAS_WIDTH,
               height: CANVAS_HEIGHT,
               position: 'relative',
               backgroundColor: canvasBg,
-              transition: 'background-color 400ms ease',
+              transition: 'background-color 400ms ease, opacity 280ms ease-out',
+              opacity: canvasFaded ? 0 : 1,
             }}
           >
             <style>{meshKeyframesCss}</style>
@@ -331,8 +478,10 @@ function App() {
                     backgroundSize: `${meshBlobMotion[index].size}px ${meshBlobMotion[index].size}px`,
                     backgroundRepeat: 'no-repeat',
                     backgroundPosition: `${meshBlobMotion[index].path[0][0]}% ${meshBlobMotion[index].path[0][1]}%`,
-                    animation: `meshBlob${index} ${meshBlobMotion[index].period}s ease-in-out infinite`,
-                    willChange: 'background-position, opacity',
+                    animation: pauseMeshMotion
+                      ? 'none'
+                      : `meshBlob${index} ${meshBlobMotion[index].period}s ease-in-out infinite`,
+                    willChange: pauseMeshMotion ? undefined : 'background-position, opacity',
                     pointerEvents: 'none',
                     transition:
                       'background-image 400ms ease, opacity 400ms ease',
@@ -340,7 +489,11 @@ function App() {
                 />
               )
             })}
+            <CanvasItemsLayer plane="below" transformRef={transformRef} />
             <DrawingLayer />
+            <CanvasItemsLayer plane="above" transformRef={transformRef} />
+            <CanvasItemsLayer plane="annotation" transformRef={transformRef} />
+            <SelectionBlurOverlay />
           </div>
         </TransformComponent>
       </TransformWrapper>

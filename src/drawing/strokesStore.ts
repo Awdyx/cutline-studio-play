@@ -1,17 +1,18 @@
 import { create } from 'zustand'
+import {
+  cancelLastUndoSnapshotIfEraseUnchanged,
+  pushUndoSnapshot,
+  redo as historyRedo,
+  undo as historyUndo,
+} from '../canvasHistory/canvasHistory'
+import { playSound } from '../sound/playSound'
+import { useCanvasLockStore } from '../canvasLock/canvasLockStore'
+import { effectiveCanvasLocked } from '../canvasLock/layer'
 import { ERASE_HIT_RADIUS, hitTestStroke } from './eraseUtils'
-import { loadStrokesFromStorage, scheduleSaveStrokes } from './strokesPersistence'
+import { notifyWorkspacePersist } from '../spaces/canvasWorkspaceStore'
 import { strokeToSvgPath } from './strokePath'
 import { generateStrokeId } from './strokeId'
 import type { DrawTool, Stroke, StrokePoint } from './types'
-
-const HISTORY_CAP = 50
-
-function pushPast(past: Stroke[][], snapshot: Stroke[]): Stroke[][] {
-  const next = [...past, snapshot]
-  if (next.length > HISTORY_CAP) return next.slice(-HISTORY_CAP)
-  return next
-}
 
 type StrokeConfig = {
   color: string
@@ -21,9 +22,8 @@ type StrokeConfig = {
 
 type StrokesState = {
   strokes: Stroke[]
+  annotationStrokes: Stroke[]
   activeStroke: Stroke | null
-  past: Stroke[][]
-  future: Stroke[][]
   startStroke: (point: StrokePoint, config: StrokeConfig) => void
   addPoint: (point: StrokePoint) => void
   endStroke: () => void
@@ -33,7 +33,6 @@ type StrokesState = {
   applyDragErase: (pos: { x: number; y: number }) => void
   undo: () => void
   redo: () => void
-  clearAll: () => void
   hydrate: () => void
 }
 
@@ -49,15 +48,16 @@ function createStroke(point: StrokePoint, config: StrokeConfig): Stroke {
 
 let persistEnabled = false
 
+function persist() {
+  if (persistEnabled) notifyWorkspacePersist()
+}
+
 export const useStrokesStore = create<StrokesState>((set, get) => ({
   strokes: [],
+  annotationStrokes: [],
   activeStroke: null,
-  past: [],
-  future: [],
 
   hydrate: () => {
-    const strokes = loadStrokesFromStorage()
-    set({ strokes })
     persistEnabled = true
   },
 
@@ -81,109 +81,78 @@ export const useStrokesStore = create<StrokesState>((set, get) => ({
   },
 
   cancelEraseSession: () => {
-    set((state) => {
-      if (state.past.length === 0) return state
-      const snapshot = state.past[state.past.length - 1]
-      const unchanged =
-        snapshot.length === state.strokes.length &&
-        snapshot.every((s, i) => s.id === state.strokes[i]?.id)
-      if (!unchanged) return state
-      return { past: state.past.slice(0, -1) }
-    })
+    cancelLastUndoSnapshotIfEraseUnchanged()
   },
 
   endStroke: () => {
-    set((state) => {
-      const active = state.activeStroke
-      if (!active) return state
+    const active = get().activeStroke
+    if (!active) return
 
-      let points = [...active.points]
-      while (points.length > 2 && points[points.length - 1].pressure < 0.15) {
-        points.pop()
-      }
+    let points = [...active.points]
+    while (points.length > 2 && points[points.length - 1].pressure < 0.15) {
+      points.pop()
+    }
 
-      if (points.length < 3) {
-        return { activeStroke: null }
-      }
+    if (points.length < 3) {
+      set({ activeStroke: null })
+      return
+    }
 
-      const trimmed: Stroke = { ...active, points }
-      const path = strokeToSvgPath(trimmed, true)
-      const strokes = [...state.strokes, { ...trimmed, path }]
+    pushUndoSnapshot()
 
-      if (persistEnabled) scheduleSaveStrokes(strokes)
+    const trimmed: Stroke = { ...active, points }
+    const path = strokeToSvgPath(trimmed, true)
+    const completed = { ...trimmed, path }
+    const isLocked = effectiveCanvasLocked(
+      useCanvasLockStore.getState().isLocked,
+    )
 
-      return {
-        past: pushPast(state.past, state.strokes),
-        future: [],
-        strokes,
-        activeStroke: null,
-      }
-    })
+    if (isLocked) {
+      const annotationStrokes = [...get().annotationStrokes, completed]
+      persist()
+      set({ annotationStrokes, activeStroke: null })
+      return
+    }
+
+    const strokes = [...get().strokes, completed]
+    persist()
+    set({ strokes, activeStroke: null })
   },
 
   beginDragErase: () => {
-    set((state) => ({
-      past: pushPast(state.past, state.strokes),
-      future: [],
-    }))
+    pushUndoSnapshot()
   },
 
   applyDragErase: (pos) => {
-    set((state) => {
-      const strokes = state.strokes.filter(
-        (stroke) =>
-          !hitTestStroke(stroke, pos.x, pos.y, ERASE_HIT_RADIUS),
-      )
-      if (strokes.length === state.strokes.length) return state
+    const isLocked = effectiveCanvasLocked(
+      useCanvasLockStore.getState().isLocked,
+    )
+    const { strokes, annotationStrokes } = get()
 
-      if (persistEnabled) scheduleSaveStrokes(strokes)
-      return { strokes }
-    })
+    if (isLocked) {
+      const next = annotationStrokes.filter(
+        (stroke) => !hitTestStroke(stroke, pos.x, pos.y, ERASE_HIT_RADIUS),
+      )
+      if (next.length === annotationStrokes.length) return
+      persist()
+      set({ annotationStrokes: next })
+      return
+    }
+
+    const next = strokes.filter(
+      (stroke) => !hitTestStroke(stroke, pos.x, pos.y, ERASE_HIT_RADIUS),
+    )
+    if (next.length === strokes.length) return
+
+    persist()
+    set({ strokes: next })
   },
 
   undo: () => {
-    set((state) => {
-      if (state.past.length === 0) return state
-      const previous = state.past[state.past.length - 1]
-      const strokes = previous
-      if (persistEnabled) scheduleSaveStrokes(strokes)
-      return {
-        past: state.past.slice(0, -1),
-        future: [state.strokes, ...state.future],
-        strokes,
-        activeStroke: null,
-      }
-    })
+    if (historyUndo()) playSound('undo')
   },
 
   redo: () => {
-    set((state) => {
-      if (state.future.length === 0) return state
-      const next = state.future[0]
-      const strokes = next
-      if (persistEnabled) scheduleSaveStrokes(strokes)
-      return {
-        past: pushPast(state.past, state.strokes),
-        future: state.future.slice(1),
-        strokes,
-        activeStroke: null,
-      }
-    })
-  },
-
-  clearAll: () => {
-    set((state) => {
-      if (state.strokes.length === 0 && state.activeStroke === null) return state
-
-      const strokes: Stroke[] = []
-      if (persistEnabled) scheduleSaveStrokes(strokes)
-
-      return {
-        past: pushPast(state.past, state.strokes),
-        future: [],
-        strokes,
-        activeStroke: null,
-      }
-    })
+    if (historyRedo()) playSound('redo')
   },
 }))

@@ -1,12 +1,12 @@
-import { useRef, useState } from 'react'
-import { Search, Bell } from 'lucide-react'
-import { glass, font, themeTransition } from '../styles/tokens'
+import { useState, type RefObject } from 'react'
+import { Bell } from 'lucide-react'
+import type { ReactZoomPanPinchContentRef } from 'react-zoom-pan-pinch'
+import { CHROME_GLASS_CLASS, glass, font, themeTransition } from '../styles/tokens'
+import CanvasSearchBar from './CanvasSearchBar'
 
 const islandBase: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
-  backdropFilter: glass.blur,
-  WebkitBackdropFilter: glass.blur,
   border: glass.border,
   boxShadow: glass.shadow,
   borderRadius: glass.radius,
@@ -35,7 +35,7 @@ export function BrandPill({ isOpen = false, onClick }: BrandPillProps) {
       aria-expanded={isOpen}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className="theme-surface"
+      className={`theme-surface ${CHROME_GLASS_CLASS}`}
       style={{
         ...islandBase,
         gap: 8,
@@ -76,89 +76,6 @@ export function BrandPill({ isOpen = false, onClick }: BrandPillProps) {
   )
 }
 
-// ─── Search Bar ───────────────────────────────────────────────────────────────
-
-interface SearchBarProps {
-  onSearch: (query: string) => void
-  placeholder?: string
-}
-
-export function SearchBar({ onSearch, placeholder = 'Search…' }: SearchBarProps) {
-  const [value, setValue] = useState('')
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    setValue(e.target.value)
-    onSearch(e.target.value)
-  }
-
-  return (
-    <div
-      className="theme-surface"
-      style={{
-        ...islandBase,
-        background: glass.bg,
-        gap: 8,
-        padding: '8px 14px',
-        width: '100%',
-        maxWidth: 480,
-        cursor: 'text',
-      }}
-      onClick={() => inputRef.current?.focus()}
-    >
-      <Search
-        size={15}
-        color="var(--ui-text-muted)"
-        strokeWidth={2}
-        style={{ flexShrink: 0 }}
-      />
-      <input
-        ref={inputRef}
-        value={value}
-        onChange={handleChange}
-        placeholder={placeholder}
-        className="theme-surface"
-        style={{
-          flex: 1,
-          border: 'none',
-          background: 'transparent',
-          outline: 'none',
-          fontSize: 14,
-          fontFamily: font.family,
-          color: font.colorPrimary,
-          minWidth: 0,
-        }}
-      />
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 3,
-          flexShrink: 0,
-          opacity: value ? 0 : 1,
-          transition: 'opacity 0.15s ease',
-        }}
-      >
-        <kbd
-          className="theme-surface"
-          style={{
-            fontSize: 11,
-            fontFamily: font.family,
-            color: font.colorFaint,
-            background: 'rgba(20, 30, 50, 0.06)',
-            border: '1px solid rgba(20, 30, 50, 0.1)',
-            borderRadius: 5,
-            padding: '1px 5px',
-            lineHeight: '16px',
-          }}
-        >
-          ⌘K
-        </kbd>
-      </div>
-    </div>
-  )
-}
-
 // ─── User Cluster ─────────────────────────────────────────────────────────────
 
 interface UserClusterProps {
@@ -180,7 +97,7 @@ export function UserCluster({
         onClick={onNotificationClick}
         aria-label="Notifications"
         data-panel-trigger="notifications"
-        className="theme-surface"
+        className={`theme-surface ${CHROME_GLASS_CLASS}`}
         style={{
           ...islandBase,
           background: glass.bg,
@@ -211,7 +128,7 @@ export function UserCluster({
         onClick={onProfileClick}
         aria-label={`Profile: ${user.name}`}
         data-panel-trigger="profile"
-        className="theme-surface"
+        className={`theme-surface ${CHROME_GLASS_CLASS}`}
         style={{
           ...islandBase,
           background: glass.bg,
@@ -252,7 +169,7 @@ interface TopBarProps {
   user: UserClusterProps['user']
   unreadCount: number
   cutlineMenuOpen?: boolean
-  onSearch: (query: string) => void
+  transformRef: RefObject<ReactZoomPanPinchContentRef | null>
   onCutlineClick: () => void
   onNotificationClick: () => void
   onProfileClick: () => void
@@ -262,7 +179,7 @@ export default function TopBar({
   user,
   unreadCount,
   cutlineMenuOpen = false,
-  onSearch,
+  transformRef,
   onCutlineClick,
   onNotificationClick,
   onProfileClick,
@@ -293,7 +210,7 @@ export default function TopBar({
           justifyContent: 'center',
         }}
       >
-        <SearchBar onSearch={onSearch} placeholder="Search…" />
+        <CanvasSearchBar transformRef={transformRef} />
       </div>
       <div style={{ pointerEvents: 'auto', flexShrink: 0 }}>
         <UserCluster

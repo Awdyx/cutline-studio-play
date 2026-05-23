@@ -1,8 +1,9 @@
 import { useEffect, type RefObject } from 'react'
 import type { ReactZoomPanPinchContentRef } from 'react-zoom-pan-pinch'
-import { CANVAS_HEIGHT, CANVAS_WIDTH } from './canvasDimensions'
-import { isCanvasCoordSane, isStylusTouch } from './penInput'
+import { isStylusTouch } from './penInput'
 import type { PenToolMenuBridge } from './usePenToolMenu'
+import { hitTestStickyAtCanvasPoint } from '../canvasItems/stickyHitTest'
+import { useCanvasItemsStore } from '../canvasItems/canvasItemsStore'
 import { useStrokesStore } from './strokesStore'
 import { useToolStore } from './toolStore'
 import type { StrokePoint } from './types'
@@ -13,22 +14,7 @@ function readPressure(pressure: number): number {
   return pressure > 0 ? pressure : 0.5
 }
 
-function clientToCanvas(
-  clientX: number,
-  clientY: number,
-  wrapperEl: HTMLElement,
-  positionX: number,
-  positionY: number,
-  scale: number,
-): { x: number; y: number } {
-  const rect = wrapperEl.getBoundingClientRect()
-  const localX = clientX - rect.left
-  const localY = clientY - rect.top
-  return {
-    x: (localX - positionX) / scale,
-    y: (localY - positionY) / scale,
-  }
-}
+import { clientToCanvasFromElement } from './canvasCoords'
 
 export function useDrawing(
   canvasRef: RefObject<HTMLDivElement | null>,
@@ -43,12 +29,25 @@ export function useDrawing(
     if (!el) return
     const canvasEl: HTMLDivElement = el
 
-    const { startStroke, addPoint, endStroke, beginDragErase, applyDragErase } =
-      useStrokesStore.getState()
+    const {
+      startStroke,
+      addPoint,
+      endStroke,
+      beginDragErase,
+      applyDragErase,
+    } = useStrokesStore.getState()
+
+    const {
+      startStickyStroke,
+      addStickyStrokePoint,
+      endStickyStroke,
+      getStickyById,
+    } = useCanvasItemsStore.getState()
 
     let pointerPenActive = false
     let eraseActive = false
     let lastEraseAt = 0
+    let activeStickyId: string | null = null
 
     function setPenDown(down: boolean) {
       onPenStateChange?.(down)
@@ -58,36 +57,23 @@ export function useDrawing(
       return penMenuBridgeRef?.current ?? null
     }
 
-    function getTransform() {
-      const ref = transformRef.current
-      if (!ref) return null
-      const wrapper = ref.instance.wrapperComponent
-      if (!wrapper) return null
-      const { positionX, positionY, scale } = ref.state
-      return { wrapper, positionX, positionY, scale }
-    }
-
     function toCanvasCoords(event: PointerEvent): { x: number; y: number } | null {
-      const transform = getTransform()
-      if (!transform) return null
-
-      const { x, y } = clientToCanvas(
-        event.clientX,
-        event.clientY,
-        transform.wrapper,
-        transform.positionX,
-        transform.positionY,
-        transform.scale,
-      )
-
-      if (!isCanvasCoordSane(x, y, CANVAS_WIDTH, CANVAS_HEIGHT)) return null
-      return { x, y }
+      return clientToCanvasFromElement(event.clientX, event.clientY, canvasEl)
     }
 
-    function toStrokePoint(event: PointerEvent): StrokePoint | null {
-      const coords = toCanvasCoords(event)
-      if (!coords) return null
-      return { ...coords, pressure: readPressure(event.pressure) }
+    function toStickyLocalPoint(
+      canvasX: number,
+      canvasY: number,
+      stickyId: string,
+      pressure: number,
+    ): StrokePoint | null {
+      const sticky = getStickyById(stickyId)
+      if (!sticky) return null
+      return {
+        x: canvasX - sticky.x,
+        y: canvasY - sticky.y,
+        pressure,
+      }
     }
 
     function capturePointer(event: PointerEvent) {
@@ -109,6 +95,7 @@ export function useDrawing(
       if (now - lastEraseAt < ERASE_THROTTLE_MS) return
       lastEraseAt = now
       applyDragErase(coords)
+      useCanvasItemsStore.getState().applyStickyStrokeErase(coords)
     }
 
     function onTouchStart(event: TouchEvent) {
@@ -154,22 +141,34 @@ export function useDrawing(
       }
 
       const tools = useToolStore.getState()
-      const point = toStrokePoint(event)
-      if (!point) return
+      if (!coords) return
 
-      if (mode === 'pen') {
-        startStroke(point, {
-          color: tools.penColor,
-          size: tools.penSize,
-          tool: 'pen',
-        })
-      } else if (mode === 'highlighter') {
-        startStroke(point, {
-          color: tools.highlighterColor,
-          size: tools.highlighterSize,
-          tool: 'highlighter',
-        })
+      const pressure = readPressure(event.pressure)
+      const stickyId = hitTestStickyAtCanvasPoint(coords.x, coords.y)
+      const config =
+        mode === 'pen'
+          ? {
+              color: tools.penColor,
+              size: tools.penSize,
+              tool: 'pen' as const,
+            }
+          : {
+              color: tools.highlighterColor,
+              size: tools.highlighterSize,
+              tool: 'highlighter' as const,
+            }
+
+      if (stickyId) {
+        const local = toStickyLocalPoint(coords.x, coords.y, stickyId, pressure)
+        if (!local) return
+        activeStickyId = stickyId
+        startStickyStroke(stickyId, local, config)
+        return
       }
+
+      activeStickyId = null
+      const point: StrokePoint = { ...coords, pressure }
+      startStroke(point, config)
     }
 
     function onPointerMove(event: PointerEvent) {
@@ -185,14 +184,29 @@ export function useDrawing(
         return
       }
 
-      const activeStroke = useStrokesStore.getState().activeStroke
-      if (!activeStroke) return
-
       event.preventDefault()
       if (event.pressure < 0.05) return
 
-      const point = toStrokePoint(event)
-      if (point) addPoint(point)
+      const coords = toCanvasCoords(event)
+      if (!coords) return
+
+      const pressure = readPressure(event.pressure)
+
+      if (activeStickyId) {
+        const local = toStickyLocalPoint(
+          coords.x,
+          coords.y,
+          activeStickyId,
+          pressure,
+        )
+        if (local) addStickyStrokePoint(local)
+        return
+      }
+
+      const activeStroke = useStrokesStore.getState().activeStroke
+      if (!activeStroke) return
+
+      addPoint({ ...coords, pressure })
     }
 
     function releasePen(event: PointerEvent) {
@@ -207,6 +221,8 @@ export function useDrawing(
 
       if (penMenuHandled) {
         eraseActive = false
+        activeStickyId = null
+        useCanvasItemsStore.getState().cancelActiveStickyStroke()
         return
       }
 
@@ -214,6 +230,12 @@ export function useDrawing(
 
       if (mode === 'erase') {
         eraseActive = false
+        return
+      }
+
+      if (activeStickyId) {
+        endStickyStroke()
+        activeStickyId = null
         return
       }
 
@@ -230,7 +252,17 @@ export function useDrawing(
     canvasEl.addEventListener('pointerup', releasePen, captureOpts)
     canvasEl.addEventListener('pointercancel', releasePen, captureOpts)
 
+    function onWindowPointerEnd() {
+      if (pointerPenActive) return
+      setPenDown(false)
+    }
+
+    window.addEventListener('pointerup', onWindowPointerEnd)
+    window.addEventListener('pointercancel', onWindowPointerEnd)
+
     return () => {
+      window.removeEventListener('pointerup', onWindowPointerEnd)
+      window.removeEventListener('pointercancel', onWindowPointerEnd)
       canvasEl.removeEventListener('touchstart', onTouchStart, captureOpts)
       canvasEl.removeEventListener('touchend', onTouchEnd, captureOpts)
       canvasEl.removeEventListener('touchcancel', onTouchEnd, captureOpts)
@@ -239,6 +271,7 @@ export function useDrawing(
       canvasEl.removeEventListener('pointerup', releasePen, captureOpts)
       canvasEl.removeEventListener('pointercancel', releasePen, captureOpts)
       setPenDown(false)
+      activeStickyId = null
     }
   }, [canvasMount, canvasRef, transformRef, onPenStateChange, penMenuBridgeRef])
 }

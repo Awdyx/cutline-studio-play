@@ -1,6 +1,15 @@
+/** Global UI chroma / frosted-glass saturation multiplier (1 = default). */
+export const UI_SATURATION_BOOST = 1
+
+export const CHROME_GLASS_CLASS = 'ui-chrome-glass'
+export const CHROME_CARD_CLASS = 'ui-chrome-card'
+/** Frosted space cards on the pan/zoom canvas (lighter blur than fixed chrome). */
+export const SPACE_GLASS_CLASS = 'ui-space-glass'
+/** Backdrop blur behind selected items (blur only — no saturate). */
+export const SELECTION_DEPTH_CLASS = 'ui-selection-depth'
+
 export const glass = {
   bg: 'var(--glass-bg)',
-  blur: 'blur(40px) saturate(180%)',
   border: '1px solid var(--glass-border)',
   shadow: 'var(--glass-shadow)',
   radius: '999px',
@@ -8,7 +17,6 @@ export const glass = {
 
 export const card = {
   bg: 'var(--card-bg)',
-  blur: 'blur(48px) saturate(200%)',
   border: '1px solid var(--glass-border)',
   shadow: 'var(--card-shadow)',
   radius: '16px',

@@ -1,7 +1,10 @@
+import { useLayoutEffect, useState, type RefObject } from 'react'
+import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import { Sun, Moon, Monitor, Check } from 'lucide-react'
-import { card, font } from '../styles/tokens'
+import { CHROME_CARD_CLASS, card, font } from '../styles/tokens'
 import type { ThemeMode } from '../theme/themeStore'
+import { useSubmenuPosition } from './useSubmenuPosition'
 
 const OPTIONS: { mode: ThemeMode; icon: React.ElementType; label: string }[] = [
   { mode: 'light', icon: Sun, label: 'Light' },
@@ -10,39 +13,50 @@ const OPTIONS: { mode: ThemeMode; icon: React.ElementType; label: string }[] = [
 ]
 
 interface ThemeSubmenuProps {
+  anchorRef: RefObject<HTMLElement | null>
   currentMode: ThemeMode
   onSelect: (mode: ThemeMode) => void
   onClose: () => void
 }
 
 export default function ThemeSubmenu({
+  anchorRef,
   currentMode,
   onSelect,
   onClose,
 }: ThemeSubmenuProps) {
-  return (
+  const [mounted, setMounted] = useState(false)
+  const pos = useSubmenuPosition(anchorRef)
+
+  useLayoutEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!mounted) return null
+
+  return createPortal(
     <motion.div
+      data-cutline-submenu="theme"
       initial={{ opacity: 0, scale: 0.96, x: -4 }}
       animate={{ opacity: 1, scale: 1, x: 0 }}
       exit={{ opacity: 0, scale: 0.96, x: -4 }}
       transition={{ duration: 0.18, ease: 'easeOut' }}
       style={{
-        position: 'absolute',
-        left: '100%',
-        top: 0,
-        marginLeft: 8,
+        position: 'fixed',
+        top: pos.top,
+        left: pos.left,
         width: 160,
         background: card.bg,
-        backdropFilter: card.blur,
-        WebkitBackdropFilter: card.blur,
         border: card.border,
         boxShadow: card.shadow,
         borderRadius: card.radius,
         fontFamily: font.family,
         overflow: 'hidden',
-        zIndex: 35,
+        zIndex: 40,
       }}
-      className="theme-surface"
+      className={`theme-surface ${CHROME_CARD_CLASS}`}
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
     >
       {OPTIONS.map(({ mode, icon: Icon, label }) => (
         <button
@@ -79,6 +93,7 @@ export default function ThemeSubmenu({
           )}
         </button>
       ))}
-    </motion.div>
+    </motion.div>,
+    document.body,
   )
 }
