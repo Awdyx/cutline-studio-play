@@ -1,31 +1,14 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { playSound } from '../sound/playSound'
-import { playSubmenuHover, playSubmenuTap } from '../sound/submenuSound'
 import { AnimatePresence, motion } from 'framer-motion'
-import {
-  Plus,
-  StickyNote,
-  Layers,
-  Type,
-  Image,
-  CheckSquare,
-  FileText,
-  BookOpen,
-  GraduationCap,
-  MessageCircle,
-  MessageCircleQuestion,
-  Book,
-  ChevronLeft,
-  LayoutGrid,
-  X,
-} from 'lucide-react'
+import { Plus, StickyNote, Layers, Type, Image, LayoutGrid } from 'lucide-react'
 import {
   CHROME_CARD_CLASS,
+  CHROME_FROSTED_MENU_CLASS,
   CHROME_GLASS_CLASS,
-  CHROME_MENU_TRANSITION,
+  chromeFrostedMenuStyle,
   chromeMenuMotionY,
   chromeBottomRightFixed,
-  chromeLabel,
   card,
   font,
   glass,
@@ -36,44 +19,19 @@ import { countSpaceWidgets, useCanvasItemsStore } from '../canvasItems/canvasIte
 import { MAX_SPACE_WIDGETS } from '../canvasItems/types'
 import { MenuRow } from './MenuRow'
 import { SubmenuSoundScope } from './SubmenuSoundScope'
-import { isSwapChromeMenuTarget } from './chromeMenuDismiss'
 import { useCanvasMeshPauseWhile } from '../canvas/useCanvasMeshPause'
-import WidgetPickerModal from './widgets/WidgetPickerModal'
+import WidgetsSubmenu from './widgets/WidgetsSubmenu'
+import { useMenuOutsideDismiss } from './useMenuOutsideDismiss'
+import StudySubjectMenuRow from './study/StudySubjectMenuRow'
+import { STUDY_SUBJECTS, type StudySubjectId } from './study/studyHubData'
 
 type CanvasAddType = 'space' | 'sticky' | 'text' | 'image'
-type StudyActionType = 'mcq' | 'saq' | 'mini_exam'
-type TutorActionType = 'request_explanation' | 'dm' | 'textbook'
-type Subject = 'HU' | 'CE' | 'CH' | 'PH'
-type FabView = 'main' | 'tutor-menu' | 'subject-picker'
-
-export type StudyAction =
-  | { type: StudyActionType; subject: Subject }
-  | { type: 'tutor'; tutorAction: TutorActionType; subject: Subject }
 
 interface PlusFabProps {
   onAddToCanvas: (type: CanvasAddType) => void
-  onStudyAction: (action: StudyAction) => void
+  onStudySubjectSelect?: (subjectId: StudySubjectId) => void
   /** Spaces only exist on the main canvas — hide the option when inside a space. */
   showSpaceOption?: boolean
-}
-
-const SUBJECTS: { code: Subject; color: string }[] = [
-  { code: 'HU', color: '#e87a73' },
-  { code: 'CE', color: '#8b9dc3' },
-  { code: 'CH', color: '#a3c4a3' },
-  { code: 'PH', color: '#d4b08a' },
-]
-
-const STUDY_SUBJECT_LABELS: Record<StudyActionType, string> = {
-  mcq: 'MCQs from…',
-  saq: 'SAQs from…',
-  mini_exam: 'Mini exam from…',
-}
-
-const TUTOR_SUBJECT_LABELS: Record<TutorActionType, string> = {
-  request_explanation: 'Request tutor explanation from…',
-  dm: 'DM tutor from…',
-  textbook: 'Textbook from…',
 }
 
 const ADD_TO_CANVAS_ITEMS: {
@@ -87,136 +45,57 @@ const ADD_TO_CANVAS_ITEMS: {
   { icon: Image, label: 'Image', type: 'image' },
 ]
 
-const STUDY_ITEMS: {
-  icon: React.ElementType
-  label: string
-  type: StudyActionType | 'tutor'
-}[] = [
-  { icon: CheckSquare, label: 'MCQs', type: 'mcq' },
-  { icon: FileText, label: 'SAQs', type: 'saq' },
-  { icon: BookOpen, label: 'Mini exam', type: 'mini_exam' },
-  { icon: GraduationCap, label: 'Tutor', type: 'tutor' },
-]
+const PLUS_FAB_MENU_PAD_X = 16
 
-const TUTOR_ITEMS: {
-  icon: React.ElementType
-  label: string
-  type: TutorActionType
-}[] = [
-  {
-    icon: MessageCircleQuestion,
-    label: 'Request tutor explanation',
-    type: 'request_explanation',
-  },
-  { icon: MessageCircle, label: 'DM tutor', type: 'dm' },
-  { icon: Book, label: 'Textbook', type: 'textbook' },
-]
-
-const sectionHeaderStyle: React.CSSProperties = {
+const plusFabSectionHeaderTextStyle: React.CSSProperties = {
+  margin: 0,
   fontSize: 11,
   fontWeight: 600,
   letterSpacing: '0.5px',
   color: font.colorMuted,
-  padding: '12px 16px 6px',
-  margin: 0,
 }
 
-/** Snappy in-panel view swap — same timing as chrome menus, no blur. */
-const FAB_VIEW_TRANSITION = CHROME_MENU_TRANSITION
-
-const PLUS_FAB_MENU_MOTION = chromeMenuMotionY(4)
-
-function SubmenuHeader({
-  title,
-  onBack,
-  onClose,
+function PlusFabSectionHeader({
+  children,
+  first = false,
 }: {
-  title: string
-  onBack: () => void
-  onClose: () => void
+  children: React.ReactNode
+  first?: boolean
 }) {
   return (
-    <div
+    <p
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '12px 12px 8px',
+        ...plusFabSectionHeaderTextStyle,
+        padding: first ? '20px 16px 10px' : '8px 16px 10px',
+        paddingLeft: PLUS_FAB_MENU_PAD_X,
       }}
     >
-      <button
-        type="button"
-        onClick={() => {
-          playSubmenuTap()
-          onBack()
-        }}
-        onMouseEnter={() => playSubmenuHover()}
-        aria-label="Back"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: 28,
-          height: 28,
-          background: 'none',
-          border: 'none',
-          borderRadius: 8,
-          cursor: 'pointer',
-          color: font.colorPrimary,
-        }}
-      >
-        <ChevronLeft size={18} strokeWidth={2} />
-      </button>
-      <span
-        style={{
-          fontSize: 14,
-          fontWeight: 600,
-          color: font.colorPrimary,
-          flex: 1,
-          textAlign: 'center',
-        }}
-      >
-        {chromeLabel(title)}
-      </span>
-      <button
-        type="button"
-        onClick={() => {
-          playSubmenuTap()
-          onClose()
-        }}
-        onMouseEnter={() => playSubmenuHover()}
-        aria-label="Close"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: 28,
-          height: 28,
-          background: 'none',
-          border: 'none',
-          borderRadius: 8,
-          cursor: 'pointer',
-          color: font.colorMuted,
-        }}
-      >
-        <X size={16} strokeWidth={2} />
-      </button>
-    </div>
+      {children}
+    </p>
   )
 }
+
+const plusFabSectionDividerStyle: React.CSSProperties = {
+  ...menuDividerStyle,
+  margin: '12px 16px',
+}
+
+const PLUS_FAB_MENU_MOTION = chromeMenuMotionY(4)
 
 function MainMenuContent({
   onAddToCanvas,
   onWidgetsClick,
-  onStudyItemClick,
+  onStudySubjectClick,
   showSpaceOption,
   spaceWidgetCount,
+  widgetsAnchorRef,
 }: {
   onAddToCanvas: (type: CanvasAddType) => void
   onWidgetsClick: () => void
-  onStudyItemClick: (type: StudyActionType | 'tutor') => void
+  onStudySubjectClick: (subject: StudySubjectId) => void
   showSpaceOption: boolean
   spaceWidgetCount: number
+  widgetsAnchorRef: React.RefObject<HTMLDivElement | null>
 }) {
   const addItems = showSpaceOption
     ? ADD_TO_CANVAS_ITEMS
@@ -225,7 +104,7 @@ function MainMenuContent({
 
   return (
     <>
-      <p style={sectionHeaderStyle}>Add to canvas</p>
+      <PlusFabSectionHeader first>Add to canvas</PlusFabSectionHeader>
       {addItems.map(({ icon, label, type }) => (
         <MenuRow
           key={type}
@@ -250,134 +129,59 @@ function MainMenuContent({
           onClick={() => onAddToCanvas(type)}
         />
       ))}
-      <MenuRow icon={LayoutGrid} label="Widgets" onClick={onWidgetsClick} />
+      <div ref={widgetsAnchorRef} data-plus-fab-submenu-anchor="widgets" style={{ paddingBottom: 10 }}>
+        <MenuRow icon={LayoutGrid} label="Widgets" onClick={onWidgetsClick} />
+      </div>
 
-      <div style={menuDividerStyle} />
+      <div style={plusFabSectionDividerStyle} />
 
-      <p style={sectionHeaderStyle}>Study</p>
-      {STUDY_ITEMS.map(({ icon, label, type }) => (
-        <MenuRow
-          key={type}
-          icon={icon}
-          label={label}
-          onClick={() => onStudyItemClick(type)}
-        />
-      ))}
+      <PlusFabSectionHeader>Study</PlusFabSectionHeader>
+      <div style={{ paddingBottom: 16 }}>
+        {STUDY_SUBJECTS.map(({ id, label, icon, progress }) => (
+          <StudySubjectMenuRow
+            key={id}
+            icon={icon}
+            label={label}
+            progress={progress}
+            onClick={() => onStudySubjectClick(id)}
+          />
+        ))}
+      </div>
     </>
-  )
-}
-
-function TutorMenuContent({
-  onBack,
-  onClose,
-  onTutorItemClick,
-}: {
-  onBack: () => void
-  onClose: () => void
-  onTutorItemClick: (type: TutorActionType) => void
-}) {
-  return (
-    <>
-      <SubmenuHeader title="Tutor" onBack={onBack} onClose={onClose} />
-      {TUTOR_ITEMS.map(({ icon, label, type }) => (
-        <MenuRow
-          key={type}
-          icon={icon}
-          label={label}
-          onClick={() => onTutorItemClick(type)}
-        />
-      ))}
-    </>
-  )
-}
-
-function SubjectPickerContent({
-  title,
-  onBack,
-  onClose,
-  onSubjectSelect,
-}: {
-  title: string
-  onBack: () => void
-  onClose: () => void
-  onSubjectSelect: (subject: Subject) => void
-}) {
-  return (
-    <>
-      <SubmenuHeader title={title} onBack={onBack} onClose={onClose} />
-      {SUBJECTS.map(({ code, color }) => (
-        <MenuRow
-          key={code}
-          label={code}
-          dotColor={color}
-          onClick={() => onSubjectSelect(code)}
-        />
-      ))}
-    </>
-  )
-}
-
-function FabViewPanel({ children }: { children: React.ReactNode }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.96 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.96 }}
-      transition={FAB_VIEW_TRANSITION}
-      style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        willChange: 'opacity, transform',
-      }}
-    >
-      {children}
-    </motion.div>
   )
 }
 
 export default function PlusFab({
   onAddToCanvas,
-  onStudyAction,
+  onStudySubjectSelect,
   showSpaceOption = true,
 }: PlusFabProps) {
   const [isOpen, setIsOpen] = useState(false)
-  const [view, setView] = useState<FabView>('main')
-  const [pendingStudyAction, setPendingStudyAction] =
-    useState<StudyActionType | null>(null)
-  const [pendingTutorAction, setPendingTutorAction] =
-    useState<TutorActionType | null>(null)
   const [fabHoverScale, setFabHoverScale] = useState(false)
-  const [widgetPickerOpen, setWidgetPickerOpen] = useState(false)
+  const [widgetsSubmenuOpen, setWidgetsSubmenuOpen] = useState(false)
   const spaceWidgetCount = useCanvasItemsStore((s) => countSpaceWidgets(s.items))
 
   const containerRef = useRef<HTMLDivElement>(null)
-  const menuStackRef = useRef<HTMLDivElement>(null)
-  const [menuShellHeight, setMenuShellHeight] = useState(384)
+  const menuPanelRef = useRef<HTMLDivElement>(null)
+  const menuContentRef = useRef<HTMLDivElement>(null)
+  const widgetsAnchorRef = useRef<HTMLDivElement>(null)
+  const [menuShellHeight, setMenuShellHeight] = useState(440)
   const isOpenRef = useRef(isOpen)
   isOpenRef.current = isOpen
 
-  useCanvasMeshPauseWhile(isOpen || widgetPickerOpen)
+  useCanvasMeshPauseWhile(isOpen)
 
   function captureMenuShellHeight() {
-    const h = menuStackRef.current?.offsetHeight
+    const h = menuContentRef.current?.scrollHeight
     if (h && h > 0) setMenuShellHeight(h)
   }
 
   function closeMenu(opts?: ChromeMenuSoundOpts) {
     if (!opts?.silent && isOpenRef.current) playSound('menuClose')
     setFabHoverScale(false)
+    setWidgetsSubmenuOpen(false)
     setIsOpen(false)
   }
-
-  useEffect(() => {
-    if (!isOpen) {
-      setView('main')
-      setPendingStudyAction(null)
-      setPendingTutorAction(null)
-    }
-  }, [isOpen])
 
   function openMenu() {
     playSound('menuOpen')
@@ -400,67 +204,19 @@ export default function PlusFab({
   }
 
   function handleWidgetsClick() {
+    setWidgetsSubmenuOpen((o) => !o)
+  }
+
+  function handleStudySubjectClick(subject: StudySubjectId) {
     closeMenu({ silent: true })
     playSound('menuOpen')
-    setWidgetPickerOpen(true)
-  }
-
-  function closeWidgetPicker() {
-    if (widgetPickerOpen) playSound('menuClose')
-    setWidgetPickerOpen(false)
-  }
-
-  function handleStudyItemClick(type: StudyActionType | 'tutor') {
-    captureMenuShellHeight()
-    if (type === 'tutor') {
-      setPendingStudyAction(null)
-      setPendingTutorAction(null)
-      setView('tutor-menu')
-      return
-    }
-    setPendingTutorAction(null)
-    setPendingStudyAction(type)
-    setView('subject-picker')
-  }
-
-  function handleTutorItemClick(type: TutorActionType) {
-    captureMenuShellHeight()
-    setPendingStudyAction(null)
-    setPendingTutorAction(type)
-    setView('subject-picker')
-  }
-
-  function handleSubjectSelect(subject: Subject) {
-    if (pendingTutorAction) {
-      onStudyAction({ type: 'tutor', tutorAction: pendingTutorAction, subject })
-    } else if (pendingStudyAction) {
-      onStudyAction({ type: pendingStudyAction, subject })
-    } else {
-      return
-    }
-    closeMenu()
-  }
-
-  function subjectPickerTitle(): string {
-    if (pendingTutorAction) return TUTOR_SUBJECT_LABELS[pendingTutorAction]
-    if (pendingStudyAction) return STUDY_SUBJECT_LABELS[pendingStudyAction]
-    return ''
-  }
-
-  function handleSubjectPickerBack() {
-    if (pendingTutorAction) {
-      setPendingTutorAction(null)
-      setView('tutor-menu')
-      return
-    }
-    setPendingStudyAction(null)
-    setView('main')
+    onStudySubjectSelect?.(subject)
   }
 
   useLayoutEffect(() => {
-    if (!isOpen || view !== 'main') return
+    if (!isOpen) return
     captureMenuShellHeight()
-  }, [isOpen, view, showSpaceOption])
+  }, [isOpen, showSpaceOption])
 
   useEffect(() => {
     useShortcutUiStore.getState().registerPlusFab({
@@ -472,30 +228,42 @@ export default function PlusFab({
   }, [])
 
   useEffect(() => {
-    if (!isOpen) return
-
-    function handleMouseDown(e: MouseEvent) {
-      const target = e.target
-      if (!(target instanceof Node)) return
-      if (containerRef.current?.contains(target)) return
-      if (isSwapChromeMenuTarget(target)) return
-      closeMenu()
-    }
-
-    document.addEventListener('mousedown', handleMouseDown)
-    return () => document.removeEventListener('mousedown', handleMouseDown)
+    if (!isOpen) setWidgetsSubmenuOpen(false)
   }, [isOpen])
+
+  useMenuOutsideDismiss({
+    active: isOpen,
+    panelRef: containerRef,
+    onDismiss: (target) => {
+      if (target.closest('[data-plus-fab-submenu-anchor]')) return
+
+      if (containerRef.current?.contains(target)) {
+        setWidgetsSubmenuOpen(false)
+        return
+      }
+
+      setWidgetsSubmenuOpen(false)
+      closeMenu()
+    },
+    isInside: (target) => !!target.closest('[data-plus-fab-submenu]'),
+    dismissInsidePanel: widgetsSubmenuOpen,
+  })
 
   useEffect(() => {
     if (!isOpen) return
 
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') closeMenu()
+      if (e.key !== 'Escape') return
+      if (widgetsSubmenuOpen) {
+        setWidgetsSubmenuOpen(false)
+        return
+      }
+      closeMenu()
     }
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen])
+  }, [isOpen, widgetsSubmenuOpen])
 
   return (
     <div
@@ -514,13 +282,13 @@ export default function PlusFab({
         {isOpen && (
           <motion.div
             key="fab-menu"
+            ref={menuPanelRef}
             {...PLUS_FAB_MENU_MOTION}
-            className={`theme-surface ${CHROME_GLASS_CLASS} ${CHROME_CARD_CLASS} plus-fab-menu-glass`}
+            className={`theme-surface ${CHROME_FROSTED_MENU_CLASS}`}
             style={{
-              width: 280,
+              width: 308,
               marginBottom: 12,
-              background: glass.bg,
-              border: glass.border,
+              ...chromeFrostedMenuStyle,
               borderRadius: card.radius,
               fontFamily: font.family,
               color: font.colorPrimary,
@@ -529,52 +297,35 @@ export default function PlusFab({
             }}
           >
             <SubmenuSoundScope>
-            <div
-              ref={menuStackRef}
-              style={{
-                position: 'relative',
-                minHeight: menuShellHeight,
-              }}
-            >
-              <AnimatePresence mode="sync" initial={false}>
-                {view === 'main' && (
-                  <FabViewPanel key="main">
-                    <MainMenuContent
-                      onAddToCanvas={handleAddToCanvas}
-                      onWidgetsClick={handleWidgetsClick}
-                      onStudyItemClick={handleStudyItemClick}
-                      showSpaceOption={showSpaceOption}
-                      spaceWidgetCount={spaceWidgetCount}
-                    />
-                  </FabViewPanel>
-                )}
-                {view === 'tutor-menu' && (
-                  <FabViewPanel key="tutor-menu">
-                    <TutorMenuContent
-                      onBack={() => setView('main')}
-                      onClose={closeMenu}
-                      onTutorItemClick={handleTutorItemClick}
-                    />
-                  </FabViewPanel>
-                )}
-                {view === 'subject-picker' && (
-                  <FabViewPanel key="subject-picker">
-                    <SubjectPickerContent
-                      title={subjectPickerTitle()}
-                      onBack={handleSubjectPickerBack}
-                      onClose={closeMenu}
-                      onSubjectSelect={handleSubjectSelect}
-                    />
-                  </FabViewPanel>
-                )}
-              </AnimatePresence>
-            </div>
+              <div
+                ref={menuContentRef}
+                style={{
+                  minHeight: menuShellHeight,
+                }}
+              >
+                <MainMenuContent
+                  onAddToCanvas={handleAddToCanvas}
+                  onWidgetsClick={handleWidgetsClick}
+                  onStudySubjectClick={handleStudySubjectClick}
+                  showSpaceOption={showSpaceOption}
+                  spaceWidgetCount={spaceWidgetCount}
+                  widgetsAnchorRef={widgetsAnchorRef}
+                />
+              </div>
             </SubmenuSoundScope>
           </motion.div>
         )}
       </AnimatePresence>
 
-      <WidgetPickerModal isOpen={widgetPickerOpen} onClose={closeWidgetPicker} />
+      <AnimatePresence mode="sync">
+        {widgetsSubmenuOpen && (
+          <WidgetsSubmenu
+            key="widgets-submenu"
+            anchorRef={widgetsAnchorRef}
+            menuPanelRef={menuPanelRef}
+          />
+        )}
+      </AnimatePresence>
 
       <button
         type="button"

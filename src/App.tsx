@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import {
   TransformComponent,
   TransformWrapper,
@@ -12,8 +12,12 @@ import { AnimatePresence, motion } from 'framer-motion'
 import MotionIndicator from './MotionIndicator'
 import TrailingVignette from './TrailingVignette'
 import { usePanMotionHandler } from './usePanMotionHandler'
-import { CANVAS_PAN_EXCLUDED } from './canvas/canvasNavigationStore'
+import {
+  canvasPanExcludedClasses,
+  useCanvasNavigationStore,
+} from './canvas/canvasNavigationStore'
 import { useCanvasNavigationTracking } from './canvas/useCanvasNavigationTracking'
+import { useStudyHubCanvasPanCoordination } from './canvas/useStudyHubCanvasPanCoordination'
 import { useCanvasSelectionPointer } from './canvas/useCanvasSelectionPointer'
 import TopBar from './components/TopBar'
 import NotificationsPanel from './components/NotificationsPanel'
@@ -61,6 +65,8 @@ import {
   CANVAS_ZOOM_EDGE_PADDING,
   CANVAS_ZOOM_MIN_EDGE_PADDING,
 } from './drawing/canvasDimensions'
+import { CANVAS_WHEEL_ZOOM_STEP } from './canvas/canvasCamera'
+import { useCanvasCenterWheelZoom } from './canvas/useCanvasCenterWheelZoom'
 import { useCanvasViewport } from './canvas/useCanvasViewport'
 import { useCanvasZoomEdgeEase } from './canvas/useCanvasZoomEdgeEase'
 import { useCanvasPanBounce } from './canvas/useCanvasPanBounce'
@@ -282,6 +288,12 @@ function App() {
   const transformRef = useRef<ReactZoomPanPinchContentRef | null>(null)
   const { viewportRef, viewportSize, minScale, onTransformInit, onHydrated } =
     useCanvasViewport(transformRef)
+  useStudyHubCanvasPanCoordination()
+  const trackpadPanLockActive = useCanvasNavigationStore((s) => s.trackpadPanLockActive)
+  const panExcluded = useMemo(
+    () => canvasPanExcludedClasses(trackpadPanLockActive),
+    [trackpadPanLockActive],
+  )
   const zoomEdgeEase = useCanvasZoomEdgeEase(minScale)
   const panBounce = useCanvasPanBounce()
   const canvasRef = useRef<HTMLDivElement | null>(null)
@@ -299,6 +311,7 @@ function App() {
     spawnStickyAtViewportCenter,
     spawnTextAtViewportCenter,
     spawnSpaceAtViewportCenter,
+    spawnStudyHubAtViewportCenter,
   } = useCanvasFileHandlers(transformRef, viewportRef, canvasRef)
 
   const isInsideSpace = useCanvasWorkspaceStore((s) => s.activeCanvasId !== 'main')
@@ -329,6 +342,15 @@ function App() {
 
   const isPenDown =
     penDown || penMenu.state.phase !== 'idle' || itemDragActive
+  useCanvasCenterWheelZoom({
+    transformRef,
+    viewportRef,
+    panExcluded,
+    onZoom: zoomEdgeEase.onZoom,
+    onZoomStop: zoomEdgeEase.onZoomStop,
+    disabled: isPenDown,
+    step: CANVAS_WHEEL_ZOOM_STEP,
+  })
   const isCanvasLocked = useCanvasLockStore((s) => s.isLocked)
   const flattenReady = useCanvasLockFlattenStore((s) => s.ready)
   const lockFlattenActive = shouldFlattenCanvas(isCanvasLocked)
@@ -504,21 +526,23 @@ function App() {
             onZoomStop={zoomEdgeEase.onZoomStop}
             onPinchStop={zoomEdgeEase.onZoomStop}
             wheel={{
-              step: 0.02,
+              step: CANVAS_WHEEL_ZOOM_STEP,
+              wheelDisabled: true,
+              touchPadDisabled: true,
               activationKeys: (keys) =>
                 keys.includes('Control') || keys.includes('Meta'),
             }}
             trackPadPanning={{
               disabled: false,
-              excluded: [...CANVAS_PAN_EXCLUDED],
+              excluded: panExcluded,
             }}
             panning={{
               velocityDisabled: false,
               disabled: isPenDown,
-              excluded: [...CANVAS_PAN_EXCLUDED],
+              excluded: panExcluded,
             }}
             pinch={{
-              excluded: [...CANVAS_PAN_EXCLUDED],
+              excluded: panExcluded,
             }}
             velocityAnimation={{
               sensitivityMouse: 0.4,
@@ -636,7 +660,9 @@ function App() {
           else if (type === 'image') openImagePicker()
           else if (type === 'space') spawnSpaceAtViewportCenter()
         }}
-        onStudyAction={(action) => console.log('study action', action)}
+        onStudySubjectSelect={(subjectId) => {
+          spawnStudyHubAtViewportCenter(subjectId)
+        }}
       />
 
       {showSpaceBackPill && (

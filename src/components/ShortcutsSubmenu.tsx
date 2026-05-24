@@ -1,7 +1,7 @@
 import { useLayoutEffect, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
-import { CHROME_CARD_CLASS, card, chromeLabel, font } from '../styles/tokens'
+import { CHROME_FROSTED_MENU_CLASS, chromeFrostedMenuStyle, chromeLabel, font } from '../styles/tokens'
 import { submenuRowHoverProps } from '../sound/submenuSound'
 import { SubmenuSoundScope } from './SubmenuSoundScope'
 import { SHORTCUT_CATEGORIES, shortcutsByCategory } from '../shortcuts/shortcutDefs'
@@ -37,15 +37,12 @@ export default function ShortcutsSubmenu({
         width: 300,
         maxHeight: 'min(70vh, 420px)',
         overflowY: 'auto',
-        background: card.bg,
-        border: card.border,
-        boxShadow: card.shadow,
-        borderRadius: card.radius,
+        ...chromeFrostedMenuStyle,
         fontFamily: font.family,
         zIndex: 40,
         padding: '12px 0',
       }}
-      className={`theme-surface ${CHROME_CARD_CLASS}`}
+      className={`theme-surface ${CHROME_FROSTED_MENU_CLASS}`}
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
     >

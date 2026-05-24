@@ -4,6 +4,7 @@ import type { ReactZoomPanPinchContentRef } from 'react-zoom-pan-pinch'
 import { CHROME_GLASS_CLASS, CHROME_PRESERVE_CASE_CLASS, glass, font } from '../styles/tokens'
 import CanvasSearchBar from './CanvasSearchBar'
 import UserAvatar from './UserAvatar'
+import type { ProfileMediaFrame } from '../profile/types'
 
 const islandBase: React.CSSProperties = {
   display: 'flex',
@@ -103,6 +104,7 @@ interface UserClusterProps {
     initial: string
     avatarColor: string
     avatarImageUrl?: string | null
+    avatarFrame?: ProfileMediaFrame | null
   }
   unreadCount: number
   newsCount: number
@@ -176,6 +178,7 @@ export function UserCluster({
           displayName={user.name}
           avatarColor={user.avatarColor}
           avatarImageUrl={user.avatarImageUrl}
+          avatarFrame={user.avatarFrame}
           size={24}
           fontSize={11}
         />

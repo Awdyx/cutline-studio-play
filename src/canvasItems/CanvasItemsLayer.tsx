@@ -9,9 +9,9 @@ import {
 import { useCanvasLockStore } from '../canvasLock/canvasLockStore'
 import {
   useCanvasItemsStore,
+  useDrawableSurfaces,
   useLiveCandidatesByPlane,
   useSortedItemsByPlane,
-  useStickies,
 } from './canvasItemsStore'
 import { useCanvasWorkspaceStore } from '../spaces/canvasWorkspaceStore'
 import ImageItem from './ImageItem'
@@ -20,10 +20,11 @@ import StickyAnnotationOverlay from './StickyAnnotationOverlay'
 import TextItem from './TextItem'
 import VideoItem from './VideoItem'
 import SpaceItem from './SpaceItem'
-import type { CanvasItem, StickyCanvasItem } from './types'
+import StudyHubItem from './StudyHubItem'
+import type { CanvasItem, DrawableSurfaceItem } from './types'
 
 const EMPTY_ITEMS: readonly CanvasItem[] = []
-const EMPTY_STICKIES: readonly StickyCanvasItem[] = []
+const EMPTY_DRAWABLES: readonly DrawableSurfaceItem[] = []
 
 export default function CanvasItemsLayer({
   transformRef,
@@ -63,11 +64,11 @@ export default function CanvasItemsLayer({
 
   // Overlay stickies are typically a small subset of all items; pull from the
   // cached sticky-only list rather than scanning every item on every render.
-  const allStickies = useStickies()
-  const overlayStickies: readonly StickyCanvasItem[] = useMemo(() => {
-    if (plane === 'annotation' || !lockActive || !flattenReady) return EMPTY_STICKIES
-    if (allStickies.length === 0) return EMPTY_STICKIES
-    return allStickies.filter((item) =>
+  const allDrawables = useDrawableSurfaces()
+  const overlayDrawables: readonly DrawableSurfaceItem[] = useMemo(() => {
+    if (plane === 'annotation' || !lockActive || !flattenReady) return EMPTY_DRAWABLES
+    if (allDrawables.length === 0) return EMPTY_DRAWABLES
+    return allDrawables.filter((item) =>
       stickyNeedsAnnotationOverlay(
         item,
         lockActive,
@@ -76,9 +77,9 @@ export default function CanvasItemsLayer({
         activeStickyId,
       ),
     )
-  }, [allStickies, plane, lockActive, flattenReady, liveGifIds, activeStickyId])
+  }, [allDrawables, plane, lockActive, flattenReady, liveGifIds, activeStickyId])
 
-  if (renderable.length === 0 && overlayStickies.length === 0) return null
+  if (renderable.length === 0 && overlayDrawables.length === 0) return null
 
   const ariaLabel =
     plane === 'below'
@@ -112,6 +113,9 @@ export default function CanvasItemsLayer({
         />
       )
     }
+    if (item.type === 'study_hub') {
+      return <StudyHubItem key={item.id} item={item} {...shellProps} />
+    }
     return <VideoItem key={item.id} item={item} {...shellProps} />
   }
 
@@ -131,7 +135,7 @@ export default function CanvasItemsLayer({
           {renderable.map((item) => renderItem(item))}
         </AnimatePresence>
       </div>
-      {overlayStickies.map((item) => (
+      {overlayDrawables.map((item) => (
         <StickyAnnotationOverlay key={`${item.id}-annotation`} item={item} />
       ))}
     </>

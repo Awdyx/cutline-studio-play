@@ -10,9 +10,9 @@ import {
   Sparkles,
 } from 'lucide-react'
 import {
-  CHROME_CARD_CLASS,
+  CHROME_FROSTED_MENU_CLASS,
   CHROME_PRESERVE_CASE_CLASS,
-  card,
+  chromeFrostedMenuStyle,
   chromeLabel,
   font,
   menuDividerStyle,
@@ -26,6 +26,7 @@ import {
 import { usePanelAlignedSubmenuLayout } from './usePanelAlignedSubmenuLayout'
 import { playSubmenuHover, playSubmenuTap } from '../sound/submenuSound'
 import { SubmenuSoundScope } from './SubmenuSoundScope'
+import ChromeScrollFade from './ChromeScrollFade'
 
 const SUBMENU_WIDTH = 320
 const SUBMENU_GAP = 10
@@ -169,16 +170,13 @@ export default function SubscriptionSubmenu({
         height: layout.height,
         display: 'flex',
         flexDirection: 'column',
-        background: card.bg,
-        border: card.border,
-        boxShadow: card.shadow,
-        borderRadius: card.radius,
+        ...chromeFrostedMenuStyle,
         fontFamily: font.family,
         color: font.colorPrimary,
         zIndex: 45,
         overflow: 'hidden',
       }}
-      className={`theme-surface ${CHROME_CARD_CLASS}`}
+      className={`theme-surface ${CHROME_FROSTED_MENU_CLASS}`}
       onClick={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}
       >
@@ -220,7 +218,7 @@ export default function SubscriptionSubmenu({
         </h2>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 16px' }}>
+      <ChromeScrollFade scrollStyle={{ padding: '0 16px' }}>
         <div className="subscription-status-card">
           <p className="subscription-status-card__label">
             {chromeLabel('Current subscription')}
@@ -307,7 +305,7 @@ export default function SubscriptionSubmenu({
           external
           onClick={() => onManageBilling?.()}
         />
-      </div>
+      </ChromeScrollFade>
       </SubmenuSoundScope>
     </motion.div>,
     document.body,

@@ -8,7 +8,9 @@ export type { ItemTextAlignment, TextAlignH, TextAlignV } from './textAlignment'
 export { DEFAULT_TEXT_ALIGNMENT, DEFAULT_SPACE_NAME_ALIGNMENT }
 export type { CanvasLayer } from '../canvasLock/layer'
 
-export type CanvasItemType = 'sticky' | 'text' | 'image' | 'video' | 'space'
+export type CanvasItemType = 'sticky' | 'text' | 'image' | 'video' | 'space' | 'study_hub'
+
+export type StudySubjectId = 'hubs' | 'cels' | 'phsi' | 'chem'
 
 export type CanvasItemBase = {
   id: string
@@ -63,12 +65,29 @@ export type SpaceCanvasItem = CanvasItemBase & {
   previewPan?: SpacePreviewPan
 }
 
+export type StudyHubCanvasItem = CanvasItemBase & {
+  type: 'study_hub'
+  subjectId: StudySubjectId
+  strokes: Stroke[]
+  /** Ink on top of a committed study hub while the canvas is locked. */
+  annotationStrokes?: Stroke[]
+  /** Canvas zoom when spawned — keeps on-screen size stable while panning/zooming. */
+  spawnScale?: number
+}
+
+export type DrawableSurfaceItem = StickyCanvasItem | StudyHubCanvasItem
+
+export function isDrawableSurface(item: CanvasItem): item is DrawableSurfaceItem {
+  return item.type === 'sticky' || item.type === 'study_hub'
+}
+
 export type CanvasItem =
   | StickyCanvasItem
   | TextCanvasItem
   | ImageCanvasItem
   | VideoCanvasItem
   | SpaceCanvasItem
+  | StudyHubCanvasItem
 
 export const STICKY_WIDTH = 200
 export const STICKY_HEIGHT = 200
@@ -80,6 +99,9 @@ export const TEXT_WIDTH = 320
 export const TEXT_HEIGHT = 72
 export const TEXT_MIN_WIDTH = 120
 export const TEXT_MIN_HEIGHT = 48
+export const STUDY_HUB_WIDTH = 460
+export const STUDY_HUB_HEIGHT = 580
+export const STUDY_HUB_ASPECT = STUDY_HUB_WIDTH / STUDY_HUB_HEIGHT
 /** Muted yellow — slightly desaturated vs classic sticky note. */
 export const STICKY_COLOR = '#F0EBC6'
 

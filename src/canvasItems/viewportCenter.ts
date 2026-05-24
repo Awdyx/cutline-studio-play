@@ -48,6 +48,26 @@ export function viewportCenterCanvas(
   return viewportPointCanvas(transformRef, viewportHost, 0.5, 0.5, canvasEl)
 }
 
+/** Center spawn in the visible canvas band — clears top chrome and bottom FAB. */
+export function viewportBalancedSpawnCanvas(
+  transformRef: RefObject<ReactZoomPanPinchContentRef | null>,
+  viewportHost: HTMLElement | null | undefined,
+  canvasEl: HTMLElement | null | undefined,
+): { x: number; y: number } | null {
+  const host =
+    viewportHost ?? transformRef.current?.instance.wrapperComponent ?? null
+  if (!host) return null
+
+  const placement = readEditablePlacementRect(host)
+  const topInset = 52
+  const bottomInset = 88
+  const screenX = placement.left + placement.width / 2
+  const bandHeight = Math.max(0, placement.height - topInset - bottomInset)
+  const screenY = placement.top + topInset + bandHeight / 2
+
+  return clientToCanvas(screenX, screenY, transformRef, canvasEl ?? null)
+}
+
 export function viewportEditableSpawnCanvas(
   transformRef: RefObject<ReactZoomPanPinchContentRef | null>,
   viewportHost: HTMLElement | null | undefined,

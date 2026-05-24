@@ -5,10 +5,12 @@ import { playSubmenuHover, playSubmenuTap } from '../sound/submenuSound'
 import { Eraser, Highlighter, Pen, Redo2, Trash2, Undo2 } from 'lucide-react'
 import {
   CHROME_CARD_CLASS,
+  CHROME_FROSTED_MENU_CLASS,
   CHROME_GLASS_CLASS,
   CHROME_MENU_TRANSITION,
   card,
   chromeBottomRightFixed,
+  chromeFrostedMenuStyle,
   font,
   glass,
   menuDividerVerticalStyle,
@@ -401,13 +403,11 @@ export default function PenFab() {
       {menuMounted && (
         <div
           data-pen-fab-menu=""
-          className={`pen-fab-menu theme-surface ${CHROME_GLASS_CLASS} ${CHROME_CARD_CLASS} plus-fab-menu-glass ${
+          className={`pen-fab-menu theme-surface ${CHROME_FROSTED_MENU_CLASS} ${
             menuVisible ? 'pen-fab-menu--visible' : ''
           }`}
           style={{
-            background: glass.bg,
-            border: glass.border,
-            borderRadius: card.radius,
+            ...chromeFrostedMenuStyle,
             fontFamily: font.family,
             color: font.colorPrimary,
             pointerEvents: isOpen ? 'auto' : 'none',

@@ -1,10 +1,10 @@
 import StickyStrokesSvg from './StickyStrokesSvg'
-import type { StickyCanvasItem } from './types'
+import type { DrawableSurfaceItem } from './types'
 
-export default function StickyAnnotationOverlay({ item }: { item: StickyCanvasItem }) {
+export default function StickyAnnotationOverlay({ item }: { item: DrawableSurfaceItem }) {
   return (
     <div
-      data-canvas-item="sticky"
+      data-canvas-item={item.type}
       data-item-id={item.id}
       data-lock-sticky-annotation
       aria-hidden

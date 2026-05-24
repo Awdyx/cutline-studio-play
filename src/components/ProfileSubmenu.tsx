@@ -10,8 +10,8 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowLeft, Camera, Image, Plus, Trash2 } from 'lucide-react'
-import { CHROME_CARD_CLASS, card, chromeLabel, font, menuDividerStyle } from '../styles/tokens'
+import { ArrowLeft, Loader2, Plus, Trash2 } from 'lucide-react'
+import { CHROME_FROSTED_MENU_CLASS, chromeFrostedMenuStyle, chromeLabel, font, menuDividerStyle } from '../styles/tokens'
 import { useProfileStore } from '../profile/profileStore'
 import {
   BIO_MAX_LENGTH,
@@ -27,14 +27,22 @@ import {
   type ProfileValidation,
 } from '../profile/profileUtils'
 import type { ProfileSocialLink, UserProfile } from '../profile/types'
+import {
+  beginProfileFilePicker,
+  endProfileFilePicker,
+} from '../profile/profileFilePickerSession'
+import { prepareProfileImageDataUrl, type ProfileImageKind } from '../profile/profileImageImport'
+import { defaultProfileMediaFrame } from '../profile/profileMediaFrame'
+import type { ProfileMediaFrame } from '../profile/types'
+import ProfileMediaFrameEditor from './ProfileMediaFrameEditor'
 import { usePanelAlignedSubmenuLayout } from './usePanelAlignedSubmenuLayout'
 import { playSubmenuHover, playSubmenuTap } from '../sound/submenuSound'
 import { SubmenuSoundScope } from './SubmenuSoundScope'
+import ChromeScrollFade from './ChromeScrollFade'
 
 const SUBMENU_WIDTH = 320
 const SUBMENU_GAP = 10
 const SAVE_BUBBLE_GAP = 10
-const MAX_IMAGE_BYTES = 2 * 1024 * 1024
 const MEDIA_BUTTON_HEIGHT = 120
 
 const defaultBannerGradient =
@@ -72,6 +80,7 @@ const fieldErrorStyle: React.CSSProperties = {
 interface ProfileSubmenuProps {
   panelRef: RefObject<HTMLElement | null>
   onClose: () => void
+  onDraftChange?: (draft: UserProfile) => void
 }
 
 function Field({
@@ -101,7 +110,7 @@ function Field({
   )
 }
 
-export default function ProfileSubmenu({ panelRef, onClose }: ProfileSubmenuProps) {
+export default function ProfileSubmenu({ panelRef, onClose, onDraftChange }: ProfileSubmenuProps) {
   const savedProfile = useProfileStore((s) => s.profile)
   const saveProfile = useProfileStore((s) => s.saveProfile)
   const [mounted, setMounted] = useState(false)
@@ -109,9 +118,12 @@ export default function ProfileSubmenu({ panelRef, onClose }: ProfileSubmenuProp
   const [errors, setErrors] = useState<ProfileValidation>({})
   const [avatarError, setAvatarError] = useState<string | null>(null)
   const [bannerError, setBannerError] = useState<string | null>(null)
+  const [mediaBusy, setMediaBusy] = useState<ProfileImageKind | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const bannerInputRef = useRef<HTMLInputElement>(null)
   const formScrollRef = useRef<HTMLDivElement>(null)
+  const submenuRef = useRef<HTMLDivElement>(null)
+  const userEditedRef = useRef(false)
   const layout = usePanelAlignedSubmenuLayout(panelRef, SUBMENU_WIDTH, SUBMENU_GAP)
 
   const dirty = !profilesEqual(draft, savedProfile)
@@ -121,13 +133,27 @@ export default function ProfileSubmenu({ panelRef, onClose }: ProfileSubmenuProp
   }, [])
 
   useEffect(() => {
+    if (userEditedRef.current) return
     setDraft(savedProfile)
     setErrors({})
     setAvatarError(null)
     setBannerError(null)
   }, [savedProfile])
 
+  useEffect(() => {
+    function handleWindowFocus() {
+      window.setTimeout(() => endProfileFilePicker(), 0)
+    }
+    window.addEventListener('focus', handleWindowFocus)
+    return () => window.removeEventListener('focus', handleWindowFocus)
+  }, [])
+
+  useEffect(() => {
+    onDraftChange?.(draft)
+  }, [draft, onDraftChange])
+
   const patchDraft = useCallback((patch: Partial<UserProfile>) => {
+    userEditedRef.current = true
     setDraft((prev) => ({ ...prev, ...patch }))
     setErrors({})
     setAvatarError(null)
@@ -135,6 +161,7 @@ export default function ProfileSubmenu({ panelRef, onClose }: ProfileSubmenuProp
   }, [])
 
   const resetDraft = useCallback(() => {
+    userEditedRef.current = false
     setDraft(savedProfile)
     setErrors({})
     setAvatarError(null)
@@ -158,60 +185,81 @@ export default function ProfileSubmenu({ panelRef, onClose }: ProfileSubmenuProp
     }
     const next = sanitizeProfileDraft(draft)
     saveProfile(next)
+    userEditedRef.current = false
     setErrors({})
     onClose()
   }, [draft, onClose, saveProfile])
 
-  const readImageFile = useCallback(
-    (file: File, onLoad: (dataUrl: string) => void, onError: (message: string) => void) => {
-      if (!file.type.startsWith('image/')) {
-        onError('Choose an image file')
-        return
+  const applyProfileImage = useCallback(
+    async (file: File, kind: ProfileImageKind) => {
+      const setError = kind === 'avatar' ? setAvatarError : setBannerError
+
+      setMediaBusy(kind)
+      setError(null)
+      try {
+        const dataUrl = await prepareProfileImageDataUrl(file, kind)
+        patchDraft(
+          kind === 'avatar'
+            ? {
+                avatarImageUrl: dataUrl,
+                avatarFrame: defaultProfileMediaFrame('avatar'),
+              }
+            : {
+                bannerImageUrl: dataUrl,
+                bannerFrame: defaultProfileMediaFrame('banner'),
+              },
+        )
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not use that image')
+      } finally {
+        setMediaBusy(null)
       }
-      if (file.size > MAX_IMAGE_BYTES) {
-        onError('Image must be 2 MB or smaller')
-        return
-      }
-      const reader = new FileReader()
-      reader.onload = () => {
-        if (typeof reader.result === 'string') onLoad(reader.result)
-      }
-      reader.onerror = () => onError('Could not read that image')
-      reader.readAsDataURL(file)
     },
-    [],
+    [patchDraft],
   )
+
+  const updateMediaFrame = useCallback(
+    (kind: ProfileImageKind, frame: ProfileMediaFrame) => {
+      patchDraft(kind === 'avatar' ? { avatarFrame: frame } : { bannerFrame: frame })
+    },
+    [patchDraft],
+  )
+
+  const openBannerPicker = useCallback(() => {
+    beginProfileFilePicker()
+    bannerInputRef.current?.click()
+  }, [])
+
+  const openAvatarPicker = useCallback(() => {
+    beginProfileFilePicker()
+    fileInputRef.current?.click()
+  }, [])
 
   const handleAvatarFile = useCallback(
     (e: ChangeEvent<HTMLInputElement>) => {
+      endProfileFilePicker()
       const file = e.target.files?.[0]
       e.target.value = ''
       if (!file) return
-      readImageFile(
-        file,
-        (dataUrl) => patchDraft({ avatarImageUrl: dataUrl }),
-        setAvatarError,
-      )
+      void applyProfileImage(file, 'avatar')
     },
-    [patchDraft, readImageFile],
+    [applyProfileImage],
   )
 
   const handleBannerFile = useCallback(
     (e: ChangeEvent<HTMLInputElement>) => {
+      endProfileFilePicker()
       const file = e.target.files?.[0]
       e.target.value = ''
       if (!file) return
-      readImageFile(
-        file,
-        (dataUrl) => patchDraft({ bannerImageUrl: dataUrl }),
-        setBannerError,
-      )
+      void applyProfileImage(file, 'banner')
     },
-    [patchDraft, readImageFile],
+    [applyProfileImage],
   )
 
   const updateSocial = useCallback(
     (index: number, patch: Partial<ProfileSocialLink>) => {
+      userEditedRef.current = true
       setDraft((prev) => ({
         ...prev,
         socials: prev.socials.map((link, i) =>
@@ -224,6 +272,7 @@ export default function ProfileSubmenu({ panelRef, onClose }: ProfileSubmenuProp
   )
 
   const removeSocial = useCallback((index: number) => {
+    userEditedRef.current = true
     setDraft((prev) => ({
       ...prev,
       socials: prev.socials.filter((_, i) => i !== index),
@@ -232,6 +281,7 @@ export default function ProfileSubmenu({ panelRef, onClose }: ProfileSubmenuProp
   }, [])
 
   const addSocial = useCallback(() => {
+    userEditedRef.current = true
     setDraft((prev) => {
       if (prev.socials.length >= SOCIAL_MAX) return prev
       return { ...prev, socials: [...prev.socials, emptySocialLink()] }
@@ -262,6 +312,7 @@ export default function ProfileSubmenu({ panelRef, onClose }: ProfileSubmenuProp
   return createPortal(
     <>
       <motion.div
+        ref={submenuRef}
         data-profile-submenu
         initial={{ opacity: 0, scale: 0.96, x: 8 }}
         animate={{ opacity: 1, scale: 1, x: 0 }}
@@ -275,16 +326,13 @@ export default function ProfileSubmenu({ panelRef, onClose }: ProfileSubmenuProp
           height: layout.height > 0 ? layout.height : undefined,
           display: 'flex',
           flexDirection: 'column',
-          background: card.bg,
-          border: card.border,
-          boxShadow: card.shadow,
-          borderRadius: card.radius,
+          ...chromeFrostedMenuStyle,
           fontFamily: font.family,
           color: font.colorPrimary,
           zIndex: 45,
           overflow: 'hidden',
         }}
-        className={`theme-surface ${CHROME_CARD_CLASS}`}
+        className={`theme-surface ${CHROME_FROSTED_MENU_CLASS}`}
         onClick={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}
       >
@@ -326,34 +374,17 @@ export default function ProfileSubmenu({ panelRef, onClose }: ProfileSubmenuProp
         </h2>
       </div>
 
-      <div
-        ref={formScrollRef}
-        style={{
-          flex: 1,
-          overflowY: 'auto',
-          padding: '0 16px 12px',
-          WebkitOverflowScrolling: 'touch',
-        }}
-      >
+      <ChromeScrollFade ref={formScrollRef} scrollStyle={{ padding: '0 16px' }}>
         <div style={{ marginBottom: 2 }}>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <MediaChangeButton
-              icon={Image}
-              label="Change banner"
-              onClick={() => bannerInputRef.current?.click()}
-            >
-              {draft.bannerImageUrl ? (
-                <img
-                  src={draft.bannerImageUrl}
-                  alt=""
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                    objectPosition: 'center 18%',
-                  }}
-                />
-              ) : (
+          <div style={{ display: 'flex', gap: 10 }}>
+            <MediaChangeTile
+              busy={mediaBusy === 'banner'}
+              disabled={mediaBusy !== null && mediaBusy !== 'banner'}
+              imageUrl={draft.bannerImageUrl}
+              frame={draft.bannerFrame ?? defaultProfileMediaFrame('banner')}
+              onPickImage={openBannerPicker}
+              onFrameChange={(bannerFrame) => updateMediaFrame('banner', bannerFrame)}
+              placeholder={
                 <div
                   style={{
                     width: '100%',
@@ -361,24 +392,16 @@ export default function ProfileSubmenu({ panelRef, onClose }: ProfileSubmenuProp
                     background: defaultBannerGradient,
                   }}
                 />
-              )}
-            </MediaChangeButton>
-            <MediaChangeButton
-              icon={Camera}
-              label="Change avatar"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              {draft.avatarImageUrl ? (
-                <img
-                  src={draft.avatarImageUrl}
-                  alt=""
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                  }}
-                />
-              ) : (
+              }
+            />
+            <MediaChangeTile
+              busy={mediaBusy === 'avatar'}
+              disabled={mediaBusy !== null && mediaBusy !== 'avatar'}
+              imageUrl={draft.avatarImageUrl}
+              frame={draft.avatarFrame ?? defaultProfileMediaFrame('avatar')}
+              onPickImage={openAvatarPicker}
+              onFrameChange={(avatarFrame) => updateMediaFrame('avatar', avatarFrame)}
+              placeholder={
                 <div
                   style={{
                     display: 'flex',
@@ -400,8 +423,8 @@ export default function ProfileSubmenu({ panelRef, onClose }: ProfileSubmenuProp
                     {deriveInitial(draft.displayName)}
                   </span>
                 </div>
-              )}
-            </MediaChangeButton>
+              }
+            />
           </div>
           {bannerError && (
             <p style={{ ...fieldErrorStyle, margin: '8px 0 0', textAlign: 'center' }}>
@@ -413,20 +436,6 @@ export default function ProfileSubmenu({ panelRef, onClose }: ProfileSubmenuProp
               {avatarError}
             </p>
           )}
-          <input
-            ref={bannerInputRef}
-            type="file"
-            accept="image/*"
-            style={{ display: 'none' }}
-            onChange={handleBannerFile}
-          />
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            style={{ display: 'none' }}
-            onChange={handleAvatarFile}
-          />
         </div>
 
         <div style={{ ...menuDividerStyle, margin: '10px 0 18px' }} />
@@ -559,7 +568,7 @@ export default function ProfileSubmenu({ panelRef, onClose }: ProfileSubmenuProp
             )}
           </div>
         </Field>
-      </div>
+      </ChromeScrollFade>
       </SubmenuSoundScope>
       </motion.div>
 
@@ -578,15 +587,12 @@ export default function ProfileSubmenu({ panelRef, onClose }: ProfileSubmenuProp
               left: layout.left,
               width: SUBMENU_WIDTH,
               padding: '14px 16px 16px',
-              background: card.bg,
-              border: card.border,
-              boxShadow: card.shadow,
-              borderRadius: card.radius,
+              ...chromeFrostedMenuStyle,
               fontFamily: font.family,
               color: font.colorPrimary,
               zIndex: 46,
             }}
-            className={`theme-surface ${CHROME_CARD_CLASS}`}
+            className={`theme-surface ${CHROME_FROSTED_MENU_CLASS}`}
             onClick={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
           >
@@ -613,84 +619,127 @@ export default function ProfileSubmenu({ panelRef, onClose }: ProfileSubmenuProp
           </motion.div>
         )}
       </AnimatePresence>
+
+      <input
+        ref={bannerInputRef}
+        type="file"
+        accept="image/*,.gif,.heic,.heif"
+        style={{ display: 'none' }}
+        onChange={handleBannerFile}
+      />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,.gif,.heic,.heif"
+        style={{ display: 'none' }}
+        onChange={handleAvatarFile}
+      />
     </>,
     document.body,
   )
 }
 
-function MediaChangeButton({
-  icon: Icon,
-  label,
-  onClick,
-  children,
+function MediaChangeTile({
+  busy = false,
+  disabled = false,
+  imageUrl,
+  frame,
+  onPickImage,
+  onFrameChange,
+  placeholder,
 }: {
-  icon: React.ElementType
-  label: string
-  onClick: () => void
-  children: React.ReactNode
+  busy?: boolean
+  disabled?: boolean
+  imageUrl?: string | null
+  frame?: ProfileMediaFrame
+  onPickImage: () => void
+  onFrameChange: (frame: ProfileMediaFrame) => void
+  placeholder: React.ReactNode
 }) {
   const [hovered, setHovered] = useState(false)
 
+  const handlePickImage = useCallback(() => {
+    playSubmenuTap()
+    onPickImage()
+  }, [onPickImage])
+
   return (
-    <button
-      type="button"
-      aria-label={label}
-      onClick={() => {
-        playSubmenuTap()
-        onClick()
-      }}
-      onMouseEnter={() => {
-        setHovered(true)
-        playSubmenuHover()
-      }}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        position: 'relative',
-        flex: 1,
-        minWidth: 0,
-        height: MEDIA_BUTTON_HEIGHT,
-        padding: 0,
-        border: '1px solid var(--glass-border)',
-        borderRadius: 12,
-        overflow: 'hidden',
-        cursor: 'pointer',
-        background: 'var(--card-bg)',
-        fontFamily: font.family,
-      }}
-    >
-      {children}
-      <div
-        aria-hidden
-        style={{
-          position: 'absolute',
-          inset: 0,
-          background: hovered ? 'rgba(20, 30, 50, 0.14)' : 'transparent',
-          transition: 'background 0.15s ease',
-          pointerEvents: 'none',
-        }}
-      />
+    <div style={{ flex: 1, minWidth: 0 }}>
       <div
         style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 4,
-          padding: '8px 6px',
-          background: 'linear-gradient(transparent, rgba(20, 30, 50, 0.58))',
-          color: '#fff',
-          fontSize: 11,
-          fontWeight: 600,
-          pointerEvents: 'none',
+          position: 'relative',
+          height: MEDIA_BUTTON_HEIGHT,
+          borderRadius: 12,
+          overflow: 'hidden',
+          border: '1px solid var(--glass-border)',
+          background: 'var(--card-bg)',
         }}
       >
-        <Icon size={12} strokeWidth={2.2} />
-        {chromeLabel(label)}
+        {imageUrl && frame ? (
+          <ProfileMediaFrameEditor
+            src={imageUrl}
+            frame={frame}
+            onChange={onFrameChange}
+            onTap={handlePickImage}
+          />
+        ) : (
+          <button
+            type="button"
+            aria-label="Choose image"
+            disabled={disabled}
+            onClick={() => {
+              if (disabled) return
+              handlePickImage()
+            }}
+            onMouseEnter={() => {
+              if (!disabled) setHovered(true)
+            }}
+            onMouseLeave={() => setHovered(false)}
+            style={{
+              width: '100%',
+              height: '100%',
+              padding: 0,
+              border: 'none',
+              background: 'transparent',
+              cursor: disabled ? 'wait' : 'pointer',
+            }}
+          >
+            {placeholder}
+            <div
+              aria-hidden
+              style={{
+                position: 'absolute',
+                inset: 0,
+                background: hovered && !disabled ? 'rgba(20, 30, 50, 0.06)' : 'transparent',
+                transition: 'background 0.15s ease',
+                pointerEvents: 'none',
+              }}
+            />
+          </button>
+        )}
+        {busy && (
+          <div
+            aria-hidden
+            style={{
+              position: 'absolute',
+              top: 8,
+              right: 8,
+              display: 'flex',
+              color: font.colorMuted,
+              pointerEvents: 'none',
+            }}
+          >
+            <motion.span
+              animate={{ rotate: 360 }}
+              transition={{ repeat: Infinity, duration: 0.75, ease: 'linear' }}
+              style={{ display: 'flex', lineHeight: 0 }}
+            >
+              <Loader2 size={14} strokeWidth={2.2} />
+            </motion.span>
+          </div>
+        )}
       </div>
-    </button>
+    </div>
   )
 }
 

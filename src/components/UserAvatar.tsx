@@ -1,9 +1,13 @@
 import { deriveInitial } from '../profile/profileUtils'
+import ProfileFramedImage from './ProfileFramedImage'
+import { DEFAULT_AVATAR_FRAME } from '../profile/profileMediaFrame'
+import type { ProfileMediaFrame } from '../profile/types'
 
 type UserAvatarProps = {
   displayName: string
   avatarColor: string
   avatarImageUrl?: string | null
+  avatarFrame?: ProfileMediaFrame | null
   size?: number
   fontSize?: number
 }
@@ -12,6 +16,7 @@ export default function UserAvatar({
   displayName,
   avatarColor,
   avatarImageUrl,
+  avatarFrame,
   size = 44,
   fontSize,
 }: UserAvatarProps) {
@@ -20,18 +25,21 @@ export default function UserAvatar({
 
   if (avatarImageUrl) {
     return (
-      <img
-        src={avatarImageUrl}
-        alt=""
+      <div
         style={{
           width: size,
           height: size,
           borderRadius: '50%',
-          objectFit: 'cover',
+          overflow: 'hidden',
           flexShrink: 0,
-          display: 'block',
         }}
-      />
+      >
+        <ProfileFramedImage
+          src={avatarImageUrl}
+          frame={avatarFrame ?? DEFAULT_AVATAR_FRAME}
+          shape="circle"
+        />
+      </div>
     )
   }
 

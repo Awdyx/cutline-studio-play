@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Keyboard, Settings, ChevronRight } from 'lucide-react'
-import { CHROME_CARD_CLASS, card, font, menuDividerStyle } from '../styles/tokens'
+import { CHROME_FROSTED_MENU_CLASS, chromeFrostedMenuStyle, font, menuDividerStyle } from '../styles/tokens'
 import type { ThemeMode } from '../theme/themeStore'
 import CutlineAppNavSection from './CutlineAppNavSection'
 import ShortcutsSubmenu from './ShortcutsSubmenu'
@@ -92,17 +92,14 @@ export default function CutlineMenu({
           top: 64,
           left: 16,
           width: 260,
-          background: card.bg,
-          border: card.border,
-          boxShadow: card.shadow,
-          borderRadius: card.radius,
+          ...chromeFrostedMenuStyle,
           fontFamily: font.family,
           color: font.colorPrimary,
           zIndex: 30,
           overflow: 'hidden',
           paddingBottom: 12,
         }}
-        className={`theme-surface ${CHROME_CARD_CLASS}`}
+        className={`theme-surface ${CHROME_FROSTED_MENU_CLASS}`}
       >
         <SubmenuSoundScope>
         <CutlineAppNavSection onNavigate={onClose} />

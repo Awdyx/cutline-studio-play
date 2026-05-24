@@ -112,8 +112,19 @@ export const useProfileStore = create<ProfileState>()(
       },
       onRehydrateStorage: () => (state, error) => {
         if (error || !state) return
-        void mergeMediaIntoProfile(stripProfileMedia(state.profile)).then((profile) => {
-          useProfileStore.setState({ profile })
+        void mergeMediaIntoProfile(stripProfileMedia(state.profile)).then((hydrated) => {
+          useProfileStore.setState((current) => {
+            const cur = current.profile
+            return {
+              profile: {
+                ...hydrated,
+                avatarImageUrl: cur.avatarImageUrl ?? hydrated.avatarImageUrl,
+                bannerImageUrl: cur.bannerImageUrl ?? hydrated.bannerImageUrl,
+                avatarFrame: cur.avatarFrame ?? hydrated.avatarFrame,
+                bannerFrame: cur.bannerFrame ?? hydrated.bannerFrame,
+              },
+            }
+          })
         })
       },
     },

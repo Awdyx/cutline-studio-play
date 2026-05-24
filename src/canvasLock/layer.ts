@@ -1,5 +1,5 @@
 import { nextZIndexAbove } from '../canvasItems/canvasZOrder'
-import type { CanvasItem, StickyCanvasItem } from '../canvasItems/types'
+import { isDrawableSurface, type CanvasItem, type StickyCanvasItem } from '../canvasItems/types'
 import { useCanvasWorkspaceStore } from '../spaces/canvasWorkspaceStore'
 
 export type CanvasLayer = 'committed' | 'annotation'
@@ -33,7 +33,7 @@ export function hasAnyAnnotations(
   if (globalAnnotationStrokes.length > 0) return true
   return items.some((item) => {
     if (item.layer === 'annotation') return true
-    if (item.type === 'sticky' && (item.annotationStrokes?.length ?? 0) > 0) return true
+    if (isDrawableSurface(item) && (item.annotationStrokes?.length ?? 0) > 0) return true
     return false
   })
 }
@@ -42,17 +42,17 @@ export function mergeAnnotationsIntoCommitted(items: CanvasItem[]): CanvasItem[]
   const result: CanvasItem[] = []
 
   for (const item of items) {
-    if (item.type === 'sticky') {
+    if (isDrawableSurface(item)) {
       const extra = item.annotationStrokes ?? []
       const { layer, annotationStrokes: _ann, ...rest } = item
       let merged = {
         ...rest,
         strokes: [...item.strokes, ...extra],
-      } as StickyCanvasItem
+      }
       if (layer === 'annotation') {
         merged = { ...merged, zIndex: nextZIndexAbove(result) }
       }
-      result.push(merged)
+      result.push(merged as CanvasItem)
       continue
     }
 
@@ -71,7 +71,7 @@ export function discardAnnotationsFromItems(items: CanvasItem[]): CanvasItem[] {
   return items
     .filter((item) => item.layer !== 'annotation')
     .map((item) => {
-      if (item.type !== 'sticky') return item
+      if (!isDrawableSurface(item)) return item
       const { annotationStrokes: _ann, ...rest } = item
       return { ...rest, annotationStrokes: [] }
     })

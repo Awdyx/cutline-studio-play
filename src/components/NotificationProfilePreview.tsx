@@ -14,9 +14,9 @@ import { createPortal } from 'react-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { ArrowUpRight } from 'lucide-react'
 import {
-  CHROME_CARD_CLASS,
+  CHROME_FROSTED_MENU_CLASS,
   CHROME_PRESERVE_CASE_CLASS,
-  card,
+  chromeFrostedMenuStyle,
   chromeLabel,
   font,
 } from '../styles/tokens'
@@ -215,17 +215,14 @@ const ProfilePreviewCard = forwardRef<
       animate={{ opacity: 1, scale: 1, x: 0 }}
       exit={{ opacity: 0, scale: 0.96, x: -4 }}
       transition={FLYOUT_TRANSITION}
-      className={`theme-surface ${CHROME_CARD_CLASS}`}
+      className={`theme-surface ${CHROME_FROSTED_MENU_CLASS}`}
       style={{
         position: 'fixed',
         top: coords.top,
         left: coords.left,
         width: CARD_WIDTH,
         zIndex: 45,
-        background: card.bg,
-        border: card.border,
-        boxShadow: card.shadow,
-        borderRadius: card.radius,
+        ...chromeFrostedMenuStyle,
         fontFamily: font.family,
         color: font.colorPrimary,
         overflow: 'hidden',

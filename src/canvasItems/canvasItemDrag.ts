@@ -1,5 +1,6 @@
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { useCanvasNavigationStore } from '../canvas/canvasNavigationStore'
+import { primaryPointerReleased } from './canvasPointerSession'
 import { clientToCanvasFromElement } from '../drawing/canvasCoords'
 import { playSound } from '../sound/playSound'
 import {
@@ -24,11 +25,21 @@ type DragSession = {
   grabOffsetY: number
   startClientX: number
   startClientY: number
+  lastClientX: number
+  lastClientY: number
   onReleaseWithoutDrag?: () => void
 }
 
 let session: DragSession | null = null
 let detachListeners: (() => void) | null = null
+let dragRafId: number | null = null
+
+function cancelDragRaf() {
+  if (dragRafId != null) {
+    cancelAnimationFrame(dragRafId)
+    dragRafId = null
+  }
+}
 
 function screenDist(x1: number, y1: number, x2: number, y2: number): number {
   return Math.hypot(x2 - x1, y2 - y1)
@@ -67,7 +78,13 @@ function commitDragStart() {
 }
 
 function finishSession() {
+  if (session && dragRafId != null) {
+    cancelDragRaf()
+    applyDragPosition(session.lastClientX, session.lastClientY)
+  }
+
   const ended = session
+  cancelDragRaf()
   removeDocumentListeners()
   session = null
   setDragActiveClass(false)
@@ -82,6 +99,13 @@ function finishSession() {
 
   stopItemDragSound()
   playSound('itemDrop')
+
+  const item = useCanvasItemsStore.getState().items.find((entry) => entry.id === ended.itemId)
+  if (item) {
+    useCanvasItemsStore.getState().updateItemPosition(item.id, item.x, item.y, {
+      persist: true,
+    })
+  }
 }
 
 function applyDragPosition(clientX: number, clientY: number) {
@@ -96,7 +120,21 @@ function applyDragPosition(clientX: number, clientY: number) {
     session.itemId,
     pos.x - session.grabOffsetX,
     pos.y - session.grabOffsetY,
+    { persist: false },
   )
+}
+
+function scheduleDragMove(clientX: number, clientY: number) {
+  if (!session) return
+  session.lastClientX = clientX
+  session.lastClientY = clientY
+
+  if (dragRafId != null) return
+  dragRafId = requestAnimationFrame(() => {
+    dragRafId = null
+    if (!session) return
+    applyDragPosition(session.lastClientX, session.lastClientY)
+  })
 }
 
 /**
@@ -147,11 +185,20 @@ export function attachCanvasItemDragPointerDown(
     grabOffsetY: pointerCanvas.y - item.y,
     startClientX: event.clientX,
     startClientY: event.clientY,
+    lastClientX: event.clientX,
+    lastClientY: event.clientY,
     onReleaseWithoutDrag: options?.onReleaseWithoutDrag,
   }
 
   const onPointerMove = (e: PointerEvent) => {
     if (!session || e.pointerId !== pointerId) return
+
+    if (primaryPointerReleased(e)) {
+      session.lastClientX = e.clientX
+      session.lastClientY = e.clientY
+      finishSession()
+      return
+    }
 
     if (useCanvasNavigationStore.getState().shouldSuppressHandleGesture()) {
       finishSession()
@@ -169,22 +216,41 @@ export function attachCanvasItemDragPointerDown(
     }
 
     if (e.cancelable) e.preventDefault()
-    applyDragPosition(e.clientX, e.clientY)
+    scheduleDragMove(e.clientX, e.clientY)
   }
 
   const onPointerEnd = (e: PointerEvent) => {
     if (!session || e.pointerId !== pointerId) return
+    session.lastClientX = e.clientX
+    session.lastClientY = e.clientY
     finishSession()
   }
 
   document.addEventListener('pointermove', onPointerMove, { capture: true })
   document.addEventListener('pointerup', onPointerEnd, { capture: true })
   document.addEventListener('pointercancel', onPointerEnd, { capture: true })
+  window.addEventListener('pointerup', onPointerEnd, { capture: true })
+  window.addEventListener('pointercancel', onPointerEnd, { capture: true })
+  window.addEventListener('blur', finishSession)
+
+  const onWindowMouseMove = (e: MouseEvent) => {
+    if (!session || session.pointerId !== pointerId) return
+    if (primaryPointerReleased(e)) {
+      session.lastClientX = e.clientX
+      session.lastClientY = e.clientY
+      finishSession()
+    }
+  }
+  window.addEventListener('mousemove', onWindowMouseMove, { capture: true })
 
   detachListeners = () => {
     document.removeEventListener('pointermove', onPointerMove, true)
     document.removeEventListener('pointerup', onPointerEnd, true)
     document.removeEventListener('pointercancel', onPointerEnd, true)
+    window.removeEventListener('pointerup', onPointerEnd, true)
+    window.removeEventListener('pointercancel', onPointerEnd, true)
+    window.removeEventListener('blur', finishSession)
+    window.removeEventListener('mousemove', onWindowMouseMove, true)
   }
 }
 

@@ -1,4 +1,5 @@
 import type { ProfileSocialLink, TopBarUser, UserProfile } from './types'
+import { profileMediaFramesEqual } from './profileMediaFrame'
 
 export const BIO_MAX_LENGTH = 190
 export const DISPLAY_NAME_MAX_LENGTH = 32
@@ -6,6 +7,34 @@ export const HANDLE_MAX_LENGTH = 32
 export const SOCIAL_MAX = 5
 export const SOCIAL_LABEL_MAX_LENGTH = 20
 export const SOCIAL_VALUE_MAX_LENGTH = 64
+
+const PROFILE_IMAGE_EXTENSIONS = new Set([
+  'avif',
+  'gif',
+  'heic',
+  'heif',
+  'jpeg',
+  'jpg',
+  'png',
+  'webp',
+])
+
+export function isProfileImageFile(file: File): boolean {
+  if (file.type.startsWith('image/')) return true
+  const ext = file.name.split('.').pop()?.toLowerCase()
+  return ext ? PROFILE_IMAGE_EXTENSIONS.has(ext) : false
+}
+
+export function isProfileGifFile(file: File): boolean {
+  if (file.type === 'image/gif') return true
+  return file.name.split('.').pop()?.toLowerCase() === 'gif'
+}
+
+export function isProfileGifUrl(url: string | null | undefined): boolean {
+  if (!url) return false
+  if (url.startsWith('data:image/gif')) return true
+  return /\.gif(?:[?#]|$)/i.test(url)
+}
 
 export function deriveInitial(displayName: string): string {
   const trimmed = displayName.trim()
@@ -23,6 +52,7 @@ export function profileToTopBarUser(profile: UserProfile): TopBarUser {
     initial: deriveInitial(profile.displayName),
     avatarColor: profile.avatarColor,
     avatarImageUrl: profile.avatarImageUrl,
+    avatarFrame: profile.avatarFrame,
   }
 }
 
@@ -53,6 +83,8 @@ export function profilesEqual(a: UserProfile, b: UserProfile): boolean {
     a.avatarColor === b.avatarColor &&
     a.avatarImageUrl === b.avatarImageUrl &&
     a.bannerImageUrl === b.bannerImageUrl &&
+    profileMediaFramesEqual(a.avatarFrame, b.avatarFrame) &&
+    profileMediaFramesEqual(a.bannerFrame, b.bannerFrame) &&
     socialsEqual(a.socials, b.socials)
   )
 }

@@ -50,8 +50,8 @@ export function TodoWidgetPreview() {
   const items = [
     { text: 'Review pharm notes', tag: 'CHEM', done: true },
     { text: 'Finish block SAQs', tag: 'CHEM', due: '5pm', today: true },
-    { text: 'PHSI lab prep sheet', tag: 'PHSI', due: 'Thu' },
-    { text: 'Tutorial 4 group sync', tag: 'HUBS', due: 'Fri' },
+    { text: 'PHSI problem set 3', tag: 'PHSI', due: 'Thu' },
+    { text: 'HUBS anatomy lab report', tag: 'HUBS', due: 'Fri' },
   ]
   const doneCount = items.filter((item) => item.done).length
   const progressPct = Math.round((doneCount / items.length) * 100)

@@ -24,6 +24,8 @@ export const menuDividerVerticalStyle: CSSProperties = {
 
 export const CHROME_GLASS_CLASS = 'ui-chrome-glass'
 export const CHROME_CARD_CLASS = 'ui-chrome-card'
+/** Deep-frost chrome menus — + FAB, pen FAB, flyouts, and top-bar panels. */
+export const CHROME_FROSTED_MENU_CLASS = `${CHROME_GLASS_CLASS} ${CHROME_CARD_CLASS} plus-fab-menu-glass`
 /** Opaque chrome surfaces (tool pills — no backdrop blur). */
 export const CHROME_SOLID_CLASS = 'ui-chrome-solid'
 /** Opt out of chrome lowercase for user-authored text inside chrome panels. */
@@ -51,6 +53,13 @@ export const card = {
   shadow: 'var(--card-shadow)',
   radius: '16px',
   transitionDuration: '180ms',
+}
+
+/** Shared surface for frosted chrome menus (shadow comes from plus-fab-menu-glass CSS). */
+export const chromeFrostedMenuStyle: CSSProperties = {
+  background: glass.bg,
+  border: glass.border,
+  borderRadius: card.radius,
 }
 
 /** Shared chrome menu open/close — Cutline panel + flyout dismiss. */

@@ -2,7 +2,7 @@ import { useLayoutEffect, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import { Music, Volume2 } from 'lucide-react'
-import { CHROME_CARD_CLASS, card, chromeLabel, font, menuDividerStyle } from '../styles/tokens'
+import { CHROME_FROSTED_MENU_CLASS, chromeFrostedMenuStyle, chromeLabel, font, menuDividerStyle } from '../styles/tokens'
 import { useSubmenuPosition } from './useSubmenuPosition'
 import { backgroundMusic } from '../sound/backgroundMusic'
 import { useSoundStore } from '../sound/soundStore'
@@ -107,15 +107,12 @@ export default function SoundSubmenu({
         top: pos.top,
         left: pos.left,
         width: 220,
-        background: card.bg,
-        border: card.border,
-        boxShadow: card.shadow,
-        borderRadius: card.radius,
+        ...chromeFrostedMenuStyle,
         fontFamily: font.family,
         overflow: 'hidden',
         zIndex: 50,
       }}
-      className={`theme-surface ${CHROME_CARD_CLASS}`}
+      className={`theme-surface ${CHROME_FROSTED_MENU_CLASS}`}
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
     >

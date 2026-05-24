@@ -1,4 +1,7 @@
 import UserAvatar from './UserAvatar'
+import ProfileFramedImage from './ProfileFramedImage'
+import { DEFAULT_BANNER_FRAME } from '../profile/profileMediaFrame'
+import type { ProfileMediaFrame } from '../profile/types'
 
 const AVATAR_RING_PX = 3
 const CONTENT_GAP_PX = 10
@@ -18,9 +21,11 @@ export const PROFILE_EDIT_PHOTO_GAP = 22
 
 export default function ProfileBannerHeader({
   bannerImageUrl,
+  bannerFrame,
   displayName,
   avatarColor,
   avatarImageUrl,
+  avatarFrame,
   avatarSize = 44,
   bannerHeight = PROFILE_BANNER_HEIGHT,
   edgeToEdge = false,
@@ -30,9 +35,11 @@ export default function ProfileBannerHeader({
   children,
 }: {
   bannerImageUrl: string | null
+  bannerFrame?: ProfileMediaFrame | null
   displayName: string
   avatarColor: string
   avatarImageUrl: string | null
+  avatarFrame?: ProfileMediaFrame | null
   avatarSize?: number
   bannerHeight?: number
   /** Banner spans the full card width (profile panel). */
@@ -68,15 +75,9 @@ export default function ProfileBannerHeader({
           }}
         >
           {bannerImageUrl ? (
-            <img
+            <ProfileFramedImage
               src={bannerImageUrl}
-              alt=""
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                objectPosition: 'center 18%',
-              }}
+              frame={bannerFrame ?? DEFAULT_BANNER_FRAME}
             />
           ) : (
             <div
@@ -103,6 +104,7 @@ export default function ProfileBannerHeader({
             displayName={displayName}
             avatarColor={avatarColor}
             avatarImageUrl={avatarImageUrl}
+            avatarFrame={avatarFrame}
             size={avatarSize}
             fontSize={Math.max(14, Math.round(avatarSize * 0.4))}
           />

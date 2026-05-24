@@ -38,11 +38,25 @@ import {
   type CanvasItem,
   type ImageCanvasItem,
   type SpaceCanvasItem,
+  isDrawableSurface,
+  type DrawableSurfaceItem,
   type StickyCanvasItem,
+  type StudyHubCanvasItem,
   type TextCanvasItem,
   type VideoCanvasItem,
+  STUDY_HUB_ASPECT,
 } from './types'
+import {
+  studyHubDimensionsForWidth,
+  studyHubSpawnDimensions,
+} from './studyHubBounds'
+import {
+  normalizeSpawnScale,
+  studyHubStackOffset,
+} from './studyHubSpawnScale'
+import type { StudySubjectId } from './types'
 import { DEFAULT_SPACE_NAME } from '../spaces/types'
+import type { SpacePreviewPan } from '../spaces/spacePreviewPan'
 import {
   DEFAULT_SPACE_NAME_ALIGNMENT,
   DEFAULT_TEXT_ALIGNMENT,
@@ -116,10 +130,24 @@ type CanvasItemsState = {
   addImage: (x: number, y: number, mediaId: string, width: number, height: number) => string
   addVideo: (x: number, y: number, mediaId: string, width: number, height: number) => string
   addSpace: (x: number, y: number) => string
+  addStudyHub: (
+    x: number,
+    y: number,
+    subjectId: StudySubjectId,
+    spawnScale?: number,
+  ) => string | null
   beginItemDrag: (id: string) => void
   beginItemResize: (id: string) => void
-  updateItemPosition: (id: string, x: number, y: number) => void
-  updateItemSize: (id: string, width: number, height: number) => void
+  updateItemPosition: (id: string, x: number, y: number, opts?: { persist?: boolean }) => void
+  updateItemSize: (id: string, width: number, height: number, opts?: { persist?: boolean; clampStudyHub?: boolean }) => void
+  updateItemRect: (
+    id: string,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    opts?: { persist?: boolean; clampStudyHub?: boolean },
+  ) => void
   restoreImportSizing: (id: string) => void
   bringToFront: (id: string) => void
   sendToBack: (id: string) => void
@@ -132,7 +160,7 @@ type CanvasItemsState = {
   setItemTextAlignment: (id: string, alignment: ItemTextAlignment) => void
   setPreviewAdjustSpace: (id: string | null) => void
   updateSpacePreviewPan: (id: string, pan: SpacePreviewPan) => void
-  getStickyById: (id: string) => StickyCanvasItem | undefined
+  getStickyById: (id: string) => DrawableSurfaceItem | undefined
   startStickyStroke: (stickyId: string, point: StrokePoint, config: StrokeConfig) => void
   addStickyStrokePoint: (point: StrokePoint) => void
   endStickyStroke: () => void
@@ -167,6 +195,19 @@ function findItem(items: CanvasItem[], id: string): CanvasItem | undefined {
 
 export function countSpaceWidgets(items: CanvasItem[]): number {
   return items.filter((item) => item.type === 'space').length
+}
+
+export function countStudyHubWidgets(items: CanvasItem[]): number {
+  return items.filter((item) => item.type === 'study_hub').length
+}
+
+export function hasStudyHubForSubject(
+  items: CanvasItem[],
+  subjectId: StudySubjectId,
+): boolean {
+  return items.some(
+    (item) => item.type === 'study_hub' && item.subjectId === subjectId,
+  )
 }
 
 export function canAddSpaceWidget(items: CanvasItem[]): boolean {
@@ -528,6 +569,39 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
     return id
   },
 
+  addStudyHub: (x, y, subjectId, spawnScale = 1) => {
+    const items = get().items
+    if (hasStudyHubForSubject(items, subjectId)) return null
+
+    pushUndoSnapshot()
+    const id = generateItemId()
+    const prevSelected = get().selectedIds
+    const layer = newItemLayer(useCanvasLockStore.getState().isLocked)
+    const stackIndex = countStudyHubWidgets(items)
+    const normalizedScale = normalizeSpawnScale(spawnScale)
+    const { width, height } = studyHubSpawnDimensions(normalizedScale)
+    const offset = studyHubStackOffset(stackIndex, normalizedScale)
+    const hub: StudyHubCanvasItem = {
+      id,
+      type: 'study_hub',
+      x: x - width / 2 + offset.x,
+      y: y - height / 2 + offset.y,
+      zIndex: nextZIndexForLayer(items, layer),
+      width,
+      height,
+      subjectId,
+      strokes: [],
+      annotationStrokes: [],
+      spawnScale: normalizedScale,
+      ...(layer === 'annotation' ? { layer } : {}),
+    }
+    const next = [...items, hub]
+    set({ items: next, selectedIds: [id] })
+    dismissEmptyTextItemsOnDeselect(get, set, prevSelected)
+    persistItems({ immediate: true })
+    return id
+  },
+
   beginItemDrag: (id: string) => {
     if (!itemIsMutable(findItem(get().items, id))) return
     pushUndoSnapshot()
@@ -538,24 +612,53 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
     pushUndoSnapshot()
   },
 
-  updateItemPosition: (id, x, y) => {
+  updateItemPosition: (id, x, y, opts) => {
     if (!itemIsMutable(findItem(get().items, id))) return
     set((state) => ({
       items: state.items.map((item) =>
         item.id === id ? { ...item, x, y } : item,
       ),
     }))
-    persistItems()
+    if (opts?.persist !== false) persistItems()
   },
 
-  updateItemSize: (id, width, height) => {
+  updateItemSize: (id, width, height, opts) => {
     if (!itemIsMutable(findItem(get().items, id))) return
     set((state) => ({
-      items: state.items.map((item) =>
-        item.id === id ? { ...item, width, height } : item,
-      ),
+      items: state.items.map((item) => {
+        if (item.id !== id) return item
+        if (item.type === 'study_hub') {
+          const clamp = opts?.clampStudyHub !== false
+          const { width: w, height: h } = clamp
+            ? studyHubDimensionsForWidth(width)
+            : { width, height: width / STUDY_HUB_ASPECT }
+          return { ...item, width: w, height: h }
+        }
+        return { ...item, width, height }
+      }),
     }))
-    persistItems()
+    if (opts?.persist !== false) persistItems()
+  },
+
+  updateItemRect: (id, x, y, width, height, opts) => {
+    if (!itemIsMutable(findItem(get().items, id))) return
+    set((state) => ({
+      items: state.items.map((item) => {
+        if (item.id !== id) return item
+        if (item.type === 'study_hub') {
+          const clamp = opts?.clampStudyHub !== false
+          const { width: w, height: h } = clamp
+            ? studyHubDimensionsForWidth(width)
+            : {
+                width,
+                height: width / STUDY_HUB_ASPECT,
+              }
+          return { ...item, x, y, width: w, height: h }
+        }
+        return { ...item, x, y, width, height }
+      }),
+    }))
+    if (opts?.persist !== false) persistItems()
   },
 
   restoreImportSizing: (id) => {
@@ -776,7 +879,7 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
 
   getStickyById: (id) => {
     const item = get().items.find((i) => i.id === id)
-    return item?.type === 'sticky' ? item : undefined
+    return item && isDrawableSurface(item) ? item : undefined
   },
 
   startStickyStroke: (stickyId, point, config) => {
@@ -807,7 +910,7 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
     let changed = false
     set((state) => {
       const items = state.items.map((item) => {
-        if (item.type !== 'sticky') return item
+        if (!isDrawableSurface(item)) return item
 
         const localX = canvasPos.x - item.x
         const localY = canvasPos.y - item.y
@@ -863,7 +966,7 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
 
     set((state) => ({
       items: state.items.map((item) => {
-        if (item.id !== active.stickyId || item.type !== 'sticky') return item
+        if (item.id !== active.stickyId || !isDrawableSurface(item)) return item
         const onCommittedLayer = isLocked && itemLayer(item) === 'committed'
         if (onCommittedLayer) {
           const annotationStrokes = [...(item.annotationStrokes ?? []), completed]
@@ -896,6 +999,8 @@ type ItemsDerived = {
   liveCandidatesAbove: readonly CanvasItem[]
   /** All committed stickies, sorted by zIndex (used for annotation overlay search). */
   stickies: readonly StickyCanvasItem[]
+  /** Stickies + study topic widgets — drawable surfaces for pen routing overlays. */
+  drawableSurfaces: readonly DrawableSurfaceItem[]
 }
 
 const EMPTY_ITEMS_DERIVED: ItemsDerived = {
@@ -906,6 +1011,7 @@ const EMPTY_ITEMS_DERIVED: ItemsDerived = {
   liveCandidatesBelow: [],
   liveCandidatesAbove: [],
   stickies: [],
+  drawableSurfaces: [],
 }
 
 let lastItemsRef: readonly CanvasItem[] | null = null
@@ -931,11 +1037,13 @@ function deriveItems(items: readonly CanvasItem[]): ItemsDerived {
   const liveBelow: CanvasItem[] = []
   const liveAbove: CanvasItem[] = []
   const stickies: StickyCanvasItem[] = []
+  const drawableSurfaces: DrawableSurfaceItem[] = []
 
   for (const item of items) {
     itemsById.set(item.id, item)
 
     if (item.type === 'sticky') stickies.push(item)
+    if (isDrawableSurface(item)) drawableSurfaces.push(item)
 
     if (isAnnotationItem(item)) {
       annotation.push(item)
@@ -958,6 +1066,7 @@ function deriveItems(items: readonly CanvasItem[]): ItemsDerived {
   liveBelow.sort(byZIndex)
   liveAbove.sort(byZIndex)
   stickies.sort(byZIndex)
+  drawableSurfaces.sort(byZIndex)
 
   cachedItemsDerived = {
     itemsById,
@@ -967,6 +1076,7 @@ function deriveItems(items: readonly CanvasItem[]): ItemsDerived {
     liveCandidatesBelow: liveBelow,
     liveCandidatesAbove: liveAbove,
     stickies,
+    drawableSurfaces,
   }
   lastItemsRef = items
   return cachedItemsDerived
@@ -1027,6 +1137,10 @@ export function useLiveCandidatesByPlane(
 
 export function useStickies(): readonly StickyCanvasItem[] {
   return useCanvasItemsStore((s) => deriveItems(s.items).stickies)
+}
+
+export function useDrawableSurfaces(): readonly DrawableSurfaceItem[] {
+  return useCanvasItemsStore((s) => deriveItems(s.items).drawableSurfaces)
 }
 
 export function useItemSelected(id: string): boolean {

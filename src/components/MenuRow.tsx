@@ -16,6 +16,7 @@ export function MenuRow({
   disabled = false,
   active = false,
   inset = false,
+  preserveCase = false,
 }: {
   icon?: React.ElementType
   label: string
@@ -31,6 +32,8 @@ export function MenuRow({
   active?: boolean
   /** Inset pill row — used in fixed chrome menus. */
   inset?: boolean
+  /** Keep label casing (e.g. HUBS, CHEM) instead of chrome lowercase. */
+  preserveCase?: boolean
 }) {
   const [hovered, setHovered] = useState(false)
   const inSubmenuScope = useSubmenuSoundScope()
@@ -105,7 +108,12 @@ export function MenuRow({
           style={{ flexShrink: 0 }}
         />
       ) : null}
-      <span style={{ flex: 1, fontSize: 14 }}>{chromeLabel(label)}</span>
+      <span
+        className={preserveCase ? 'ui-chrome-preserve-case' : undefined}
+        style={{ flex: 1, fontSize: 14 }}
+      >
+        {preserveCase ? label : chromeLabel(label)}
+      </span>
       {right}
     </button>
   )

@@ -7,6 +7,9 @@ import {
 } from '../drawing/canvasDimensions'
 import type { SpaceCamera } from '../spaces/types'
 
+/** Trackpad pinch / modifier wheel step (matches react-zoom-pan-pinch smooth wheel). */
+export const CANVAS_WHEEL_ZOOM_STEP = 0.017
+
 /** Persisted when the user has never panned/zoomed the main canvas. */
 export const UNINITIALIZED_MAIN_CAMERA: SpaceCamera = {
   positionX: 0,
@@ -149,6 +152,38 @@ function enforceCoverFit(
   return clampToLibraryBounds(ref)
 }
 
+/**
+ * Zoom toward the viewport center (not the cursor). Matches smooth wheel delta
+ * scaling from react-zoom-pan-pinch.
+ */
+export function applyViewportCenterWheelZoom(
+  ref: ReactZoomPanPinchContentRef,
+  deltaY: number,
+  step = CANVAS_WHEEL_ZOOM_STEP,
+): boolean {
+  const wrapper = ref.instance.wrapperComponent
+  if (!wrapper) return false
+
+  const { positionX, positionY, scale } = ref.state
+  const { minScale, maxScale } = ref.instance.setup
+  const delta = deltaY < 0 ? 1 : -1
+  const zoomStep = step * Math.abs(deltaY)
+  const nextScale = Math.min(maxScale, Math.max(minScale, scale + delta * zoomStep))
+
+  if (nextScale === scale) return false
+
+  const width = wrapper.offsetWidth
+  const height = wrapper.offsetHeight
+  const centerCanvasX = (width / 2 - positionX) / scale
+  const centerCanvasY = (height / 2 - positionY) / scale
+  const nextX = width / 2 - centerCanvasX * nextScale
+  const nextY = height / 2 - centerCanvasY * nextScale
+
+  ref.setTransform(nextX, nextY, nextScale, 0)
+  syncLibraryBounds(ref)
+  return true
+}
+
 /** Read the camera from transform state. */
 export function readCameraFromRef(
   ref: ReactZoomPanPinchContentRef | null,
@@ -244,7 +279,7 @@ export function applyCameraToRef(
 export function focusItemOnCanvas(
   ref: ReactZoomPanPinchContentRef | null,
   item: { x: number; y: number; width: number; height: number },
-  options?: { animationMs?: number; scale?: number },
+  options?: { animationMs?: number; scale?: number; screenOffsetY?: number },
 ): void {
   if (!ref) return
   const size = wrapperSize(ref)
@@ -254,11 +289,12 @@ export function focusItemOnCanvas(
   const cx = item.x + item.width / 2
   const cy = item.y + item.height / 2
   const animationMs = options?.animationMs ?? 420
+  const screenOffsetY = options?.screenOffsetY ?? 0
 
   const bounds = canvasPanBoundsForScale(size.width, size.height, scale)
   const { positionX, positionY } = clampPanPosition(
     size.width / 2 - cx * scale,
-    size.height / 2 - cy * scale,
+    size.height / 2 + screenOffsetY - cy * scale,
     bounds,
   )
 

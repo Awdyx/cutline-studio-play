@@ -1,4 +1,5 @@
 import type { ProfileSocialLink, UserProfile } from './types'
+import { parseProfileMediaFrame } from './profileMediaFrame'
 
 export const PROFILE_STORAGE_KEY = 'cutline-profile-v1'
 
@@ -10,7 +11,9 @@ export const DEFAULT_PROFILE: UserProfile = {
   studentCohort: 'HSFY',
   avatarColor: '#c4a373',
   avatarImageUrl: null,
+  avatarFrame: null,
   bannerImageUrl: null,
+  bannerFrame: null,
   socials: [],
 }
 
@@ -63,6 +66,8 @@ function parseProfileMeta(raw: unknown): PersistedProfileMeta | null {
     bio: o.bio,
     studentCohort,
     avatarColor: o.avatarColor,
+    avatarFrame: parseProfileMediaFrame(o.avatarFrame) ?? null,
+    bannerFrame: parseProfileMediaFrame(o.bannerFrame) ?? null,
     socials: parseSocials(o.socials),
   }
 }
@@ -138,6 +143,8 @@ export function mergePersistedMeta(
     bio: meta?.bio ?? DEFAULT_PROFILE.bio,
     studentCohort: meta?.studentCohort ?? DEFAULT_PROFILE.studentCohort,
     avatarColor: meta?.avatarColor ?? DEFAULT_PROFILE.avatarColor,
+    avatarFrame: parseProfileMediaFrame(meta?.avatarFrame) ?? DEFAULT_PROFILE.avatarFrame,
+    bannerFrame: parseProfileMediaFrame(meta?.bannerFrame) ?? DEFAULT_PROFILE.bannerFrame,
     socials: Array.isArray(meta?.socials) ? meta.socials : DEFAULT_PROFILE.socials,
   }
 }

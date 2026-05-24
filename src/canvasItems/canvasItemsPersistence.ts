@@ -8,6 +8,7 @@ import {
 } from '../spaces/spacePreviewPan'
 import { DEFAULT_SPACE_NAME_ALIGNMENT, normalizeTextAlignment } from './textAlignment'
 import type { CanvasItem } from './types'
+import { studyHubDimensionsForWidth } from './studyHubBounds'
 
 export const CANVAS_ITEMS_STORAGE_KEY = 'cutline-canvas-items-v1'
 const STORAGE_VERSION = 1
@@ -187,6 +188,48 @@ function normalizeItem(raw: unknown): CanvasItem | null {
         ? { snapshot: snapshotRaw }
         : {}),
     } as CanvasItem
+  }
+
+  if (o.type === 'study_hub' || o.type === 'study_topic') {
+    const subjectId = (o as { subjectId?: string }).subjectId
+    if (
+      subjectId !== 'hubs' &&
+      subjectId !== 'cels' &&
+      subjectId !== 'chem' &&
+      subjectId !== 'phsi'
+    ) {
+      return null
+    }
+    const strokesRaw = (o as { strokes?: unknown }).strokes
+    const strokes = Array.isArray(strokesRaw)
+      ? strokesRaw.map(normalizeStroke).filter((s): s is Stroke => s !== null)
+      : []
+    const annRaw = (o as { annotationStrokes?: unknown }).annotationStrokes
+    const annotationStrokes = Array.isArray(annRaw)
+      ? annRaw.map(normalizeStroke).filter((s): s is Stroke => s !== null)
+      : []
+    const spawnScaleRaw = (o as { spawnScale?: number }).spawnScale
+    const spawnScale =
+      typeof spawnScaleRaw === 'number' &&
+      Number.isFinite(spawnScaleRaw) &&
+      spawnScaleRaw > 0
+        ? spawnScaleRaw
+        : undefined
+    const { width, height } = studyHubDimensionsForWidth(o.width)
+    return {
+      id: o.id,
+      type: 'study_hub',
+      x: o.x,
+      y: o.y,
+      zIndex: o.zIndex,
+      width,
+      height,
+      subjectId,
+      strokes,
+      ...(annotationStrokes.length > 0 ? { annotationStrokes } : {}),
+      ...(spawnScale !== undefined ? { spawnScale } : {}),
+      ...(layer ? { layer } : {}),
+    }
   }
 
   return null

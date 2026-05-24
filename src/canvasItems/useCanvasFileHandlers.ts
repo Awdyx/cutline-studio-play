@@ -1,14 +1,18 @@
 import { useCallback, useEffect, useRef, type RefObject } from 'react'
 import type { ReactZoomPanPinchContentRef } from 'react-zoom-pan-pinch'
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from '../drawing/canvasDimensions'
+import { focusItemOnCanvas } from '../canvas/canvasCamera'
 import { clientToCanvas } from '../drawing/canvasCoords'
 import { putMediaBlob } from '../media/mediaBlobStore'
 import { generateItemId } from './itemId'
 import { useCanvasItemsStore } from './canvasItemsStore'
 import { showMediaImportToast } from './mediaImportFeedback'
+import { showStudyHubDuplicateToast } from './studyHubFeedback'
+import { readCanvasTransformScale } from './studyHubSpawnScale'
 import { isAcceptedMediaFile, prepareMediaFromFile } from './mediaUtils'
-import { TEXT_HEIGHT } from './types'
+import { TEXT_HEIGHT, type StudySubjectId } from './types'
 import {
+  viewportBalancedSpawnCanvas,
   viewportCenterCanvas,
   viewportEditableSpawnCanvas,
 } from './viewportCenter'
@@ -96,6 +100,38 @@ export function useCanvasFileHandlers(
     useCanvasItemsStore.getState().addSpace(center.x, center.y)
   }, [transformRef, viewportRef, canvasRef])
 
+  const spawnStudyHubAtViewportCenter = useCallback(
+    (subjectId: StudySubjectId) => {
+      const center =
+        viewportBalancedSpawnCanvas(
+          transformRef,
+          viewportRef.current,
+          canvasRef.current,
+        ) ??
+        viewportCenterCanvas(
+          transformRef,
+          viewportRef.current,
+          canvasRef.current,
+        ) ?? { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 }
+      const spawnScale = readCanvasTransformScale(transformRef)
+      const id = useCanvasItemsStore
+        .getState()
+        .addStudyHub(center.x, center.y, subjectId, spawnScale)
+      if (!id) {
+        showStudyHubDuplicateToast(subjectId)
+        return
+      }
+      const item = useCanvasItemsStore.getState().items.find((i) => i.id === id)
+      if (item) {
+        focusItemOnCanvas(transformRef.current, item, {
+          animationMs: 320,
+          screenOffsetY: 28,
+        })
+      }
+    },
+    [transformRef, viewportRef, canvasRef],
+  )
+
   const onImageInputChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0]
@@ -176,5 +212,6 @@ export function useCanvasFileHandlers(
     spawnStickyAtViewportCenter,
     spawnTextAtViewportCenter,
     spawnSpaceAtViewportCenter,
+    spawnStudyHubAtViewportCenter,
   }
 }

@@ -1,14 +1,9 @@
 import { useRef, type CSSProperties } from 'react'
 import { motion } from 'framer-motion'
 import { BellOff } from 'lucide-react'
-import {
-  CHROME_CARD_CLASS,
-  CHROME_PRESERVE_CASE_CLASS,
-  card,
-  chromeLabel,
-  font,
-} from '../styles/tokens'
+import { CHROME_FROSTED_MENU_CLASS, CHROME_PRESERVE_CASE_CLASS, card, chromeFrostedMenuStyle, chromeLabel, font } from '../styles/tokens'
 import { partitionNewOld, PanelNewOldDivider } from './PanelNewOldDivider'
+import ChromeScrollFade from './ChromeScrollFade'
 import {
   NotificationActorLink,
   NotificationActorProfileAvatarTrigger,
@@ -60,10 +55,7 @@ const cardBase: React.CSSProperties = {
   right: 80,
   width: 360,
   height: 'min(72vh, 520px)',
-  background: card.bg,
-  border: card.border,
-  boxShadow: card.shadow,
-  borderRadius: card.radius,
+  ...chromeFrostedMenuStyle,
   fontFamily: font.family,
   color: font.colorPrimary,
   zIndex: 30,
@@ -272,7 +264,7 @@ export default function NotificationsPanel({
       <motion.div
         ref={panelRef}
         data-notifications-panel=""
-        className={`theme-surface ${CHROME_CARD_CLASS}`}
+        className={`theme-surface ${CHROME_FROSTED_MENU_CLASS}`}
         style={cardBase}
         initial={{ opacity: 0, scale: 0.96, y: -4 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -345,16 +337,7 @@ export default function NotificationsPanel({
         ))}
       </div>
 
-      <div
-        style={{
-          overflowY: 'auto',
-          flex: 1,
-          minHeight: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          padding: '4px 0 12px',
-        }}
-      >
+      <ChromeScrollFade observeDeps={[activeTab, filtered.length]}>
         {filtered.length === 0 ? (
           <EmptyState tab={activeTab} />
         ) : (
@@ -386,7 +369,7 @@ export default function NotificationsPanel({
             ))}
           </div>
         )}
-      </div>
+      </ChromeScrollFade>
       </motion.div>
     </NotificationProfilePreviewScope>
   )
