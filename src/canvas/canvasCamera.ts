@@ -45,6 +45,29 @@ function syncLibraryBounds(ref: ReactZoomPanPinchContentRef): void {
   ref.instance.update(ref.instance.props)
 }
 
+type CancelableInstance = ReactZoomPanPinchContentRef['instance'] & {
+  animation: unknown
+  isAnimating: boolean
+  velocity: unknown
+  velocityTime: number | null
+}
+
+/**
+ * Mirror the library's internal `handleCancelAnimation`: stop the running
+ * velocity / pan-bounce RAF loop so our `setTransform(..., 0)` isn't
+ * overwritten by the next animation tick.
+ */
+export function cancelLibraryAnimation(ref: ReactZoomPanPinchContentRef): void {
+  const instance = ref.instance as CancelableInstance
+  if (!instance.mounted) return
+  const anim = instance.animation
+  if (typeof anim === 'number') cancelAnimationFrame(anim)
+  instance.animation = null
+  instance.isAnimating = false
+  instance.velocity = null
+  instance.velocityTime = null
+}
+
 type PanBounds = {
   minPositionX: number
   maxPositionX: number
@@ -153,12 +176,14 @@ function enforceCoverFit(
 }
 
 /**
- * Zoom toward the viewport center (not the cursor). Matches smooth wheel delta
- * scaling from react-zoom-pan-pinch.
+ * Zoom anchored to a wrapper-local point (typically the cursor). Falling back
+ * to the viewport center keeps callers without a cursor working unchanged.
+ * Matches smooth wheel delta scaling from react-zoom-pan-pinch.
  */
-export function applyViewportCenterWheelZoom(
+export function applyAnchoredWheelZoom(
   ref: ReactZoomPanPinchContentRef,
   deltaY: number,
+  anchor: { x: number; y: number } | null,
   step = CANVAS_WHEEL_ZOOM_STEP,
 ): boolean {
   const wrapper = ref.instance.wrapperComponent
@@ -174,11 +199,16 @@ export function applyViewportCenterWheelZoom(
 
   const width = wrapper.offsetWidth
   const height = wrapper.offsetHeight
-  const centerCanvasX = (width / 2 - positionX) / scale
-  const centerCanvasY = (height / 2 - positionY) / scale
-  const nextX = width / 2 - centerCanvasX * nextScale
-  const nextY = height / 2 - centerCanvasY * nextScale
+  const anchorX = anchor ? anchor.x : width / 2
+  const anchorY = anchor ? anchor.y : height / 2
+  const canvasAnchorX = (anchorX - positionX) / scale
+  const canvasAnchorY = (anchorY - positionY) / scale
+  const nextX = anchorX - canvasAnchorX * nextScale
+  const nextY = anchorY - canvasAnchorY * nextScale
 
+  // Interrupt any in-progress velocity / pan-bounce animation so our zoom
+  // doesn't get overwritten one frame later.
+  cancelLibraryAnimation(ref)
   ref.setTransform(nextX, nextY, nextScale, 0)
   syncLibraryBounds(ref)
   return true

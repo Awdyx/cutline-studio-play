@@ -120,6 +120,17 @@ export default function CanvasItemShell({
     isStudyHub && !isResizing && !isDragging && !snapBack ? ('size' as const) : false
   const shellTransition =
     (isResizing || snapBack) && isStudyHub ? { duration: 0 } : liftSpring
+  const liftShadow = '0 12px 40px rgba(20, 30, 50, 0.22)'
+  const restShadow = '0 2px 10px rgba(20, 30, 50, 0.12)'
+  const shellBoxShadow = isFlatItem
+    ? 'none'
+    : isStudyHub
+      ? lifted && !isResizing
+        ? liftShadow
+        : 'none'
+      : lifted && !isResizing
+        ? liftShadow
+        : restShadow
 
   return (
     <motion.div
@@ -140,11 +151,7 @@ export default function CanvasItemShell({
           : lifted && !isResizing
             ? 1.03
             : 1,
-        boxShadow: isFlatItem || isStudyHub
-          ? 'none'
-          : lifted && !isResizing
-            ? '0 12px 40px rgba(20, 30, 50, 0.22)'
-            : '0 2px 10px rgba(20, 30, 50, 0.12)',
+        boxShadow: shellBoxShadow,
       }}
       transition={shellTransition}
       style={{

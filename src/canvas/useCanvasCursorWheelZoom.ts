@@ -1,7 +1,7 @@
 import { useEffect, useRef, type RefObject } from 'react'
 import type { ReactZoomPanPinchContentRef } from 'react-zoom-pan-pinch'
 import {
-  applyViewportCenterWheelZoom,
+  applyAnchoredWheelZoom,
   CANVAS_WHEEL_ZOOM_STEP,
 } from './canvasCamera'
 import { CANVAS_PAN_SESSION_GAP_MS } from './studyHubPanScroll'
@@ -19,8 +19,22 @@ function isExcludedWheelTarget(
   return excludedClasses.some((cls) => target.closest(`.${cls}`) != null)
 }
 
-/** Trackpad pinch / modifier wheel zoom anchored to the viewport center. */
-export function useCanvasCenterWheelZoom({
+function wrapperLocalAnchor(
+  ref: ReactZoomPanPinchContentRef,
+  event: WheelEvent,
+): { x: number; y: number } | null {
+  const wrapper = ref.instance.wrapperComponent
+  if (!wrapper) return null
+  const rect = wrapper.getBoundingClientRect()
+  if (rect.width <= 0 || rect.height <= 0) return null
+  return {
+    x: event.clientX - rect.left,
+    y: event.clientY - rect.top,
+  }
+}
+
+/** Trackpad pinch / modifier wheel zoom anchored to the cursor position. */
+export function useCanvasCursorWheelZoom({
   transformRef,
   viewportRef,
   panExcluded,
@@ -55,7 +69,8 @@ export function useCanvasCenterWheelZoom({
       event.preventDefault()
       event.stopPropagation()
 
-      if (!applyViewportCenterWheelZoom(ref, event.deltaY, step)) return
+      const anchor = wrapperLocalAnchor(ref, event)
+      if (!applyAnchoredWheelZoom(ref, event.deltaY, anchor, step)) return
 
       onZoom(ref)
       useCanvasWorkspaceStore.getState().syncMainCamera(ref)

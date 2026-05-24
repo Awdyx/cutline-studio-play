@@ -66,7 +66,7 @@ import {
   CANVAS_ZOOM_MIN_EDGE_PADDING,
 } from './drawing/canvasDimensions'
 import { CANVAS_WHEEL_ZOOM_STEP } from './canvas/canvasCamera'
-import { useCanvasCenterWheelZoom } from './canvas/useCanvasCenterWheelZoom'
+import { useCanvasCursorWheelZoom } from './canvas/useCanvasCursorWheelZoom'
 import { useCanvasViewport } from './canvas/useCanvasViewport'
 import { useCanvasZoomEdgeEase } from './canvas/useCanvasZoomEdgeEase'
 import { useCanvasPanBounce } from './canvas/useCanvasPanBounce'
@@ -342,7 +342,7 @@ function App() {
 
   const isPenDown =
     penDown || penMenu.state.phase !== 'idle' || itemDragActive
-  useCanvasCenterWheelZoom({
+  useCanvasCursorWheelZoom({
     transformRef,
     viewportRef,
     panExcluded,
