@@ -1,5 +1,7 @@
 import { useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { readLayoutViewport } from '../platform/viewportSize'
+import { isPhoneLayout } from '../platform/layoutProfile'
+import { PHONE_Z_ORDER_MENU_SCALE } from '../styles/phoneChrome'
 import { Z_MENU_GAP } from './grabZone'
 
 const VIEWPORT_PADDING = 8
@@ -173,11 +175,12 @@ export function useCanvasItemZMenuLayout(
         return
       }
 
+      const layoutScale = isPhoneLayout() ? PHONE_Z_ORDER_MENU_SCALE : 1
       const next = menuEl
         ? computeZMenuLayoutFromBounds(
             bounds,
-            menuEl.offsetWidth,
-            menuEl.offsetHeight,
+            menuEl.offsetWidth * layoutScale,
+            menuEl.offsetHeight * layoutScale,
           )
         : defaultLayoutFromBounds(bounds)
 

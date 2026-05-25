@@ -7,7 +7,7 @@ export const Z_STROKES = 1000
 /** Canvas items below strokes use z-index in [Z_ITEMS_BELOW_MIN, Z_STROKES). */
 export const Z_ITEMS_BELOW_MIN = 1
 
-/** Canvas items above strokes use z-index in [Z_ITEMS_ABOVE_MIN, Z_ANNOTATION_MIN). */
+/** Canvas items above strokes use z-index >= Z_ITEMS_ABOVE_MIN (unbounded upward). */
 export const Z_ITEMS_ABOVE_MIN = 1001
 
 /** Temporary canvas ink (drawn while locked) — above committed items, below annotation items. */
@@ -26,7 +26,7 @@ export const Z_SELECTION_DIM = 2900
 export const Z_SELECTION_ABOVE_DIM = 3000
 
 export function isAboveStrokes(zIndex: number): boolean {
-  return zIndex >= Z_ITEMS_ABOVE_MIN && zIndex < Z_ANNOTATION_MIN
+  return zIndex >= Z_ITEMS_ABOVE_MIN
 }
 
 export function isBelowStrokes(zIndex: number): boolean {
@@ -66,12 +66,35 @@ export function nextZIndexAbove(items: { zIndex: number; layer?: CanvasLayer }[]
   return Math.max(...above.map((i) => i.zIndex)) + 1
 }
 
+export function committedStrokeZIndex(stroke: { zIndex?: number }): number {
+  return stroke.zIndex ?? Z_STROKES
+}
+
+export function maxCommittedStrokeZ(strokes: { zIndex?: number }[]): number {
+  if (strokes.length === 0) return Z_STROKES
+  return Math.max(...strokes.map(committedStrokeZIndex))
+}
+
+/** Next z-index for newly added canvas content — last added wins over items and strokes. */
+export function nextCanvasStackZIndex(
+  items: { zIndex: number; layer?: CanvasLayer }[],
+  strokesLayerZ: number,
+): number {
+  let max = strokesLayerZ
+  for (const item of items) {
+    if (isAnnotationItem(item)) continue
+    if (item.zIndex > max) max = item.zIndex
+  }
+  return max + 1
+}
+
 export function nextZIndexForLayer(
   items: CanvasItem[],
   layer: CanvasLayer,
+  strokesLayerZ: number = Z_STROKES,
 ): number {
   if (layer === 'annotation') return nextZIndexAnnotation(items)
-  return nextZIndexAbove(items)
+  return nextCanvasStackZIndex(items, strokesLayerZ)
 }
 
 export function nextZIndexAnnotation(items: CanvasItem[]): number {

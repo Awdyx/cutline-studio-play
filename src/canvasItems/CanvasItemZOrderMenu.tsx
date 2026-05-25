@@ -10,7 +10,10 @@ import {
 import { MenuRow } from '../components/MenuRow'
 import { SubmenuSoundScope } from '../components/SubmenuSoundScope'
 import { mediaItemHasImportDimensions } from '../media/mediaImportDimensions'
+import { PHONE_Z_ORDER_MENU_SCALE } from '../styles/phoneChrome'
 import { CHROME_GLASS_CLASS, glass, menuDividerStyle } from '../styles/tokens'
+import { useCanvasEditingAllowed } from '../canvasEdit/layer'
+import { useIsPhoneLayout } from '../hooks/useLayoutProfile'
 import {
   getSoleSelectedItemId,
   useCanvasItemZMenuLayout,
@@ -22,6 +25,7 @@ import TextAlignmentMenuSection from './TextAlignmentMenuSection'
 import { resolveItemTextAlignment } from './textAlignment'
 
 export default function CanvasItemZOrderMenu() {
+  const isPhone = useIsPhoneLayout()
   const menuRef = useRef<HTMLDivElement>(null)
   const selectedIds = useCanvasItemsStore((s) => s.selectedIds)
   const activeDragItemId = useCanvasItemDragStore((s) => s.activeItemId)
@@ -36,7 +40,13 @@ export default function CanvasItemZOrderMenu() {
   const setPreviewAdjustSpace = useCanvasItemsStore((s) => s.setPreviewAdjustSpace)
 
   const itemId = getSoleSelectedItemId(selectedIds)
-  const showMenu = itemId != null && activeDragItemId !== itemId
+  const zMenuSuppressedItemId = useCanvasItemsStore((s) => s.zMenuSuppressedItemId)
+  const editingAllowed = useCanvasEditingAllowed()
+  const showMenu =
+    itemId != null &&
+    activeDragItemId !== itemId &&
+    editingAllowed &&
+    itemId !== zMenuSuppressedItemId
 
   const menuItem = useCanvasItemsStore((s) =>
     itemId ? s.items.find((item) => item.id === itemId) : undefined,
@@ -68,6 +78,7 @@ export default function CanvasItemZOrderMenu() {
   const isPreviewAdjusting = previewAdjustSpaceId === itemId
 
   const menuLayout = useCanvasItemZMenuLayout(menuRef, itemId, showMenu)
+  const menuScale = isPhone ? PHONE_Z_ORDER_MENU_SCALE : 1
 
   return (
     <AnimatePresence>
@@ -77,9 +88,9 @@ export default function CanvasItemZOrderMenu() {
           key={itemId}
           data-canvas-item-z-menu
           className={CHROME_GLASS_CLASS}
-          initial={{ opacity: 0, scale: 0.94 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.96 }}
+          initial={{ opacity: 0, scale: 0.94 * menuScale }}
+          animate={{ opacity: 1, scale: menuScale }}
+          exit={{ opacity: 0, scale: 0.96 * menuScale }}
           transition={{ type: 'spring', stiffness: 520, damping: 34, mass: 0.7 }}
           style={{
             position: 'fixed',

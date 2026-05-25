@@ -1,7 +1,7 @@
 import StickyStrokesSvg from './StickyStrokesSvg'
-import type { DrawableSurfaceItem } from './types'
+import type { StickyCanvasItem } from './types'
 
-export default function StickyAnnotationOverlay({ item }: { item: DrawableSurfaceItem }) {
+export default function StickyAnnotationOverlay({ item }: { item: StickyCanvasItem }) {
   return (
     <div
       data-canvas-item={item.type}

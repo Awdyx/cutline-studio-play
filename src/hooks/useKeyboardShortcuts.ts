@@ -1,7 +1,9 @@
 import { useEffect } from 'react'
 import { useCanvasItemsStore } from '../canvasItems/canvasItemsStore'
 import { useCanvasLockStore } from '../canvasLock/canvasLockStore'
+import { useToolStore, type ToolMode } from '../drawing/toolStore'
 import { useStrokesStore } from '../drawing/strokesStore'
+import { isPhoneLayout } from '../platform/layoutProfile'
 import { useCanvasWorkspaceStore } from '../spaces/canvasWorkspaceStore'
 import { SHORTCUTS_BY_ID } from '../shortcuts/shortcutDefs'
 import { modKeyEvent } from '../shortcuts/modKey'
@@ -32,6 +34,34 @@ function fireToast(shortcutId: string) {
     keys: def.keys,
     icon: def.icon,
   })
+}
+
+const DRAW_TOOL_KEYS: Record<string, { mode: ToolMode; shortcutId: string }> = {
+  d: { mode: 'pen', shortcutId: 'draw-pen' },
+  D: { mode: 'pen', shortcutId: 'draw-pen' },
+  h: { mode: 'highlighter', shortcutId: 'draw-highlighter' },
+  H: { mode: 'highlighter', shortcutId: 'draw-highlighter' },
+  e: { mode: 'erase', shortcutId: 'draw-eraser' },
+  E: { mode: 'erase', shortcutId: 'draw-eraser' },
+}
+
+function handleDesktopDrawToolShortcut(key: string): boolean {
+  if (isPhoneLayout()) return false
+  if (!useShortcutUiStore.getState().toolPaletteOpen) return false
+
+  const mapping = DRAW_TOOL_KEYS[key]
+  if (!mapping) return false
+
+  const tools = useToolStore.getState()
+  if (tools.mode === mapping.mode) return true
+
+  tools.setMode(mapping.mode)
+  const ui = useShortcutUiStore.getState()
+  if (ui.toolPalette?.isColorPopoverOpen()) {
+    ui.toolPalette.closeColorPopover()
+  }
+  fireToast(mapping.shortcutId)
+  return true
 }
 
 function handleEscape(openPanel: string | null, closePanel: () => void): boolean {
@@ -169,6 +199,11 @@ export function useKeyboardShortcuts(
       if (mod && (e.key === 'f' || e.key === 'F')) {
         e.preventDefault()
         useShortcutUiStore.getState().canvasSearch?.focus()
+        return
+      }
+
+      if (!mod && !e.altKey && handleDesktopDrawToolShortcut(e.key)) {
+        e.preventDefault()
         return
       }
     }

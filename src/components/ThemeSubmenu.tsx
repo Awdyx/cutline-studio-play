@@ -4,12 +4,12 @@ import { motion } from 'framer-motion'
 import { Sun, Moon, Monitor, Check } from 'lucide-react'
 import { useIsPhoneLayout } from '../hooks/useLayoutProfile'
 import { CHROME_FROSTED_MENU_CLASS, chromeFrostedMenuStyle, chromeLabel, font } from '../styles/tokens'
-import { phoneSubmenuSheetStyle, phoneSubmenuSlideMotion } from '../styles/phoneChrome'
 import { playSubmenuHover } from '../sound/submenuSound'
 import type { ThemeMode } from '../theme/themeStore'
 import { SubmenuSoundScope } from './SubmenuSoundScope'
 import { useSubmenuPosition } from './useSubmenuPosition'
 import PhoneStackHeader from './PhoneStackHeader'
+import PhoneCenteredChromeModal from './PhoneCenteredChromeModal'
 
 const OPTIONS: { mode: ThemeMode; icon: React.ElementType; label: string }[] = [
   { mode: 'light', icon: Sun, label: 'Light' },
@@ -40,35 +40,9 @@ export default function ThemeSubmenu({
 
   if (!mounted) return null
 
-  return createPortal(
-    <motion.div
-      data-cutline-submenu="theme"
-      {...(isPhone ? phoneSubmenuSlideMotion : {
-        initial: { opacity: 0, scale: 0.96, x: -4 },
-        animate: { opacity: 1, scale: 1, x: 0 },
-        exit: { opacity: 0, scale: 0.96, x: -4 },
-        transition: { duration: 0.18, ease: 'easeOut' },
-      })}
-      style={{
-        ...(isPhone
-          ? phoneSubmenuSheetStyle({ zIndex: 50 })
-          : {
-              position: 'fixed',
-              top: pos.top,
-              left: pos.left,
-              width: 160,
-            }),
-        ...chromeFrostedMenuStyle,
-        fontFamily: font.family,
-        overflow: 'hidden',
-        zIndex: 50,
-      }}
-      className={`theme-surface ${CHROME_FROSTED_MENU_CLASS}`}
-      onClick={(e) => e.stopPropagation()}
-      onMouseDown={(e) => e.stopPropagation()}
-    >
-      <SubmenuSoundScope>
-      {isPhone && onBack && <PhoneStackHeader title="Theme" onBack={onBack} />}
+  const themeBody = (
+    <SubmenuSoundScope>
+      {isPhone && onBack ? <PhoneStackHeader title="Theme" onBack={onBack} /> : null}
       {OPTIONS.map(({ mode, icon: Icon, label }) => (
         <button
           key={mode}
@@ -104,8 +78,43 @@ export default function ThemeSubmenu({
           )}
         </button>
       ))}
-      </SubmenuSoundScope>
-    </motion.div>,
+    </SubmenuSoundScope>
+  )
+
+  return createPortal(
+    isPhone ? (
+      <PhoneCenteredChromeModal
+        onDismiss={() => onBack?.()}
+        cardDataAttributes={{ 'data-cutline-submenu': 'theme' }}
+        maxWidth={300}
+        zIndex={60}
+      >
+        {themeBody}
+      </PhoneCenteredChromeModal>
+    ) : (
+      <motion.div
+        data-cutline-submenu="theme"
+        initial={{ opacity: 0, scale: 0.96, x: -4 }}
+        animate={{ opacity: 1, scale: 1, x: 0 }}
+        exit={{ opacity: 0, scale: 0.96, x: -4 }}
+        transition={{ duration: 0.18, ease: 'easeOut' }}
+        style={{
+          position: 'fixed',
+          top: pos.top,
+          left: pos.left,
+          width: 160,
+          ...chromeFrostedMenuStyle,
+          fontFamily: font.family,
+          overflow: 'hidden',
+          zIndex: 50,
+        }}
+        className={`theme-surface ${CHROME_FROSTED_MENU_CLASS}`}
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        {themeBody}
+      </motion.div>
+    ),
     document.body,
   )
 }

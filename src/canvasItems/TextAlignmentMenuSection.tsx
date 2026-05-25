@@ -15,11 +15,13 @@ function AlignToggle({
   active,
   label,
   onClick,
+  compact = false,
   children,
 }: {
   active: boolean
   label: string
   onClick: () => void
+  compact?: boolean
   children: React.ReactNode
 }) {
   return (
@@ -34,9 +36,9 @@ function AlignToggle({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '8px 0',
+        padding: compact ? '6px 0' : '8px 0',
         border: 'none',
-        borderRadius: 8,
+        borderRadius: compact ? 6 : 8,
         background: active ? 'rgba(20, 30, 50, 0.1)' : 'transparent',
         color: active ? font.colorPrimary : font.colorMuted,
         cursor: 'pointer',
@@ -52,10 +54,12 @@ export default function TextAlignmentMenuSection({
   itemId,
   alignment,
   showVertical = true,
+  compact = false,
 }: {
   itemId: string
   alignment: ItemTextAlignment
   showVertical?: boolean
+  compact?: boolean
 }) {
   const setItemTextAlignment = useCanvasItemsStore((s) => s.setItemTextAlignment)
 
@@ -67,18 +71,30 @@ export default function TextAlignmentMenuSection({
     setItemTextAlignment(itemId, { ...alignment, vertical })
   }
 
-  const iconProps = { size: 16, strokeWidth: 2 }
+  const iconProps = { size: compact ? 14 : 16, strokeWidth: 2 }
   const labelStyle = {
-    margin: showVertical ? '6px 14px 4px' : '6px 14px 0',
-    fontSize: 11,
+    margin: showVertical
+      ? compact
+        ? '4px 10px 2px'
+        : '6px 14px 4px'
+      : compact
+        ? '4px 10px 0'
+        : '6px 14px 0',
+    fontSize: compact ? 10 : 11,
     fontWeight: 600,
     letterSpacing: '0.4px',
     color: font.colorMuted,
   } as const
   const horizontalRowStyle = {
     display: 'flex',
-    gap: 4,
-    padding: showVertical ? '0 6px 4px' : '12px 6px',
+    gap: compact ? 2 : 4,
+    padding: showVertical
+      ? compact
+        ? '0 4px 2px'
+        : '0 6px 4px'
+      : compact
+        ? '8px 4px'
+        : '12px 6px',
   } as const
 
   return (
@@ -90,6 +106,7 @@ export default function TextAlignmentMenuSection({
         <AlignToggle
           active={alignment.horizontal === 'left'}
           label="Align left"
+          compact={compact}
           onClick={() => setHorizontal('left')}
         >
           <AlignLeft {...iconProps} />
@@ -97,6 +114,7 @@ export default function TextAlignmentMenuSection({
         <AlignToggle
           active={alignment.horizontal === 'center'}
           label="Align center"
+          compact={compact}
           onClick={() => setHorizontal('center')}
         >
           <AlignCenter {...iconProps} />
@@ -104,16 +122,24 @@ export default function TextAlignmentMenuSection({
         <AlignToggle
           active={alignment.horizontal === 'right'}
           label="Align right"
+          compact={compact}
           onClick={() => setHorizontal('right')}
         >
           <AlignRight {...iconProps} />
         </AlignToggle>
       </div>
       {showVertical && (
-        <div style={{ display: 'flex', gap: 4, padding: '0 6px 8px' }}>
+        <div
+          style={{
+            display: 'flex',
+            gap: compact ? 2 : 4,
+            padding: compact ? '0 4px 6px' : '0 6px 8px',
+          }}
+        >
           <AlignToggle
             active={alignment.vertical === 'top'}
             label="Align top"
+            compact={compact}
             onClick={() => setVertical('top')}
           >
             <ArrowUpToLine {...iconProps} />
@@ -121,6 +147,7 @@ export default function TextAlignmentMenuSection({
           <AlignToggle
             active={alignment.vertical === 'center'}
             label="Align middle"
+            compact={compact}
             onClick={() => setVertical('center')}
           >
             <Minus {...iconProps} />
@@ -128,13 +155,19 @@ export default function TextAlignmentMenuSection({
           <AlignToggle
             active={alignment.vertical === 'bottom'}
             label="Align bottom"
+            compact={compact}
             onClick={() => setVertical('bottom')}
           >
             <ArrowDownToLine {...iconProps} />
           </AlignToggle>
         </div>
       )}
-      <div style={{ ...menuDividerStyle, margin: '0 10px 4px' }} />
+      <div
+        style={{
+          ...menuDividerStyle,
+          margin: compact ? '0 8px 2px' : '0 10px 4px',
+        }}
+      />
     </>
   )
 }

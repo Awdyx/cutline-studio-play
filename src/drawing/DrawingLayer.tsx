@@ -10,7 +10,7 @@ import { strokeToSvgPath } from './strokePath'
 import { useThemeStore } from '../theme/themeStore'
 import { useEffectiveMode } from '../theme/useEffectiveMode'
 import type { Stroke } from './types'
-import { Z_ANNOTATION_STROKES, Z_ACTIVE_STROKE, Z_STROKES } from '../canvasItems/canvasZOrder'
+import { Z_ANNOTATION_STROKES, Z_ACTIVE_STROKE, committedStrokeZIndex } from '../canvasItems/canvasZOrder'
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from './canvasDimensions'
 
 const HIGHLIGHTER_GLOW_FILTER_ID = 'cutline-highlighter-glow'
@@ -146,6 +146,17 @@ function StrokeSvgLayer({
   )
 }
 
+function groupCommittedStrokesByZ(strokes: Stroke[]): [number, Stroke[]][] {
+  const groups = new Map<number, Stroke[]>()
+  for (const stroke of strokes) {
+    const z = committedStrokeZIndex(stroke)
+    const bucket = groups.get(z)
+    if (bucket) bucket.push(stroke)
+    else groups.set(z, [stroke])
+  }
+  return [...groups.entries()].sort(([a], [b]) => a - b)
+}
+
 export default function DrawingLayer() {
   const activeCanvasId = useCanvasWorkspaceStore((s) => s.activeCanvasId)
   const strokes = useStrokesStore((s) => s.strokes)
@@ -159,15 +170,17 @@ export default function DrawingLayer() {
 
   return (
     <div key={activeCanvasId} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-      {!hideCommittedStrokes && (
-        <StrokeSvgLayer
-          strokes={strokes}
-          activeStroke={null}
-          zIndex={Z_STROKES}
-          glowFilterId={HIGHLIGHTER_GLOW_FILTER_ID}
-          strokeLayer="committed"
-        />
-      )}
+      {!hideCommittedStrokes &&
+        groupCommittedStrokesByZ(strokes).map(([zIndex, groupStrokes]) => (
+          <StrokeSvgLayer
+            key={zIndex}
+            strokes={groupStrokes}
+            activeStroke={null}
+            zIndex={zIndex}
+            glowFilterId={`${HIGHLIGHTER_GLOW_FILTER_ID}-${zIndex}`}
+            strokeLayer="committed"
+          />
+        ))}
       <StrokeSvgLayer
         strokes={annotationStrokes}
         activeStroke={null}

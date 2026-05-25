@@ -46,6 +46,7 @@ function normalizeStroke(raw: unknown): Stroke | null {
           : DEFAULT_HIGHLIGHTER_COLOR,
     size: typeof o.size === 'number' ? o.size : 4,
     tool,
+    ...(typeof o.zIndex === 'number' ? { zIndex: o.zIndex } : {}),
   }
 
   stroke.path =
@@ -102,13 +103,14 @@ export function saveStrokesToStorage(
 ): void {
   try {
     const serialize = (list: Stroke[]) =>
-      list.map(({ id, points, color, size, tool, path }) => ({
+      list.map(({ id, points, color, size, tool, path, zIndex }) => ({
         id,
         points,
         color,
         size,
         tool,
         path,
+        ...(typeof zIndex === 'number' ? { zIndex } : {}),
       }))
 
     const payload: PersistedPayload = {

@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { BellOff } from 'lucide-react'
 import { useIsPhoneLayout } from '../hooks/useLayoutProfile'
 import { CHROME_FROSTED_MENU_CLASS, CHROME_PRESERVE_CASE_CLASS, chromeFrostedMenuStyle, chromeLabel, font } from '../styles/tokens'
-import { phonePanelSheetStyle, phoneSubmenuSlideMotion } from '../styles/phoneChrome'
+import { phonePanelSheetStyle, phoneTopPanelSlideMotion, phoneTopPanelTransformOrigin, PHONE_TOP_PANEL_SCALE } from '../styles/phoneChrome'
 import { partitionNewOld, PanelNewOldDivider } from './PanelNewOldDivider'
 import ChromeScrollFade from './ChromeScrollFade'
 import {
@@ -238,17 +238,32 @@ function EmptyState({ tab }: { tab: NotificationTab }) {
   )
 }
 
-export default function NotificationsPanel({
-  isOpen,
-  onClose,
+export default function NotificationsPanel(props: NotificationsPanelProps) {
+  const panelRef = useRef<HTMLDivElement>(null)
+
+  return (
+    <NotificationProfilePreviewScope
+      isActive={props.isOpen}
+      panelRef={panelRef}
+      onClosePanel={props.onClose}
+      onVisitCanvas={props.onVisitActorCanvas}
+    >
+      <NotificationsPanelBody {...props} panelRef={panelRef} />
+    </NotificationProfilePreviewScope>
+  )
+}
+
+function NotificationsPanelBody({
   notifications,
   activeTab,
   onTabChange,
   onNotificationClick,
   onVisitActorCanvas,
-}: NotificationsPanelProps) {
+  panelRef,
+}: NotificationsPanelProps & {
+  panelRef: React.RefObject<HTMLDivElement | null>
+}) {
   const isPhone = useIsPhoneLayout()
-  const panelRef = useRef<HTMLDivElement>(null)
 
   const filtered = notifications.filter((n) => {
     if (activeTab === 'unread') return n.isUnread
@@ -258,18 +273,17 @@ export default function NotificationsPanel({
   const { newItems, oldItems } = partitionNewOld(filtered, (n) => n.isUnread)
 
   return (
-    <NotificationProfilePreviewScope
-      isActive={isOpen}
-      panelRef={panelRef}
-      onClosePanel={onClose}
-      onVisitCanvas={onVisitActorCanvas}
-    >
       <motion.div
         ref={panelRef}
         data-notifications-panel=""
         className={`theme-surface ${CHROME_FROSTED_MENU_CLASS}`}
         style={{
-          ...(isPhone ? phonePanelSheetStyle({ height: undefined }, 'right') : cardBase),
+          ...(isPhone
+            ? {
+                ...phonePanelSheetStyle({ height: undefined }, 'right', PHONE_TOP_PANEL_SCALE),
+                transformOrigin: phoneTopPanelTransformOrigin,
+              }
+            : cardBase),
           ...chromeFrostedMenuStyle,
           fontFamily: font.family,
           color: font.colorPrimary,
@@ -279,7 +293,7 @@ export default function NotificationsPanel({
           overflow: 'hidden',
           ...(isPhone ? {} : { height: cardBase.height }),
         }}
-        {...(isPhone ? phoneSubmenuSlideMotion : {
+        {...(isPhone ? phoneTopPanelSlideMotion : {
           initial: { opacity: 0, scale: 0.96, y: -4 },
           animate: { opacity: 1, scale: 1, y: 0 },
           exit: { opacity: 0, scale: 0.96, y: -4 },
@@ -299,7 +313,7 @@ export default function NotificationsPanel({
             gap: 12,
           }}
         >
-          <span style={{ fontSize: 14, fontWeight: 400, color: panelTone.title, opacity: opacity.title }}>
+          <span style={{ fontSize: 16, fontWeight: 600, color: panelTone.title, opacity: opacity.title }}>
             {chromeLabel('Notifications')}
           </span>
         </div>
@@ -386,6 +400,5 @@ export default function NotificationsPanel({
         )}
       </ChromeScrollFade>
       </motion.div>
-    </NotificationProfilePreviewScope>
   )
 }

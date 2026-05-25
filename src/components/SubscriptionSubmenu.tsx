@@ -25,10 +25,10 @@ import {
 } from '../subscription/subscriptionStore'
 import { usePanelAlignedSubmenuLayout } from './usePanelAlignedSubmenuLayout'
 import { useIsPhoneLayout } from '../hooks/useLayoutProfile'
-import { phoneSubmenuSheetStyle, phoneSubmenuSlideMotion } from '../styles/phoneChrome'
 import { playSubmenuHover, playSubmenuTap } from '../sound/submenuSound'
 import { SubmenuSoundScope } from './SubmenuSoundScope'
 import ChromeScrollFade from './ChromeScrollFade'
+import PhoneCenteredChromeModal from './PhoneCenteredChromeModal'
 
 const SUBMENU_WIDTH = 320
 const SUBMENU_GAP = 10
@@ -158,38 +158,8 @@ export default function SubscriptionSubmenu({
         ? 'Trial ends'
         : 'Renews'
 
-  return createPortal(
-    <motion.div
-      data-subscription-submenu
-      {...(isPhone ? phoneSubmenuSlideMotion : {
-        initial: { opacity: 0, scale: 0.96, x: 8 },
-        animate: { opacity: 1, scale: 1, x: 0 },
-        exit: { opacity: 0, scale: 0.96, x: 8 },
-        transition: { duration: 0.18, ease: 'easeOut' },
-      })}
-      style={{
-        ...(isPhone
-          ? phoneSubmenuSheetStyle({ display: 'flex', flexDirection: 'column' }, 'right')
-          : {
-              position: 'fixed',
-              top: layout.top,
-              left: layout.left,
-              width: SUBMENU_WIDTH,
-              height: layout.height,
-            }),
-        display: 'flex',
-        flexDirection: 'column',
-        ...chromeFrostedMenuStyle,
-        fontFamily: font.family,
-        color: font.colorPrimary,
-        zIndex: 45,
-        overflow: 'hidden',
-      }}
-      className={`theme-surface ${CHROME_FROSTED_MENU_CLASS}`}
-      onClick={(e) => e.stopPropagation()}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-      <SubmenuSoundScope>
+  const subscriptionBody = (
+    <SubmenuSoundScope>
       <div
         style={{
           display: 'flex',
@@ -227,7 +197,12 @@ export default function SubscriptionSubmenu({
         </h2>
       </div>
 
-      <ChromeScrollFade scrollStyle={{ padding: '0 16px' }}>
+      <ChromeScrollFade
+        scrollStyle={{
+          padding: '0 16px',
+          ...(isPhone ? { flex: 1, minHeight: 0 } : {}),
+        }}
+      >
         <div className="subscription-status-card">
           <p className="subscription-status-card__label">
             {chromeLabel('Current subscription')}
@@ -315,8 +290,46 @@ export default function SubscriptionSubmenu({
           onClick={() => onManageBilling?.()}
         />
       </ChromeScrollFade>
-      </SubmenuSoundScope>
-    </motion.div>,
+    </SubmenuSoundScope>
+  )
+
+  return createPortal(
+    isPhone ? (
+      <PhoneCenteredChromeModal
+        onDismiss={onClose}
+        cardDataAttributes={{ 'data-subscription-submenu': '' }}
+        maxWidth={SUBMENU_WIDTH}
+      >
+        {subscriptionBody}
+      </PhoneCenteredChromeModal>
+    ) : (
+      <motion.div
+        data-subscription-submenu
+        initial={{ opacity: 0, scale: 0.96, x: 8 }}
+        animate={{ opacity: 1, scale: 1, x: 0 }}
+        exit={{ opacity: 0, scale: 0.96, x: 8 }}
+        transition={{ duration: 0.18, ease: 'easeOut' }}
+        style={{
+          position: 'fixed',
+          top: layout.top,
+          left: layout.left,
+          width: SUBMENU_WIDTH,
+          height: layout.height,
+          display: 'flex',
+          flexDirection: 'column',
+          ...chromeFrostedMenuStyle,
+          fontFamily: font.family,
+          color: font.colorPrimary,
+          zIndex: 45,
+          overflow: 'hidden',
+        }}
+        className={`theme-surface ${CHROME_FROSTED_MENU_CLASS}`}
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        {subscriptionBody}
+      </motion.div>
+    ),
     document.body,
   )
 }

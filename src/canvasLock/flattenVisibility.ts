@@ -1,5 +1,5 @@
 import { isAnnotationItem } from '../canvasItems/canvasZOrder'
-import { isDrawableSurface, type CanvasItem, type DrawableSurfaceItem } from '../canvasItems/types'
+import { type CanvasItem, type StickyCanvasItem } from '../canvasItems/types'
 import { effectiveCanvasLocked } from './layer'
 
 export function isLiveWhenFlattened(
@@ -27,7 +27,7 @@ export function isCommittedHiddenWhenFlattened(
 }
 
 export function stickyNeedsAnnotationOverlay(
-  item: DrawableSurfaceItem,
+  item: StickyCanvasItem,
   lockActive: boolean,
   flattenReady: boolean,
   liveGifIds: ReadonlySet<string>,

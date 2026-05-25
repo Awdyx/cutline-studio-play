@@ -26,6 +26,7 @@ import ProfilePanel from './components/ProfilePanel'
 import PlusFab from './components/PlusFab'
 import PenFab from './components/PenFab'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
+import { useChromeTapPulse } from './hooks/useChromeTapPulse'
 import { useTouchUndoRedoGestures } from './hooks/useTouchUndoRedoGestures'
 import { useBackgroundMusic } from './hooks/useBackgroundMusic'
 import { usePanelSounds } from './hooks/usePanelSounds'
@@ -43,10 +44,9 @@ import CanvasItemZOrderMenu from './canvasItems/CanvasItemZOrderMenu'
 import SelectionBlurOverlay from './canvasItems/SelectionBlurOverlay'
 import { useCanvasFileHandlers } from './canvasItems/useCanvasFileHandlers'
 import { useCanvasLockStore } from './canvasLock/canvasLockStore'
+import { useCanvasEditStore } from './canvasEdit/canvasEditStore'
 import CanvasLockFlattenLayer from './canvasLock/CanvasLockFlattenLayer'
 import { useCanvasLockFlatten } from './canvasLock/useCanvasLockFlatten'
-import { useCanvasLockFlattenStore } from './canvasLock/canvasLockFlattenStore'
-import { shouldFlattenCanvas } from './canvasLock/flattenVisibility'
 import { useCanvasWorkspaceStore } from './spaces/canvasWorkspaceStore'
 import SpaceBackPill, { SPACE_BACK_PILL_MOTION, SPACE_BACK_PILL_PHONE_CLASS } from './components/SpaceBackPill'
 import CutlineMenu from './components/CutlineMenu'
@@ -356,9 +356,6 @@ function App() {
     step: CANVAS_WHEEL_ZOOM_STEP,
   })
   const isCanvasLocked = useCanvasLockStore((s) => s.isLocked)
-  const flattenReady = useCanvasLockFlattenStore((s) => s.ready)
-  const lockFlattenActive = shouldFlattenCanvas(isCanvasLocked)
-  const hideLiveMesh = lockFlattenActive && flattenReady
   const lockCanvas = useCanvasLockStore((s) => s.lockCanvas)
   const requestUnlock = useCanvasLockStore((s) => s.requestUnlock)
 
@@ -370,6 +367,7 @@ function App() {
       useCanvasItemsStore.getState().hydrate()
       useStrokesStore.getState().hydrate()
       useCanvasLockStore.getState().hydrate()
+      useCanvasEditStore.getState().hydrate()
       useSoundStore.getState().hydrate()
       clearHistory()
       onHydrated()
@@ -433,6 +431,7 @@ function App() {
   useKeyboardShortcuts(openPanel, closePanel)
   usePanelSounds(openPanel, suppressPanelSoundRef)
   useBackgroundMusic()
+  useChromeTapPulse()
 
   useEffect(() => {
     useShortcutUiStore.getState().registerAppPanels({ close: closePanel })
@@ -588,7 +587,7 @@ function App() {
               >
                 {meshColors.map((color, index) => {
                   const visibility = meshBlobVisibility[index] ?? 0
-                  if (visibility <= 0 || hideLiveMesh) return null
+                  if (visibility <= 0) return null
 
                   return (
                     <div

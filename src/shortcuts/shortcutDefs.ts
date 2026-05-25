@@ -1,5 +1,16 @@
 import type { LucideIcon } from 'lucide-react'
-import { Copy, Lock, Plus, Redo2, Search, Trash2, Undo2 } from 'lucide-react'
+import {
+  Copy,
+  Eraser,
+  Highlighter,
+  Lock,
+  Pen,
+  Plus,
+  Redo2,
+  Search,
+  Trash2,
+  Undo2,
+} from 'lucide-react'
 import { modKeyLabel } from './modKey'
 
 export type ShortcutKeyPart = string
@@ -84,13 +95,34 @@ export const SHORTCUTS: ShortcutDef[] = [
     icon: Search,
     skipToast: true,
   },
+  {
+    id: 'draw-pen',
+    label: 'Pen',
+    category: 'Drawing',
+    keys: ['D'],
+    icon: Pen,
+  },
+  {
+    id: 'draw-highlighter',
+    label: 'Highlighter',
+    category: 'Drawing',
+    keys: ['H'],
+    icon: Highlighter,
+  },
+  {
+    id: 'draw-eraser',
+    label: 'Eraser',
+    category: 'Drawing',
+    keys: ['E'],
+    icon: Eraser,
+  },
 ]
 
 export const SHORTCUTS_BY_ID = Object.fromEntries(
   SHORTCUTS.map((s) => [s.id, s]),
 ) as Record<string, ShortcutDef>
 
-export const SHORTCUT_CATEGORIES = ['Edit', 'Canvas', 'Navigation'] as const
+export const SHORTCUT_CATEGORIES = ['Edit', 'Canvas', 'Drawing', 'Navigation'] as const
 
 export function shortcutsByCategory(): Map<string, ShortcutDef[]> {
   const map = new Map<string, ShortcutDef[]>()

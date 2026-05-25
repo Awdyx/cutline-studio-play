@@ -69,6 +69,17 @@ export function useThemeCssVars() {
     )
     root.style.setProperty('--ui-saturate', String(UI_SATURATION_BOOST))
     root.dataset.theme = effectiveMode
+    root.style.colorScheme = effectiveMode
+    root.style.backgroundColor = canvasBg
+    document.body.style.backgroundColor = canvasBg
+
+    let themeColor = document.querySelector('meta[name="theme-color"]')
+    if (!themeColor) {
+      themeColor = document.createElement('meta')
+      themeColor.setAttribute('name', 'theme-color')
+      document.head.appendChild(themeColor)
+    }
+    themeColor.setAttribute('content', canvasBg)
   }, [generated, effectiveMode, palette])
 
   return { palette, effectiveMode, generated }

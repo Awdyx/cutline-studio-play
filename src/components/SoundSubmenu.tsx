@@ -1,75 +1,17 @@
 import { useLayoutEffect, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
-import { Music, Volume2 } from 'lucide-react'
+import { Music, Music2, Volume2, VolumeX } from 'lucide-react'
 import { useIsPhoneLayout } from '../hooks/useLayoutProfile'
-import { CHROME_FROSTED_MENU_CLASS, chromeFrostedMenuStyle, chromeLabel, font, menuDividerStyle } from '../styles/tokens'
-import { phoneSubmenuSheetStyle, phoneSubmenuSlideMotion } from '../styles/phoneChrome'
+import { CHROME_FROSTED_MENU_CLASS, chromeFrostedMenuStyle, font, menuDividerStyle } from '../styles/tokens'
 import { useSubmenuPosition } from './useSubmenuPosition'
 import { backgroundMusic } from '../sound/backgroundMusic'
+import { playSubmenuTap, playSubmenuTapThen } from '../sound/submenuSound'
 import { useSoundStore } from '../sound/soundStore'
-import { playSubmenuHover, runSubmenuClick } from '../sound/submenuSound'
+import MenuToggleRow from './MenuToggleRow'
 import { SubmenuSoundScope } from './SubmenuSoundScope'
 import PhoneStackHeader from './PhoneStackHeader'
-
-function ToggleRow({
-  label,
-  enabled,
-  onChange,
-}: {
-  label: string
-  enabled: boolean
-  onChange: (next: boolean) => void
-}) {
-  return (
-    <div
-      onMouseEnter={() => playSubmenuHover()}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        padding: '10px 14px',
-      }}
-    >
-      <span style={{ flex: 1, fontSize: 14, color: font.colorPrimary }}>
-        {chromeLabel(label)}
-      </span>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={enabled}
-        onClick={() => {
-          const next = !enabled
-          runSubmenuClick(() => onChange(next))
-        }}
-        style={{
-          width: 40,
-          height: 24,
-          borderRadius: 12,
-          border: 'none',
-          padding: 2,
-          cursor: 'pointer',
-          background: enabled ? 'var(--ui-accent)' : 'rgba(20, 30, 50, 0.12)',
-          transition: 'background 150ms ease',
-          flexShrink: 0,
-        }}
-      >
-        <span
-          style={{
-            display: 'block',
-            width: 20,
-            height: 20,
-            borderRadius: '50%',
-            background: '#fff',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.18)',
-            transform: enabled ? 'translateX(16px)' : 'translateX(0)',
-            transition: 'transform 150ms ease',
-          }}
-        />
-      </button>
-    </div>
-  )
-}
+import PhoneCenteredChromeModal from './PhoneCenteredChromeModal'
 
 export default function SoundSubmenu({
   anchorRef,
@@ -91,7 +33,12 @@ export default function SoundSubmenu({
   }, [])
 
   function handleSfxToggle(next: boolean) {
-    setMuted(!next)
+    if (!next) {
+      playSubmenuTapThen(() => setMuted(true))
+      return
+    }
+    setMuted(false)
+    playSubmenuTap()
   }
 
   function handleMusicToggle(next: boolean) {
@@ -101,35 +48,9 @@ export default function SoundSubmenu({
 
   if (!mounted) return null
 
-  return createPortal(
-    <motion.div
-      data-cutline-submenu="sound"
-      {...(isPhone ? phoneSubmenuSlideMotion : {
-        initial: { opacity: 0, scale: 0.96, x: -4 },
-        animate: { opacity: 1, scale: 1, x: 0 },
-        exit: { opacity: 0, scale: 0.96, x: -4 },
-        transition: { duration: 0.18, ease: 'easeOut' },
-      })}
-      style={{
-        ...(isPhone
-          ? phoneSubmenuSheetStyle({ zIndex: 50 })
-          : {
-              position: 'fixed',
-              top: pos.top,
-              left: pos.left,
-              width: 220,
-            }),
-        ...chromeFrostedMenuStyle,
-        fontFamily: font.family,
-        overflow: 'hidden',
-        zIndex: 50,
-      }}
-      className={`theme-surface ${CHROME_FROSTED_MENU_CLASS}`}
-      onClick={(e) => e.stopPropagation()}
-      onMouseDown={(e) => e.stopPropagation()}
-    >
-      <SubmenuSoundScope>
-      {isPhone && onBack && <PhoneStackHeader title="Sound" onBack={onBack} />}
+  const soundBody = (
+    <SubmenuSoundScope>
+      {isPhone && onBack ? <PhoneStackHeader title="Sound" onBack={onBack} /> : null}
       <div
         style={{
           display: 'flex',
@@ -146,7 +67,14 @@ export default function SoundSubmenu({
         Sound effects
       </div>
 
-      <ToggleRow label="Sound effects" enabled={!muted} onChange={handleSfxToggle} />
+      <MenuToggleRow
+        label="Sound effects"
+        enabled={!muted}
+        onChange={handleSfxToggle}
+        trackLeftIcon={VolumeX}
+        trackRightIcon={Volume2}
+        playClickSound={false}
+      />
 
       <div style={menuDividerStyle} />
 
@@ -166,13 +94,50 @@ export default function SoundSubmenu({
         Background music
       </div>
 
-      <ToggleRow
+      <MenuToggleRow
         label="Background music"
         enabled={musicEnabled}
         onChange={handleMusicToggle}
+        trackLeftIcon={Music2}
+        trackRightIcon={Music}
       />
-      </SubmenuSoundScope>
-    </motion.div>,
+    </SubmenuSoundScope>
+  )
+
+  return createPortal(
+    isPhone ? (
+      <PhoneCenteredChromeModal
+        onDismiss={() => onBack?.()}
+        cardDataAttributes={{ 'data-cutline-submenu': 'sound' }}
+        maxWidth={300}
+        zIndex={60}
+      >
+        {soundBody}
+      </PhoneCenteredChromeModal>
+    ) : (
+      <motion.div
+        data-cutline-submenu="sound"
+        initial={{ opacity: 0, scale: 0.96, x: -4 }}
+        animate={{ opacity: 1, scale: 1, x: 0 }}
+        exit={{ opacity: 0, scale: 0.96, x: -4 }}
+        transition={{ duration: 0.18, ease: 'easeOut' }}
+        style={{
+          position: 'fixed',
+          top: pos.top,
+          left: pos.left,
+          width: 220,
+          ...chromeFrostedMenuStyle,
+          fontFamily: font.family,
+          overflow: 'hidden',
+          zIndex: 50,
+        }}
+        className={`theme-surface ${CHROME_FROSTED_MENU_CLASS}`}
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        {soundBody}
+      </motion.div>
+    ),
     document.body,
   )
 }

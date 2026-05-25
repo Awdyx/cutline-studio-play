@@ -135,22 +135,60 @@ html[data-layout='phone'] [data-pen-fab-menu].pen-fab-menu--phone button {
 
 html[data-layout='phone'] .cutline-top-bar-search {
   width: 100%;
-  pointer-events: auto;
-  opacity: 1;
-  filter: blur(0);
-  transition:
-    opacity 0.14s ease,
-    filter 0.14s ease;
 }
 
 html[data-layout='phone'] .cutline-top-bar-search--hidden {
-  opacity: 0;
-  filter: blur(6px);
   pointer-events: none;
 }
 
+html[data-layout='phone'] .cutline-top-bar-search .canvas-search-island {
+  isolation: isolate;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  opacity: 1;
+  filter: blur(0);
+  transition: opacity 0.16s ease-out, filter 0.16s ease-out;
+}
+
+html[data-layout='phone'] .cutline-top-bar-search--hidden .canvas-search-island {
+  opacity: 0;
+  filter: blur(6px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-layout='phone'] .cutline-top-bar-search .canvas-search-island {
+    transition: opacity 0.12s ease-out;
+  }
+
+  html[data-layout='phone'] .cutline-top-bar-search--hidden .canvas-search-island {
+    filter: none;
+  }
+}
+
+html[data-layout='phone'] .phone-chrome-modal-scrim,
+html[data-layout='phone'] .notification-profile-preview-scrim {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+html[data-theme='dark'][data-layout='phone'] .phone-chrome-modal-scrim,
+html[data-theme='dark'][data-layout='phone'] .notification-profile-preview-scrim {
+  background: rgba(0, 0, 0, 0.28);
+}
+
+/* Phone — hide native scroll indicators (iOS scrollbar preview). */
+html[data-layout='phone'] * {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html[data-layout='phone'] *::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 html[data-layout='phone'] .cutline-space-back-pill-host {
-  top: calc(max(12px, env(safe-area-inset-top, 0px)) + 96px + 8px) !important;
+  top: calc(max(12px, env(safe-area-inset-top, 0px)) + 100px + 8px) !important;
   left: 12px !important;
   right: 12px;
   max-width: none;
@@ -165,11 +203,85 @@ html[data-layout='phone'] [data-pen-fab] {
   flex-direction: column;
   align-items: flex-end;
   z-index: 23;
+  opacity: 0;
+  filter: blur(6px);
+  transition: opacity 0.16s ease-out, filter 0.16s ease-out;
+}
+
+html[data-layout='phone'] [data-pen-fab].pen-fab-host--visible {
+  opacity: 1;
+  filter: blur(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-layout='phone'] [data-pen-fab] {
+    transition: opacity 0.12s ease-out;
+  }
+
+  html[data-layout='phone'] [data-pen-fab]:not(.pen-fab-host--visible) {
+    filter: none;
+  }
 }
 
 /* Prevent iOS Safari focus-zoom on inputs (<16px triggers automatic zoom). */
 html[data-layout='phone'] [data-canvas-search-input] {
   font-size: 16px;
+}
+
+html[data-layout='phone'] [data-canvas-search-input]::placeholder {
+  font-size: 12px;
+}
+
+[data-canvas-search-input]::placeholder {
+  color: var(--ui-text-muted);
+  opacity: 0.68;
+}
+
+html[data-layout='phone'] .canvas-search-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.chrome-tap-squeeze-target {
+  transform-origin: center center;
+}
+
+.chrome-tap-squeeze--pulse {
+  animation: chrome-tap-squeeze 220ms ease-out both;
+}
+
+.chrome-tap-squeeze-target--compact.chrome-tap-squeeze--pulse {
+  animation: chrome-tap-squeeze-compact 220ms ease-out both;
+}
+
+@keyframes chrome-tap-squeeze {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  42% {
+    transform: scale(0.986);
+  }
+}
+
+@keyframes chrome-tap-squeeze-compact {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  42% {
+    transform: scale(0.955);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chrome-tap-squeeze--pulse {
+    animation-duration: 120ms;
+  }
+
+  .chrome-tap-squeeze-target--compact.chrome-tap-squeeze--pulse {
+    animation-duration: 120ms;
+  }
 }
 
 :root {
@@ -215,6 +327,8 @@ html[data-layout='phone'] [data-canvas-search-input] {
   --profile-cohort-bg: #1a2230;
   --profile-cohort-border: rgba(15, 20, 30, 0.5);
   --profile-cohort-text: rgba(255, 255, 255, 0.92);
+  --menu-toggle-side-icon-opacity: 0.38;
+  --menu-toggle-side-icon-opacity-active: 0.82;
 }
 
 .profile-cohort-pill {
@@ -286,6 +400,54 @@ html[data-layout='phone'] [data-canvas-search-input] {
   background: #4a2c2c;
   border: 1px solid rgba(80, 30, 30, 0.5);
   color: rgba(255, 230, 230, 0.95);
+}
+
+.chrome-menu-toggle-row {
+  transition: opacity 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity;
+}
+
+.chrome-menu-toggle-row--dimmed {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.chrome-menu-toggle-row__label {
+  flex: 1;
+  font-size: 14px;
+  color: var(--ui-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chrome-menu-toggle-row {
+    transition-duration: 0.12s;
+  }
+}
+
+.chrome-menu-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border: none;
+  padding: 4px 2px;
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.chrome-menu-toggle--disabled {
+  cursor: not-allowed;
+}
+
+.chrome-menu-toggle__side-icon {
+  opacity: var(--menu-toggle-side-icon-opacity);
+  color: var(--ui-text-muted);
+  transition: opacity 150ms ease;
+  flex-shrink: 0;
+}
+
+.chrome-menu-toggle__side-icon--active {
+  opacity: var(--menu-toggle-side-icon-opacity-active);
 }
 
 [data-theme='dark'] .subscription-status-card {
@@ -459,6 +621,17 @@ input::placeholder {
 }
 
 /* Chrome scroll areas — hidden scrollbar + monotone top/bottom fade blur. */
+.chrome-scroll-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.chrome-scroll-hidden::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 .chrome-scroll-fade-wrap {
   position: relative;
   display: flex;

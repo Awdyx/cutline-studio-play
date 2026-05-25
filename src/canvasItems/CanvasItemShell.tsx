@@ -12,6 +12,9 @@ import {
   useItemSelectionIndex,
   useItemZOrderPulse,
 } from './canvasItemsStore'
+import { useCanvasEditingAllowed } from '../canvasEdit/layer'
+import { useIsPhoneLayout } from '../hooks/useLayoutProfile'
+import { useCanvasEditStore } from '../canvasEdit/canvasEditStore'
 import DragHandle from './DragHandle'
 import ResizeHandle from './ResizeHandle'
 import { Z_SELECTION_ABOVE_DIM } from './canvasZOrder'
@@ -70,12 +73,21 @@ export default function CanvasItemShell({
   )
 
   const isLocked = useCanvasLockStore((s) => s.isLocked)
+  const isPhone = useIsPhoneLayout()
+  const canvasEditEnabled = useCanvasEditStore((s) => s.enabled)
+  const isStudyHub = item.type === 'study_hub'
+  const editBlocked = isPhone && !canvasEditEnabled
+  const moveBlocked = editBlocked
   const frozen = isItemFrozen(item, isLocked)
+  const interactionFrozen = frozen || moveBlocked
   const isSelected = useItemSelected(item.id)
   const selectionIndex = useItemSelectionIndex(item.id)
   const isSoleSelected = useItemIsSoleSelected(item.id)
   const zOrderPulse = useItemZOrderPulse(item.id)
-  const hideDragHandle = isSoleSelected
+  const editingAllowed = useCanvasEditingAllowed()
+  const zMenuSuppressedItemId = useCanvasItemsStore((s) => s.zMenuSuppressedItemId)
+  const hideDragHandle =
+    isSoleSelected && editingAllowed && zMenuSuppressedItemId !== item.id
   const [zPulseClass, setZPulseClass] = useState<string | null>(null)
   const lastZPulseNonce = useRef(0)
 
@@ -115,7 +127,6 @@ export default function CanvasItemShell({
     [item.x, item.y, item.width, item.height],
   )
 
-  const isStudyHub = item.type === 'study_hub'
   const studyHubLayout =
     isStudyHub && !isResizing && !isDragging && !snapBack ? ('size' as const) : false
   const shellTransition =
@@ -167,7 +178,7 @@ export default function CanvasItemShell({
         ...(isStudyHub ? { borderRadius: card.radius } : null),
       }}
     >
-      {!frozen && (
+      {!interactionFrozen && (
         <div data-lock-flatten-skip>
           {!hideDragHandle && (
             <DragHandle
@@ -182,8 +193,14 @@ export default function CanvasItemShell({
         onPointerDown={(e) => {
           if (frozen || e.pointerType === 'pen') return
           if (e.target instanceof HTMLElement && e.target.closest('button')) return
+          if (
+            isSelected &&
+            useCanvasItemsStore.getState().zMenuSuppressedItemId === item.id
+          ) {
+            useCanvasItemsStore.setState({ zMenuSuppressedItemId: null })
+          }
           if (isSelected) {
-            onGrabPointerDown(e)
+            if (!moveBlocked) onGrabPointerDown(e)
             return
           }
           itemTap.onPointerDown(e)

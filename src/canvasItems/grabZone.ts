@@ -158,6 +158,7 @@ export const Z_MENU_GAP = 10
 
 /** Matches CanvasItemZOrderMenu minWidth — used to center spawn clusters. */
 export const Z_MENU_MIN_WIDTH = 168
+export const Z_MENU_MIN_WIDTH_PHONE = 132
 
 export const MIN_ITEM_WIDTH = 48
 export const MIN_ITEM_HEIGHT = 48

@@ -61,7 +61,6 @@ export function buildFlattenPlan(
   const live: FlattenLivePlan[] = []
   let segmentCounter = 0
   let pendingIds: string[] = []
-  let includeMesh = true
 
   const itemById = new Map(committed.map((item) => [item.id, item]))
 
@@ -75,10 +74,9 @@ export function buildFlattenPlan(
       zIndex,
       itemIds: [...pendingIds],
       includeCommittedStrokes: false,
-      includeMesh,
+      includeMesh: false,
     })
     pendingIds = []
-    includeMesh = false
   }
 
   function processItem(item: CanvasItem) {
@@ -103,9 +101,8 @@ export function buildFlattenPlan(
       zIndex: Z_STROKES,
       itemIds: [],
       includeCommittedStrokes: true,
-      includeMesh,
+      includeMesh: false,
     })
-    includeMesh = false
   }
 
   for (const item of above) processItem(item)

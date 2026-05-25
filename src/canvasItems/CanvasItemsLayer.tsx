@@ -21,10 +21,10 @@ import TextItem from './TextItem'
 import VideoItem from './VideoItem'
 import SpaceItem from './SpaceItem'
 import StudyHubItem from './StudyHubItem'
-import type { CanvasItem, DrawableSurfaceItem } from './types'
+import type { CanvasItem, StickyCanvasItem } from './types'
 
 const EMPTY_ITEMS: readonly CanvasItem[] = []
-const EMPTY_DRAWABLES: readonly DrawableSurfaceItem[] = []
+const EMPTY_DRAWABLES: readonly StickyCanvasItem[] = []
 
 export default function CanvasItemsLayer({
   transformRef,
@@ -65,7 +65,7 @@ export default function CanvasItemsLayer({
   // Overlay stickies are typically a small subset of all items; pull from the
   // cached sticky-only list rather than scanning every item on every render.
   const allDrawables = useDrawableSurfaces()
-  const overlayDrawables: readonly DrawableSurfaceItem[] = useMemo(() => {
+  const overlayDrawables: readonly StickyCanvasItem[] = useMemo(() => {
     if (plane === 'annotation' || !lockActive || !flattenReady) return EMPTY_DRAWABLES
     if (allDrawables.length === 0) return EMPTY_DRAWABLES
     return allDrawables.filter((item) =>

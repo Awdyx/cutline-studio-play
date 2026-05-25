@@ -9,6 +9,11 @@ import { playSound } from '../sound/playSound'
 import { useCanvasLockStore } from '../canvasLock/canvasLockStore'
 import { effectiveCanvasLocked } from '../canvasLock/layer'
 import { ERASE_HIT_RADIUS, hitTestStroke } from './eraseUtils'
+import { useCanvasItemsStore } from '../canvasItems/canvasItemsStore'
+import {
+  maxCommittedStrokeZ,
+  nextCanvasStackZIndex,
+} from '../canvasItems/canvasZOrder'
 import { notifyWorkspacePersist, useCanvasWorkspaceStore } from '../spaces/canvasWorkspaceStore'
 import { strokeToSvgPath, ensureMinimumStrokePoints } from './strokePath'
 import { generateStrokeId } from './strokeId'
@@ -121,7 +126,10 @@ export const useStrokesStore = create<StrokesState>((set, get) => ({
       return
     }
 
-    const strokes = [...get().strokes, completed]
+    const items = useCanvasItemsStore.getState().items
+    const existingStrokes = get().strokes
+    const zIndex = nextCanvasStackZIndex(items, maxCommittedStrokeZ(existingStrokes))
+    const strokes = [...existingStrokes, { ...completed, zIndex }]
     set({ strokes, activeStroke: null })
     persist({ immediate: true })
   },

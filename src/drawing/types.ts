@@ -13,4 +13,6 @@ export type Stroke = {
   size: number
   tool: DrawTool
   path?: string
+  /** Canvas stack position when committed; older strokes keep their slot. */
+  zIndex?: number
 }

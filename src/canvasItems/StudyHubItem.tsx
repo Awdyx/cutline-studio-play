@@ -14,7 +14,6 @@ import {
 import { useCanvasItemDragStore } from './canvasItemDragStore'
 import { useCanvasItemResizeStore } from './canvasItemResizeStore'
 import CanvasItemShell from './CanvasItemShell'
-import StickyStrokesSvg from './StickyStrokesSvg'
 import { useCanvasItemScrollCapture } from './useCanvasItemScrollCapture'
 import { studyHubContentScaleForSize } from './studyHubSpawnScale'
 import type { StudyHubCanvasItem } from './types'
@@ -161,14 +160,6 @@ function StudyHubItem({
             </div>
           </div>
         </div>
-
-        <StickyStrokesSvg
-          stickyId={item.id}
-          strokes={item.strokes}
-          annotationStrokes={item.annotationStrokes ?? []}
-          width={item.width}
-          height={item.height}
-        />
       </div>
     </CanvasItemShell>
   )
@@ -184,8 +175,6 @@ export default memo(StudyHubItem, (prev, next) => {
       a.y === b.y &&
       a.width === b.width &&
       a.height === b.height &&
-      a.subjectId === b.subjectId &&
-      a.strokes === b.strokes &&
-      a.annotationStrokes === b.annotationStrokes)
+      a.subjectId === b.subjectId)
   )
 })

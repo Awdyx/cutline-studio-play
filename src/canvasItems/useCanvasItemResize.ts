@@ -13,6 +13,7 @@ import {
   updateItemResizeSound,
 } from '../sound/itemResizeSound'
 import { MIN_ITEM_HEIGHT, MIN_ITEM_WIDTH } from './grabZone'
+import { canvasEditingAllowed } from '../canvasEdit/layer'
 import { primaryPointerReleased } from './canvasPointerSession'
 import { useCanvasItemsStore } from './canvasItemsStore'
 import {
@@ -292,6 +293,8 @@ function attachResizePointerSession(
   touchDeferred: boolean,
   options?: ResizeOptions,
 ) {
+  if (!canvasEditingAllowed()) return
+
   finishResizeSession()
 
   event.preventDefault()

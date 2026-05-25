@@ -4,6 +4,7 @@ import { playSound } from '../sound/playSound'
 import { playSubmenuHover, playSubmenuTap } from '../sound/submenuSound'
 import { Eraser, Highlighter, Pen, Redo2, Trash2, Undo2 } from 'lucide-react'
 import { useIsPhoneLayout } from '../hooks/useLayoutProfile'
+import ChromeTapSqueezeWrap from './ChromeTapSqueezeWrap'
 import {
   CHROME_CARD_CLASS,
   CHROME_FROSTED_MENU_CLASS,
@@ -21,6 +22,7 @@ import { useCanvasItemsStore } from '../canvasItems/canvasItemsStore'
 import { hasStylusInput } from '../drawing/penInput'
 import { hasClearableLayerContent } from '../canvasLock/layer'
 import { useCanvasLockStore } from '../canvasLock/canvasLockStore'
+import { useCanvasEditStore } from '../canvasEdit/canvasEditStore'
 import { useStrokesStore } from '../drawing/strokesStore'
 import { useToolStore } from '../drawing/toolStore'
 import ToolColorPopover from './ToolColorPopover'
@@ -34,6 +36,7 @@ const FAB_GAP = 12
 /** Left of the + FAB: 16px margin + 52px FAB + 12px gap */
 const PEN_FAB_RIGHT = 16 + FAB_SIZE + FAB_GAP
 const PEN_FAB_MENU_TRANSITION_MS = 180
+const PEN_FAB_HOST_TRANSITION_MS = 160
 
 const TOOL_SETTINGS_PANEL_MOTION = {
   initial: { opacity: 0, height: 0 },
@@ -213,6 +216,8 @@ function cancelActiveDrawing() {
 
 export default function PenFab() {
   const isPhone = useIsPhoneLayout()
+  const canvasEditEnabled = useCanvasEditStore((s) => s.enabled)
+  const penFabActive = !isPhone || canvasEditEnabled
   const canUndo = useHistoryUiStore((s) => s.canUndo)
   const canRedo = useHistoryUiStore((s) => s.canRedo)
   const undo = useStrokesStore((s) => s.undo)
@@ -231,6 +236,8 @@ export default function PenFab() {
     null,
   )
   const [hasClearableContent, setHasClearableContent] = useState(false)
+  const [hostMounted, setHostMounted] = useState(penFabActive)
+  const [hostVisible, setHostVisible] = useState(penFabActive)
   const reduceMotion = useReducedMotion()
 
   const containerRef = useRef<HTMLDivElement>(null)
@@ -273,6 +280,25 @@ export default function PenFab() {
   function closeColorPopover() {
     setColorPopover(null)
   }
+
+  useLayoutEffect(() => {
+    if (penFabActive) {
+      setHostMounted(true)
+      if (isPhone) {
+        const id = requestAnimationFrame(() => setHostVisible(true))
+        return () => cancelAnimationFrame(id)
+      }
+      setHostVisible(true)
+      return
+    }
+    if (!isPhone) return
+    setHostVisible(false)
+    const timer = window.setTimeout(
+      () => setHostMounted(false),
+      PEN_FAB_HOST_TRANSITION_MS,
+    )
+    return () => window.clearTimeout(timer)
+  }, [penFabActive, isPhone])
 
   useLayoutEffect(() => {
     if (isOpen) {
@@ -410,10 +436,13 @@ export default function PenFab() {
     setColorPopover(null)
   }
 
+  if (!hostMounted) return null
+
   return (
     <div
       ref={containerRef}
       data-pen-fab=""
+      className={hostVisible ? 'pen-fab-host--visible' : ''}
       style={{
         ...chromeBottomRightFixed,
         right: `calc(${PEN_FAB_RIGHT}px + env(safe-area-inset-right, 0px))`,
@@ -470,24 +499,26 @@ export default function PenFab() {
         </div>
       )}
 
-      <button
-        type="button"
-        data-pen-fab-trigger
-        aria-label={isOpen ? 'Close drawing tools' : 'Open drawing tools'}
-        aria-expanded={isOpen}
-        onClick={handleFabTriggerClick}
-        onMouseEnter={() => setFabHoverScale(true)}
-        onMouseLeave={() => setFabHoverScale(false)}
-        className={`chrome-fab-trigger theme-surface ${CHROME_GLASS_CLASS} ${
-          isOpen ? 'chrome-fab-trigger--pen-open' : ''
-        } ${fabHoverScale ? 'chrome-fab-trigger--hover' : ''}`}
-        style={{
-          background: isOpen ? 'var(--card-bg)' : glass.bg,
-          border: glass.border,
-        }}
-      >
-        <Pen size={22} color="var(--ui-text)" strokeWidth={2} />
-      </button>
+      <ChromeTapSqueezeWrap>
+        <button
+          type="button"
+          data-pen-fab-trigger
+          aria-label={isOpen ? 'Close drawing tools' : 'Open drawing tools'}
+          aria-expanded={isOpen}
+          onClick={handleFabTriggerClick}
+          onMouseEnter={() => setFabHoverScale(true)}
+          onMouseLeave={() => setFabHoverScale(false)}
+          className={`chrome-fab-trigger theme-surface ${CHROME_GLASS_CLASS} ${
+            isOpen ? 'chrome-fab-trigger--pen-open' : ''
+          } ${fabHoverScale ? 'chrome-fab-trigger--hover' : ''}`}
+          style={{
+            background: isOpen ? 'var(--card-bg)' : glass.bg,
+            border: glass.border,
+          }}
+        >
+          <Pen size={22} color="var(--ui-text)" strokeWidth={2} />
+        </button>
+      </ChromeTapSqueezeWrap>
     </div>
   )
 }

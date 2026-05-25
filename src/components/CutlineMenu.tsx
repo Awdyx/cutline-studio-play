@@ -52,11 +52,16 @@ export default function CutlineMenu({
   }, [isOpen, closeAllSubmenus])
 
   useEffect(() => {
+    if (isPhone) setShortcutsSubmenuOpen(false)
+  }, [isPhone])
+
+  useEffect(() => {
     useShortcutUiStore.getState().registerCutlineMenu({ closeSubmenus: closeAllSubmenus })
     return () => useShortcutUiStore.getState().registerCutlineMenu(null)
   }, [closeAllSubmenus])
 
-  const hasFlyoutSubmenu = settingsSubmenuOpen || shortcutsSubmenuOpen
+  const hasFlyoutSubmenu =
+    settingsSubmenuOpen || (!isPhone && shortcutsSubmenuOpen)
 
   const dismissFromOutside = useCallback(
     (target: Element) => {
@@ -113,18 +118,20 @@ export default function CutlineMenu({
         <SubmenuSoundScope>
         <CutlineAppNavSection onNavigate={onClose} />
         <div style={menuDividerStyle} />
-        <div ref={shortcutsAnchorRef} data-cutline-submenu-anchor="shortcuts">
-          <MenuRow
-            icon={Keyboard}
-            label="Shortcuts"
-            inset
-            right={<ChevronRight size={14} strokeWidth={2} color={font.colorMuted} />}
-            onClick={() => {
-              setSettingsSubmenuOpen(false)
-              setShortcutsSubmenuOpen((o) => !o)
-            }}
-          />
-        </div>
+        {!isPhone && (
+          <div ref={shortcutsAnchorRef} data-cutline-submenu-anchor="shortcuts">
+            <MenuRow
+              icon={Keyboard}
+              label="Shortcuts"
+              inset
+              right={<ChevronRight size={14} strokeWidth={2} color={font.colorMuted} />}
+              onClick={() => {
+                setSettingsSubmenuOpen(false)
+                setShortcutsSubmenuOpen((o) => !o)
+              }}
+            />
+          </div>
+        )}
         <div ref={settingsAnchorRef} data-cutline-submenu-anchor="settings">
           <MenuRow
             icon={Settings}
@@ -154,7 +161,7 @@ export default function CutlineMenu({
             onBack={() => setSettingsSubmenuOpen(false)}
           />
         )}
-        {shortcutsSubmenuOpen && (
+        {!isPhone && shortcutsSubmenuOpen && (
           <ShortcutsSubmenu
             key="shortcuts-submenu"
             anchorRef={shortcutsAnchorRef}

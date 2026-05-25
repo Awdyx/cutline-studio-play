@@ -6,7 +6,9 @@ export function isSwapChromeMenuTarget(target: Node): boolean {
     !!target.closest('[data-plus-fab]') ||
     !!target.closest('[data-panel-trigger]') ||
     !!target.closest('[data-cutline-submenu]') ||
+    !!target.closest('[data-phone-chrome-modal-scrim]') ||
     !!target.closest('[data-plus-fab-submenu]') ||
-    !!target.closest('[data-notification-profile-preview]')
+    !!target.closest('[data-notification-profile-preview]') ||
+    !!target.closest('[data-notification-profile-preview-scrim]')
   )
 }

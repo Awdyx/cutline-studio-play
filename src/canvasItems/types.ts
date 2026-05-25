@@ -77,6 +77,11 @@ export type StudyHubCanvasItem = CanvasItemBase & {
 
 export type DrawableSurfaceItem = StickyCanvasItem | StudyHubCanvasItem
 
+/** Pen ink clipped to item bounds — stickies only. */
+export function isStickyItem(item: CanvasItem): item is StickyCanvasItem {
+  return item.type === 'sticky'
+}
+
 export function isDrawableSurface(item: CanvasItem): item is DrawableSurfaceItem {
   return item.type === 'sticky' || item.type === 'study_hub'
 }

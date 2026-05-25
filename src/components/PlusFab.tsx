@@ -3,6 +3,7 @@ import { playSound } from '../sound/playSound'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Plus, StickyNote, Layers, Type, Image, LayoutGrid } from 'lucide-react'
 import { useIsPhoneLayout } from '../hooks/useLayoutProfile'
+import ChromeTapSqueezeWrap from './ChromeTapSqueezeWrap'
 import {
   CHROME_CARD_CLASS,
   CHROME_FROSTED_MENU_CLASS,
@@ -16,6 +17,7 @@ import {
   menuDividerStyle,
 } from '../styles/tokens'
 import { phoneFabSheetStyle, phoneFabMenuSlideMotion } from '../styles/phoneChrome'
+import { useCanvasEditStore } from '../canvasEdit/canvasEditStore'
 import { useShortcutUiStore, type ChromeMenuSoundOpts } from '../shortcuts/shortcutUiStore'
 import { countSpaceWidgets, useCanvasItemsStore } from '../canvasItems/canvasItemsStore'
 import { MAX_SPACE_WIDGETS } from '../canvasItems/types'
@@ -89,6 +91,7 @@ function MainMenuContent({
   onWidgetsClick,
   onStudySubjectClick,
   showSpaceOption,
+  showCanvasEditSection,
   spaceWidgetCount,
   widgetsAnchorRef,
 }: {
@@ -96,6 +99,7 @@ function MainMenuContent({
   onWidgetsClick: () => void
   onStudySubjectClick: (subject: StudySubjectId) => void
   showSpaceOption: boolean
+  showCanvasEditSection: boolean
   spaceWidgetCount: number
   widgetsAnchorRef: React.RefObject<HTMLDivElement | null>
 }) {
@@ -106,38 +110,42 @@ function MainMenuContent({
 
   return (
     <>
-      <PlusFabSectionHeader first>Add to canvas</PlusFabSectionHeader>
-      {addItems.map(({ icon, label, type }) => (
-        <MenuRow
-          key={type}
-          icon={icon}
-          label={label}
-          disabled={type === 'space' && spacesFull}
-          right={
-            type === 'space' ? (
-              <span
-                style={{
-                  fontSize: 12,
-                  fontWeight: 500,
-                  fontVariantNumeric: 'tabular-nums',
-                  color: spacesFull ? font.colorFaint : font.colorMuted,
-                  flexShrink: 0,
-                }}
-              >
-                {spaceWidgetCount}/{MAX_SPACE_WIDGETS}
-              </span>
-            ) : undefined
-          }
-          onClick={() => onAddToCanvas(type)}
-        />
-      ))}
-      <div ref={widgetsAnchorRef} data-plus-fab-submenu-anchor="widgets" style={{ paddingBottom: 10 }}>
-        <MenuRow icon={LayoutGrid} label="Widgets" onClick={onWidgetsClick} />
-      </div>
+      {showCanvasEditSection && (
+        <>
+          <PlusFabSectionHeader first>Add to canvas</PlusFabSectionHeader>
+          {addItems.map(({ icon, label, type }) => (
+            <MenuRow
+              key={type}
+              icon={icon}
+              label={label}
+              disabled={type === 'space' && spacesFull}
+              right={
+                type === 'space' ? (
+                  <span
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 500,
+                      fontVariantNumeric: 'tabular-nums',
+                      color: spacesFull ? font.colorFaint : font.colorMuted,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {spaceWidgetCount}/{MAX_SPACE_WIDGETS}
+                  </span>
+                ) : undefined
+              }
+              onClick={() => onAddToCanvas(type)}
+            />
+          ))}
+          <div ref={widgetsAnchorRef} data-plus-fab-submenu-anchor="widgets" style={{ paddingBottom: 10 }}>
+            <MenuRow icon={LayoutGrid} label="Widgets" onClick={onWidgetsClick} />
+          </div>
 
-      <div style={plusFabSectionDividerStyle} />
+          <div style={plusFabSectionDividerStyle} />
+        </>
+      )}
 
-      <PlusFabSectionHeader>Study</PlusFabSectionHeader>
+      <PlusFabSectionHeader first={!showCanvasEditSection}>Study</PlusFabSectionHeader>
       <div style={{ paddingBottom: 16 }}>
         {STUDY_SUBJECTS.map(({ id, label, icon, progress }) => (
           <StudySubjectMenuRow
@@ -159,6 +167,8 @@ export default function PlusFab({
   showSpaceOption = true,
 }: PlusFabProps) {
   const isPhone = useIsPhoneLayout()
+  const canvasEditEnabled = useCanvasEditStore((s) => s.enabled)
+  const showCanvasEditSection = !isPhone || canvasEditEnabled
   const [isOpen, setIsOpen] = useState(false)
   const [fabHoverScale, setFabHoverScale] = useState(false)
   const [widgetsSubmenuOpen, setWidgetsSubmenuOpen] = useState(false)
@@ -219,7 +229,12 @@ export default function PlusFab({
   useLayoutEffect(() => {
     if (!isOpen) return
     captureMenuShellHeight()
-  }, [isOpen, showSpaceOption])
+  }, [isOpen, showSpaceOption, showCanvasEditSection])
+
+  useEffect(() => {
+    if (showCanvasEditSection) return
+    setWidgetsSubmenuOpen(false)
+  }, [showCanvasEditSection])
 
   useEffect(() => {
     useShortcutUiStore.getState().registerPlusFab({
@@ -310,6 +325,7 @@ export default function PlusFab({
                   onWidgetsClick={handleWidgetsClick}
                   onStudySubjectClick={handleStudySubjectClick}
                   showSpaceOption={showSpaceOption}
+                  showCanvasEditSection={showCanvasEditSection}
                   spaceWidgetCount={spaceWidgetCount}
                   widgetsAnchorRef={widgetsAnchorRef}
                 />
@@ -320,7 +336,7 @@ export default function PlusFab({
       </AnimatePresence>
 
       <AnimatePresence mode="sync">
-        {widgetsSubmenuOpen && (
+        {widgetsSubmenuOpen && showCanvasEditSection && (
           <WidgetsSubmenu
             key="widgets-submenu"
             anchorRef={widgetsAnchorRef}
@@ -330,24 +346,26 @@ export default function PlusFab({
         )}
       </AnimatePresence>
 
-      <button
-        type="button"
-        data-fab-trigger
-        aria-label={isOpen ? 'Close menu' : 'Open menu'}
-        aria-expanded={isOpen}
-        onClick={handleFabTriggerClick}
-        onMouseEnter={() => setFabHoverScale(true)}
-        onMouseLeave={() => setFabHoverScale(false)}
-        className={`chrome-fab-trigger theme-surface ${CHROME_GLASS_CLASS} ${
-          isOpen ? 'chrome-fab-trigger--open' : ''
-        } ${fabHoverScale ? 'chrome-fab-trigger--hover' : ''}`}
-        style={{
-          background: isOpen ? 'var(--card-bg)' : glass.bg,
-          border: glass.border,
-        }}
-      >
-        <Plus size={22} color="var(--ui-text)" strokeWidth={2} />
-      </button>
+      <ChromeTapSqueezeWrap>
+        <button
+          type="button"
+          data-fab-trigger
+          aria-label={isOpen ? 'Close menu' : 'Open menu'}
+          aria-expanded={isOpen}
+          onClick={handleFabTriggerClick}
+          onMouseEnter={() => setFabHoverScale(true)}
+          onMouseLeave={() => setFabHoverScale(false)}
+          className={`chrome-fab-trigger theme-surface ${CHROME_GLASS_CLASS} ${
+            isOpen ? 'chrome-fab-trigger--open' : ''
+          } ${fabHoverScale ? 'chrome-fab-trigger--hover' : ''}`}
+          style={{
+            background: isOpen ? 'var(--card-bg)' : glass.bg,
+            border: glass.border,
+          }}
+        >
+          <Plus size={22} color="var(--ui-text)" strokeWidth={2} />
+        </button>
+      </ChromeTapSqueezeWrap>
     </div>
   )
 }

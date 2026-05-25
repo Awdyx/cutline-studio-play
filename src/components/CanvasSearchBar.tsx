@@ -14,6 +14,7 @@ import {
   CHROME_CARD_CLASS,
   CHROME_GLASS_CLASS,
   CHROME_PRESERVE_CASE_CLASS,
+  CHROME_TAP_SQUEEZE_TARGET_CLASS,
   card,
   font,
   glass,
@@ -27,6 +28,7 @@ import { resolveStickyColor } from '../theme/paletteGenerator'
 import { useThemeStore } from '../theme/themeStore'
 import { useEffectiveMode } from '../theme/useEffectiveMode'
 import { ShortcutKeycaps } from './ShortcutKeycaps'
+import CanvasEditToggleButton from './CanvasEditToggleButton'
 
 const islandBase: React.CSSProperties = {
   display: 'flex',
@@ -181,12 +183,12 @@ export default function CanvasSearchBar({
       }}
     >
       <div
-        className={`theme-surface ${CHROME_GLASS_CLASS}`}
+        className={`canvas-search-island ${CHROME_TAP_SQUEEZE_TARGET_CLASS} theme-surface ${CHROME_GLASS_CLASS}`}
         style={{
           ...islandBase,
-          background: dropdownOpen ? card.bg : glass.bg,
+          background: showDropdown ? card.bg : glass.bg,
           gap: 8,
-          padding: '8px 14px',
+          padding: compact ? '8px 12px 8px 14px' : '8px 14px',
           width: '100%',
           cursor: 'text',
         }}
@@ -196,12 +198,14 @@ export default function CanvasSearchBar({
         }}
         onPointerDown={() => setSearchInputReady(true)}
       >
-        <Search
-          size={15}
-          color="var(--ui-text-muted)"
-          strokeWidth={2}
-          style={{ flexShrink: 0 }}
-        />
+        <span className="canvas-search-icon" aria-hidden>
+          <Search
+            size={15}
+            color="var(--ui-text-muted)"
+            strokeWidth={2}
+            style={{ flexShrink: 0, display: 'block' }}
+          />
+        </span>
         <input
           ref={inputRef}
           type="text"
@@ -252,7 +256,7 @@ export default function CanvasSearchBar({
             border: 'none',
             background: 'transparent',
             outline: 'none',
-            fontSize: compact ? 16 : 14,
+            fontSize: compact ? 16 : 12,
             fontFamily: font.family,
             color: font.colorPrimary,
             minWidth: 0,
@@ -272,6 +276,7 @@ export default function CanvasSearchBar({
             <ShortcutKeycaps keys={findKeys.length ? findKeys : [modKeyLabel(), 'F']} size="sm" />
           </div>
         )}
+        {compact && <CanvasEditToggleButton />}
       </div>
 
       <AnimatePresence>
@@ -297,6 +302,7 @@ export default function CanvasSearchBar({
             }}
           >
             <div
+              className="chrome-scroll-hidden"
               style={{
                 maxHeight: 320,
                 overflowY: 'auto',

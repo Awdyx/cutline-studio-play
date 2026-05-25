@@ -37,11 +37,13 @@ export default function ProfileIdentityTags({
   handle,
   studentCohort,
   showDisplayName = true,
+  compact = false,
 }: {
   displayName?: string
   handle: string
   studentCohort: string
   showDisplayName?: boolean
+  compact?: boolean
 }) {
   const normalized = normalizeHandle(handle)
   const handleLabel = normalized ? `@${normalized}` : null
@@ -53,7 +55,7 @@ export default function ProfileIdentityTags({
         <p
           style={{
             margin: 0,
-            fontSize: 15,
+            fontSize: compact ? 14 : 15,
             fontWeight: 600,
             color: font.colorPrimary,
           }}
@@ -69,7 +71,7 @@ export default function ProfileIdentityTags({
             justifyContent: 'center',
             flexWrap: 'wrap',
             gap: 6,
-            marginTop: showDisplayName && displayName ? 6 : 0,
+            marginTop: showDisplayName && displayName ? (compact ? 4 : 6) : 0,
           }}
         >
           {handleLabel && <MetaPill>{handleLabel}</MetaPill>}

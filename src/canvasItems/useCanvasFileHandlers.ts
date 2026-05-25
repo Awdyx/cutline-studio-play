@@ -1,21 +1,19 @@
 import { useCallback, useEffect, useRef, type RefObject } from 'react'
 import type { ReactZoomPanPinchContentRef } from 'react-zoom-pan-pinch'
-import { CANVAS_HEIGHT, CANVAS_WIDTH } from '../drawing/canvasDimensions'
 import { focusItemOnCanvas } from '../canvas/canvasCamera'
+import { useCanvasNavigationStore } from '../canvas/canvasNavigationStore'
+import { useCanvasEditStore } from '../canvasEdit/canvasEditStore'
+import { CANVAS_HEIGHT, CANVAS_WIDTH } from '../drawing/canvasDimensions'
 import { clientToCanvas } from '../drawing/canvasCoords'
 import { putMediaBlob } from '../media/mediaBlobStore'
+import { isPhoneLayout } from '../platform/layoutProfile'
 import { generateItemId } from './itemId'
-import { useCanvasItemsStore } from './canvasItemsStore'
+import { findStudyHubForSubject, useCanvasItemsStore } from './canvasItemsStore'
 import { showMediaImportToast } from './mediaImportFeedback'
-import { showStudyHubDuplicateToast } from './studyHubFeedback'
 import { readCanvasTransformScale } from './studyHubSpawnScale'
 import { isAcceptedMediaFile, prepareMediaFromFile } from './mediaUtils'
 import { TEXT_HEIGHT, type StudySubjectId } from './types'
-import {
-  viewportBalancedSpawnCanvas,
-  viewportCenterCanvas,
-  viewportEditableSpawnCanvas,
-} from './viewportCenter'
+import { viewportCenterCanvas, viewportItemSpawnCanvas } from './viewportCenter'
 
 function spawnPointCanvas(
   transformRef: RefObject<ReactZoomPanPinchContentRef | null>,
@@ -23,7 +21,7 @@ function spawnPointCanvas(
   canvasEl: HTMLElement | null | undefined,
 ): { x: number; y: number } {
   return (
-    viewportCenterCanvas(transformRef, viewportHost, canvasEl) ?? {
+    viewportItemSpawnCanvas(transformRef, viewportHost, canvasEl) ?? {
       x: CANVAS_WIDTH / 2,
       y: CANVAS_HEIGHT / 2,
     }
@@ -70,7 +68,7 @@ export function useCanvasFileHandlers(
   }, [])
 
   const spawnStickyAtViewportCenter = useCallback(() => {
-    const center = viewportCenterCanvas(
+    const center = viewportItemSpawnCanvas(
       transformRef,
       viewportRef.current,
       canvasRef.current,
@@ -80,18 +78,18 @@ export function useCanvasFileHandlers(
   }, [transformRef, viewportRef, canvasRef])
 
   const spawnTextAtViewportCenter = useCallback(() => {
-    const point = viewportEditableSpawnCanvas(
+    const point = viewportItemSpawnCanvas(
       transformRef,
       viewportRef.current,
       canvasRef.current,
-      TEXT_HEIGHT,
+      { editableTextHeight: TEXT_HEIGHT },
     )
     if (!point) return
     useCanvasItemsStore.getState().addText(point.x, point.y)
   }, [transformRef, viewportRef, canvasRef])
 
   const spawnSpaceAtViewportCenter = useCallback(() => {
-    const center = viewportCenterCanvas(
+    const center = viewportItemSpawnCanvas(
       transformRef,
       viewportRef.current,
       canvasRef.current,
@@ -102,8 +100,28 @@ export function useCanvasFileHandlers(
 
   const spawnStudyHubAtViewportCenter = useCallback(
     (subjectId: StudySubjectId) => {
+      const items = useCanvasItemsStore.getState().items
+      const existing = findStudyHubForSubject(items, subjectId)
+
+      if (existing) {
+        useCanvasNavigationStore.getState().suppressBackgroundSelectionClear(600)
+        useCanvasItemsStore.getState().selectItem(existing.id, false, {
+          allowFrozen: true,
+          suppressZMenu: true,
+        })
+        focusItemOnCanvas(transformRef.current, existing, {
+          fit: true,
+          curved: true,
+        })
+        return
+      }
+
+      if (isPhoneLayout() && !useCanvasEditStore.getState().enabled) {
+        useCanvasEditStore.getState().setEnabled(true)
+      }
+
       const center =
-        viewportBalancedSpawnCanvas(
+        viewportItemSpawnCanvas(
           transformRef,
           viewportRef.current,
           canvasRef.current,
@@ -114,20 +132,9 @@ export function useCanvasFileHandlers(
           canvasRef.current,
         ) ?? { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 }
       const spawnScale = readCanvasTransformScale(transformRef)
-      const id = useCanvasItemsStore
+      useCanvasItemsStore
         .getState()
         .addStudyHub(center.x, center.y, subjectId, spawnScale)
-      if (!id) {
-        showStudyHubDuplicateToast(subjectId)
-        return
-      }
-      const item = useCanvasItemsStore.getState().items.find((i) => i.id === id)
-      if (item) {
-        focusItemOnCanvas(transformRef.current, item, {
-          animationMs: 320,
-          screenOffsetY: 28,
-        })
-      }
     },
     [transformRef, viewportRef, canvasRef],
   )

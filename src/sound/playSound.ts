@@ -8,9 +8,12 @@ import {
 import { SFX_ON_GAIN } from './soundLevels'
 import type { SoundId } from './types'
 
-export function playSound(id: SoundId, opts?: { layer?: boolean }): void {
+export function playSound(
+  id: SoundId,
+  opts?: { layer?: boolean; bypassMute?: boolean },
+): void {
   const { muted, hydrated } = useSoundStore.getState()
-  if (!hydrated || muted) return
+  if (!hydrated || (muted && !opts?.bypassMute)) return
 
   ensureAudioContext()
   void resumeAudioContext()

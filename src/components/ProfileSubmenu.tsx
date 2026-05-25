@@ -37,10 +37,10 @@ import type { ProfileMediaFrame } from '../profile/types'
 import ProfileMediaFrameEditor from './ProfileMediaFrameEditor'
 import { usePanelAlignedSubmenuLayout } from './usePanelAlignedSubmenuLayout'
 import { useIsPhoneLayout } from '../hooks/useLayoutProfile'
-import { phoneSubmenuSheetStyle, phoneSubmenuSlideMotion } from '../styles/phoneChrome'
 import { playSubmenuHover, playSubmenuTap } from '../sound/submenuSound'
 import { SubmenuSoundScope } from './SubmenuSoundScope'
 import ChromeScrollFade from './ChromeScrollFade'
+import PhoneCenteredChromeModal from './PhoneCenteredChromeModal'
 
 const SUBMENU_WIDTH = 320
 const SUBMENU_GAP = 10
@@ -312,40 +312,33 @@ export default function ProfileSubmenu({ panelRef, onClose, onDraftChange }: Pro
   const saveBubbleTop =
     layout.height > 0 ? layout.top + layout.height + SAVE_BUBBLE_GAP : 0
 
-  return createPortal(
+  const saveChangesActions = (
     <>
-      <motion.div
-        ref={submenuRef}
-        data-profile-submenu
-        {...(isPhone ? phoneSubmenuSlideMotion : {
-          initial: { opacity: 0, scale: 0.96, x: 8 },
-          animate: { opacity: 1, scale: 1, x: 0 },
-          exit: { opacity: 0, scale: 0.96, x: 8 },
-          transition: { duration: 0.18, ease: 'easeOut' },
-        })}
+      <p
         style={{
-          ...(isPhone
-            ? phoneSubmenuSheetStyle({ display: 'flex', flexDirection: 'column' }, 'right')
-            : {
-                position: 'fixed',
-                top: layout.top,
-                left: layout.left,
-                width: SUBMENU_WIDTH,
-                height: layout.height > 0 ? layout.height : undefined,
-              }),
-          display: 'flex',
-          flexDirection: 'column',
-          ...chromeFrostedMenuStyle,
-          fontFamily: font.family,
-          color: font.colorPrimary,
-          zIndex: 45,
-          overflow: 'hidden',
+          margin: '0 0 12px',
+          fontSize: 12,
+          fontWeight: 500,
+          color: font.colorMuted,
+          textAlign: 'center',
+          lineHeight: 1.35,
         }}
-        className={`theme-surface ${CHROME_FROSTED_MENU_CLASS}`}
-        onClick={(e) => e.stopPropagation()}
-        onMouseDown={(e) => e.stopPropagation()}
       >
-      <SubmenuSoundScope>
+        Careful — you have unsaved changes!
+      </p>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button type="button" onClick={handleDiscard} style={discardButtonStyle}>
+          Discard
+        </button>
+        <button type="button" onClick={handleSave} style={saveButtonStyle}>
+          {chromeLabel('Save changes')}
+        </button>
+      </div>
+    </>
+  )
+
+  const profileBody = (
+    <SubmenuSoundScope>
       <div
         style={{
           display: 'flex',
@@ -383,7 +376,11 @@ export default function ProfileSubmenu({ panelRef, onClose, onDraftChange }: Pro
         </h2>
       </div>
 
-      <ChromeScrollFade ref={formScrollRef} scrollStyle={{ padding: '0 16px' }}>
+      <ChromeScrollFade
+        ref={formScrollRef}
+        scrollStyle={{ padding: '0 16px' }}
+        scrollClassName={isPhone ? 'chrome-scroll-hidden' : undefined}
+      >
         <div style={{ marginBottom: 2 }}>
           <div style={{ display: 'flex', gap: 10 }}>
             <MediaChangeTile
@@ -578,11 +575,63 @@ export default function ProfileSubmenu({ panelRef, onClose, onDraftChange }: Pro
           </div>
         </Field>
       </ChromeScrollFade>
-      </SubmenuSoundScope>
-      </motion.div>
+      {isPhone && dirty && (
+        <div
+          style={{
+            flexShrink: 0,
+            padding: '14px 16px 16px',
+            borderTop: '1px solid var(--ui-divider)',
+          }}
+        >
+          {saveChangesActions}
+        </div>
+      )}
+    </SubmenuSoundScope>
+  )
+
+  return createPortal(
+    <>
+      {isPhone ? (
+        <PhoneCenteredChromeModal
+          cardRef={submenuRef}
+          cardDataAttributes={{ 'data-profile-submenu': '' }}
+          onDismiss={handleClose}
+          maxWidth={SUBMENU_WIDTH}
+        >
+          {profileBody}
+        </PhoneCenteredChromeModal>
+      ) : (
+        <motion.div
+          ref={submenuRef}
+          data-profile-submenu
+          initial={{ opacity: 0, scale: 0.96, x: 8 }}
+          animate={{ opacity: 1, scale: 1, x: 0 }}
+          exit={{ opacity: 0, scale: 0.96, x: 8 }}
+          transition={{ duration: 0.18, ease: 'easeOut' }}
+          style={{
+            position: 'fixed',
+            top: layout.top,
+            left: layout.left,
+            width: SUBMENU_WIDTH,
+            height: layout.height > 0 ? layout.height : undefined,
+            display: 'flex',
+            flexDirection: 'column',
+            ...chromeFrostedMenuStyle,
+            fontFamily: font.family,
+            color: font.colorPrimary,
+            zIndex: 45,
+            overflow: 'hidden',
+          }}
+          className={`theme-surface ${CHROME_FROSTED_MENU_CLASS}`}
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          {profileBody}
+        </motion.div>
+      )}
 
       <AnimatePresence>
-        {dirty && layout.height > 0 && (
+        {dirty && !isPhone && layout.height > 0 && (
           <motion.div
             key="profile-save-bubble"
             data-profile-save-bubble
@@ -605,26 +654,7 @@ export default function ProfileSubmenu({ panelRef, onClose, onDraftChange }: Pro
             onClick={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <p
-              style={{
-                margin: '0 0 12px',
-                fontSize: 12,
-                fontWeight: 500,
-                color: font.colorMuted,
-                textAlign: 'center',
-                lineHeight: 1.35,
-              }}
-            >
-              Careful — you have unsaved changes!
-            </p>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button type="button" onClick={handleDiscard} style={discardButtonStyle}>
-                Discard
-              </button>
-              <button type="button" onClick={handleSave} style={saveButtonStyle}>
-                {chromeLabel('Save changes')}
-              </button>
-            </div>
+            {saveChangesActions}
           </motion.div>
         )}
       </AnimatePresence>

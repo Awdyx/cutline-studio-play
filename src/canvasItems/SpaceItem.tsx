@@ -6,9 +6,11 @@ import { playSound } from '../sound/playSound'
 import { isItemFrozen } from '../canvasLock/layer'
 import { useCanvasLockStore } from '../canvasLock/canvasLockStore'
 import { useCanvasWorkspaceStore } from '../spaces/canvasWorkspaceStore'
+import { DEFAULT_SPACE_NAME } from '../spaces/types'
 import { useDeferredCanvasTap } from '../canvas/useDeferredCanvasTap'
 import { useCanvasNavigationStore } from '../canvas/canvasNavigationStore'
 import { shouldSkipItemSelectForOutsideDismiss } from '../canvas/canvasSelectionDismiss'
+import { useCanvasEditingAllowed } from '../canvasEdit/layer'
 import DragHandle from './DragHandle'
 import { Z_SELECTION_ABOVE_DIM } from './canvasZOrder'
 import { getGrabHandlePlacement } from './grabZone'
@@ -53,6 +55,9 @@ export default function SpaceItem({
   const spaceMeta = useCanvasWorkspaceStore((s) => s.spaces[item.id])
   const selectItem = useCanvasItemsStore((s) => s.selectItem)
   const displayName = spaceMeta?.name ?? item.name
+  const isDefaultName =
+    displayName.trim().toLowerCase() === DEFAULT_SPACE_NAME.toLowerCase()
+  const titleLabel = isDefaultName ? 'untitled space' : displayName
   const hasPreviewContent =
     !!spaceMeta &&
     (spaceMeta.items.length > 0 ||
@@ -78,7 +83,10 @@ export default function SpaceItem({
   const isSelected = useItemSelected(item.id)
   const selectionIndex = useItemSelectionIndex(item.id)
   const isSoleSelected = useItemIsSoleSelected(item.id)
-  const hideDragHandle = isSoleSelected
+  const editingAllowed = useCanvasEditingAllowed()
+  const zMenuSuppressedItemId = useCanvasItemsStore((s) => s.zMenuSuppressedItemId)
+  const hideDragHandle =
+    isSoleSelected && editingAllowed && zMenuSuppressedItemId !== item.id
   const displayZIndex =
     selectionIndex >= 0 ? Z_SELECTION_ABOVE_DIM + selectionIndex : item.zIndex
 
@@ -98,13 +106,19 @@ export default function SpaceItem({
   const handleShellPointerDown = useCallback(
     (e: React.PointerEvent) => {
       if (frozen || e.pointerType === 'pen') return
+      if (
+        isSelected &&
+        useCanvasItemsStore.getState().zMenuSuppressedItemId === item.id
+      ) {
+        useCanvasItemsStore.setState({ zMenuSuppressedItemId: null })
+      }
       if (isSelected) {
         onGrabPointerDown(e as React.PointerEvent<HTMLElement>)
         return
       }
       shellSelectTap.onPointerDown(e)
     },
-    [frozen, isSelected, onGrabPointerDown, shellSelectTap],
+    [frozen, isSelected, item.id, onGrabPointerDown, shellSelectTap],
   )
 
   const handlePreviewPointerDown = useCallback(
@@ -273,14 +287,15 @@ export default function SpaceItem({
             padding: '10px 12px 12px',
             fontSize: 16,
             fontWeight: 500,
-            color: font.colorMuted,
+            color: isDefaultName ? font.colorFaint : font.colorMuted,
+            opacity: isDefaultName ? 0.55 : 1,
             lineHeight: 1.2,
             flexShrink: 0,
             userSelect: 'none',
             ...textAlignmentEditorStyle(resolveItemTextAlignment(item)),
           }}
         >
-          {displayName}
+          {titleLabel}
         </div>
         <div
           ref={previewRef}

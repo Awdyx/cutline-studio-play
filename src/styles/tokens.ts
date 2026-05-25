@@ -12,6 +12,12 @@ export const menuDividerStyle: CSSProperties = {
   flexShrink: 0,
 }
 
+/** Phone profile panel + stack submenus — slightly tighter inset. */
+export const phoneMenuDividerStyle: CSSProperties = {
+  ...menuDividerStyle,
+  margin: '4px 12px',
+}
+
 /** Inset vertical rule between tool groups. */
 export const menuDividerVerticalStyle: CSSProperties = {
   width: 1,
@@ -23,6 +29,8 @@ export const menuDividerVerticalStyle: CSSProperties = {
 }
 
 export const CHROME_GLASS_CLASS = 'ui-chrome-glass'
+/** Tap squeeze target — the element that scales on pointer down. */
+export const CHROME_TAP_SQUEEZE_TARGET_CLASS = 'chrome-tap-squeeze-target'
 export const CHROME_CARD_CLASS = 'ui-chrome-card'
 /** Deep-frost chrome menus — + FAB, pen FAB, flyouts, and top-bar panels. */
 export const CHROME_FROSTED_MENU_CLASS = `${CHROME_GLASS_CLASS} ${CHROME_CARD_CLASS} plus-fab-menu-glass`

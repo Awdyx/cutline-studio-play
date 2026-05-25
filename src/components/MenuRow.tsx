@@ -16,6 +16,7 @@ export function MenuRow({
   disabled = false,
   active = false,
   inset = false,
+  compact = false,
   preserveCase = false,
 }: {
   icon?: React.ElementType
@@ -32,6 +33,8 @@ export function MenuRow({
   active?: boolean
   /** Inset pill row — used in fixed chrome menus. */
   inset?: boolean
+  /** Tighter row for phone chrome menus. */
+  compact?: boolean
   /** Keep label casing (e.g. HUBS, CHEM) instead of chrome lowercase. */
   preserveCase?: boolean
 }) {
@@ -61,10 +64,16 @@ export function MenuRow({
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 10,
+        gap: compact ? 8 : 10,
         width: inset ? 'calc(100% - 16px)' : '100%',
         margin: inset ? '0 8px' : undefined,
-        padding: inset ? '10px 12px' : '10px 16px',
+        padding: compact
+          ? inset
+            ? '7px 10px'
+            : '7px 12px'
+          : inset
+            ? '10px 12px'
+            : '10px 16px',
         borderRadius: inset ? 10 : undefined,
         background: showInsetFill ? 'rgba(0, 0, 0, 0.04)' : 'transparent',
         border: 'none',
@@ -96,7 +105,7 @@ export function MenuRow({
         />
       ) : Icon ? (
         <Icon
-          size={16}
+          size={compact ? 15 : 16}
           strokeWidth={1.8}
           color={
             disabled
@@ -110,7 +119,7 @@ export function MenuRow({
       ) : null}
       <span
         className={preserveCase ? 'ui-chrome-preserve-case' : undefined}
-        style={{ flex: 1, fontSize: 14 }}
+        style={{ flex: 1, fontSize: compact ? 13 : 14 }}
       >
         {preserveCase ? label : chromeLabel(label)}
       </span>

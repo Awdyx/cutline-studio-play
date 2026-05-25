@@ -1,6 +1,7 @@
 import type { RefObject } from 'react'
 import type { ReactZoomPanPinchContentRef } from 'react-zoom-pan-pinch'
 import { clientToCanvas } from '../drawing/canvasCoords'
+import { PHONE_HEADER_BLOCK_HEIGHT } from '../styles/phoneChrome'
 import { readEditablePlacementRect } from '../platform/viewportSize'
 
 /** Upper-middle spawn on desktop — matches reference screenshot. */
@@ -13,6 +14,12 @@ const EDITABLE_SPAWN_TOUCH_VERTICAL_RATIO = 0.26
 const Z_MENU_HEIGHT_ESTIMATE = 220
 
 const PLACEMENT_PADDING = 12
+
+/** Clearance above the phone FAB row (52px row + 12px gap + safe area). */
+const PHONE_SPAWN_BOTTOM_INSET = 76
+
+/** Safe area below the phone header block. */
+const PHONE_SPAWN_TOP_EXTRA = 12
 
 /** Horizontal center; verticalRatio 0.5 = viewport center. */
 export function viewportPointCanvas(
@@ -58,14 +65,41 @@ export function viewportBalancedSpawnCanvas(
     viewportHost ?? transformRef.current?.instance.wrapperComponent ?? null
   if (!host) return null
 
-  const placement = readEditablePlacementRect(host)
-  const topInset = 52
-  const bottomInset = 88
-  const screenX = placement.left + placement.width / 2
-  const bandHeight = Math.max(0, placement.height - topInset - bottomInset)
-  const screenY = placement.top + topInset + bandHeight / 2
+  const rect = host.getBoundingClientRect()
+  if (rect.width <= 0 || rect.height <= 0) return null
+
+  const isTouch = window.matchMedia('(pointer: coarse)').matches
+  const topInset = isTouch
+    ? PHONE_HEADER_BLOCK_HEIGHT + PHONE_SPAWN_TOP_EXTRA
+    : 52
+  const bottomInset = isTouch ? PHONE_SPAWN_BOTTOM_INSET : 88
+  const screenX = rect.left + rect.width / 2
+  const bandHeight = Math.max(0, rect.height - topInset - bottomInset)
+  const screenY = rect.top + topInset + bandHeight / 2
 
   return clientToCanvas(screenX, screenY, transformRef, canvasEl ?? null)
+}
+
+/** Default spawn point — balanced on touch, centered (or editable) on desktop. */
+export function viewportItemSpawnCanvas(
+  transformRef: RefObject<ReactZoomPanPinchContentRef | null>,
+  viewportHost: HTMLElement | null | undefined,
+  canvasEl: HTMLElement | null | undefined,
+  options?: { editableTextHeight?: number },
+): { x: number; y: number } | null {
+  const isTouch = window.matchMedia('(pointer: coarse)').matches
+  if (isTouch) {
+    return viewportBalancedSpawnCanvas(transformRef, viewportHost, canvasEl)
+  }
+  if (options?.editableTextHeight != null) {
+    return viewportEditableSpawnCanvas(
+      transformRef,
+      viewportHost,
+      canvasEl,
+      options.editableTextHeight,
+    )
+  }
+  return viewportCenterCanvas(transformRef, viewportHost, canvasEl)
 }
 
 export function viewportEditableSpawnCanvas(

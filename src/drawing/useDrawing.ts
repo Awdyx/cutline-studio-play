@@ -6,11 +6,11 @@ import {
   isPenDrawMode,
   isPhoneFingerDrawMode,
   isSpaceDrawHeld,
-  isSpaceDrawPointer,
   isStylusTouch,
   noteStylusInput,
   setSpaceDrawHeld,
 } from './penInput'
+import { isPhoneLayout } from '../platform/layoutProfile'
 import type { PenToolMenuBridge } from './usePenToolMenu'
 import { hitTestStickyAtCanvasPoint } from '../canvasItems/stickyHitTest'
 import { useCanvasItemsStore } from '../canvasItems/canvasItemsStore'
@@ -66,7 +66,7 @@ export function useDrawing(
     let eraseActive = false
     let lastEraseAt = 0
     let activeStickyId: string | null = null
-    let lastSpacePointer: PointerEvent | null = null
+    let lastPointerPos: { clientX: number; clientY: number } | null = null
 
     function setPenDown(down: boolean) {
       onPenStateChange?.(down)
@@ -210,47 +210,23 @@ export function useDrawing(
       return useStrokesStore.getState().activeStroke !== null
     }
 
-    function spaceMenuAnchor(): { x: number; y: number } {
-      if (lastSpacePointer) {
-        return {
-          x: lastSpacePointer.clientX,
-          y: lastSpacePointer.clientY,
-        }
-      }
-      const rect = canvasEl.getBoundingClientRect()
-      return {
-        x: rect.left + rect.width / 2,
-        y: rect.top + rect.height / 2,
-      }
-    }
-
-    function applySpaceDrawAt(event: PointerEvent) {
-      if (!isSpaceDrawHeld() || penMenu()?.isActive()) return
-      if (penMenu()?.isMenuOpen()) return
-      if (!isSpaceDrawPointer(event)) return
-
-      const coords = toCanvasCoords(event.clientX, event.clientY)
-      if (!coords) return
-
-      const pressure = readPressure(event.pressure)
-      if (!hasActiveDrawSession()) {
-        startDrawAt(coords, pressure)
-      } else {
-        continueDrawAt(coords, pressure)
-      }
-    }
-
     function onSpaceDown(e: KeyboardEvent) {
       if (e.code !== 'Space' || e.repeat) return
       if (isEditableTarget(e.target)) return
+      if (isPhoneLayout()) return
       if (!isPenDrawMode() || penMenu()?.isActive()) return
+      if (!lastPointerPos) return
 
       e.preventDefault()
       setSpaceDrawHeld(true)
       document.documentElement.setAttribute('data-space-draw', '')
       setPenDown(true)
-      const anchor = spaceMenuAnchor()
-      penMenu()?.beginSpaceHold(anchor.x, anchor.y)
+
+      const { clientX, clientY } = lastPointerPos
+      penMenu()?.beginSpaceHold(clientX, clientY)
+
+      const coords = toCanvasCoords(clientX, clientY)
+      if (coords) startDrawAt(coords, 0.5)
     }
 
     function onSpaceUp(e: KeyboardEvent) {
@@ -261,8 +237,8 @@ export function useDrawing(
       setSpaceDrawHeld(false)
       document.documentElement.removeAttribute('data-space-draw')
 
-      const anchor = spaceMenuAnchor()
-      penMenu()?.endSpaceHold(anchor.x, anchor.y)
+      const pos = lastPointerPos
+      penMenu()?.endSpaceHold(pos?.clientX ?? 0, pos?.clientY ?? 0)
 
       if (!pointerPenActive) {
         endDrawSession()
@@ -326,14 +302,16 @@ export function useDrawing(
     }
 
     function onPointerMove(event: PointerEvent) {
-      if (isSpaceDrawPointer(event)) {
-        const coords = toCanvasCoords(event.clientX, event.clientY)
-        if (coords) lastSpacePointer = event
+      if (event.pointerType === 'mouse') {
+        lastPointerPos = { clientX: event.clientX, clientY: event.clientY }
       }
 
-      if (isSpaceDrawHeld()) {
+      if (isSpaceDrawHeld() && event.pointerType === 'mouse') {
         penMenu()?.moveSpaceHold(event.clientX, event.clientY)
-        applySpaceDrawAt(event)
+        if (!penMenu()?.isMenuOpen()) {
+          const coords = toCanvasCoords(event.clientX, event.clientY)
+          if (coords) continueDrawAt(coords, readPressure(event.pressure))
+        }
       }
 
       if (
@@ -422,14 +400,6 @@ export function useDrawing(
       if (!pointerPenActive && !isSpaceDrawHeld()) setPenDown(false)
     }
 
-    function onSpacePointerMove(event: PointerEvent) {
-      if (!isSpaceDrawHeld()) return
-      if (isSpaceDrawPointer(event)) {
-        lastSpacePointer = event
-      }
-      penMenu()?.moveSpaceHold(event.clientX, event.clientY)
-    }
-
     function onWindowBlur() {
       if (isSpaceDrawHeld()) {
         penMenu()?.cancelSpaceHold()
@@ -444,7 +414,6 @@ export function useDrawing(
 
     window.addEventListener('pointerup', onWindowPointerEnd)
     window.addEventListener('pointercancel', onWindowPointerEnd)
-    window.addEventListener('pointermove', onSpacePointerMove)
     window.addEventListener('keydown', onSpaceDown)
     window.addEventListener('keyup', onSpaceUp)
     window.addEventListener('blur', onWindowBlur)
@@ -452,7 +421,6 @@ export function useDrawing(
     return () => {
       window.removeEventListener('pointerup', onWindowPointerEnd)
       window.removeEventListener('pointercancel', onWindowPointerEnd)
-      window.removeEventListener('pointermove', onSpacePointerMove)
       window.removeEventListener('keydown', onSpaceDown)
       window.removeEventListener('keyup', onSpaceUp)
       window.removeEventListener('blur', onWindowBlur)

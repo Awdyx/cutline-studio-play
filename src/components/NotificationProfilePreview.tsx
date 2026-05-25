@@ -12,7 +12,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { ArrowUpRight } from 'lucide-react'
+import { ArrowLeft, ArrowUpRight } from 'lucide-react'
 import {
   CHROME_FROSTED_MENU_CLASS,
   CHROME_PRESERVE_CASE_CLASS,
@@ -22,8 +22,11 @@ import {
 } from '../styles/tokens'
 import type { NotificationActorProfile } from '../content/notificationActorProfiles'
 import { playSound } from '../sound/playSound'
+import { playSubmenuTap } from '../sound/submenuSound'
 import type { ChromeMenuSoundOpts } from '../shortcuts/shortcutUiStore'
 import { useShortcutUiStore } from '../shortcuts/shortcutUiStore'
+import { useIsPhoneLayout } from '../hooks/useLayoutProfile'
+import { PHONE_CHROME_INSET } from '../styles/phoneChrome'
 import { useMenuOutsideDismiss } from './useMenuOutsideDismiss'
 import UserAvatar from './UserAvatar'
 import { PROFILE_BANNER_HEIGHT } from './ProfileBannerHeader'
@@ -31,6 +34,11 @@ import { PROFILE_BANNER_HEIGHT } from './ProfileBannerHeader'
 const CARD_WIDTH = 300
 const PANEL_GAP = 12
 const FLYOUT_TRANSITION = { duration: 0.18, ease: 'easeOut' as const }
+
+type PreviewCoords = {
+  top: number
+  left: number
+}
 
 const socialPillStyle: React.CSSProperties = {
   display: 'inline-flex',
@@ -203,78 +211,156 @@ const ProfilePreviewCard = forwardRef<
   HTMLDivElement,
   {
     profile: NotificationActorProfile
-    coords: { top: number; left: number }
+    coords?: PreviewCoords
+    layout: 'desktop-flyout' | 'phone-modal'
     onVisitCanvas: () => void
+    onClose: () => void
   }
->(function ProfilePreviewCard({ profile, coords, onVisitCanvas }, ref) {
+>(function ProfilePreviewCard(
+  { profile, coords, layout, onVisitCanvas, onClose },
+  ref,
+) {
+  const isPhoneModal = layout === 'phone-modal'
+
   return (
     <motion.div
       ref={ref}
       data-notification-profile-preview=""
-      initial={{ opacity: 0, scale: 0.96, x: -4 }}
-      animate={{ opacity: 1, scale: 1, x: 0 }}
-      exit={{ opacity: 0, scale: 0.96, x: -4 }}
-      transition={FLYOUT_TRANSITION}
-      className={`theme-surface ${CHROME_FROSTED_MENU_CLASS}`}
+      {...(isPhoneModal
+        ? {
+            initial: { opacity: 0, scale: 0.94 },
+            animate: { opacity: 1, scale: 1 },
+            exit: { opacity: 0, scale: 0.94 },
+            transition: FLYOUT_TRANSITION,
+          }
+        : {
+            initial: { opacity: 0, scale: 0.96, x: -4 },
+            animate: { opacity: 1, scale: 1, x: 0 },
+            exit: { opacity: 0, scale: 0.96, x: -4 },
+            transition: FLYOUT_TRANSITION,
+          })}
+      className={
+        isPhoneModal
+          ? `theme-surface ${CHROME_FROSTED_MENU_CLASS} notification-profile-preview-card--phone`
+          : `theme-surface ${CHROME_FROSTED_MENU_CLASS}`
+      }
       style={{
-        position: 'fixed',
-        top: coords.top,
-        left: coords.left,
-        width: CARD_WIDTH,
-        zIndex: 45,
-        ...chromeFrostedMenuStyle,
+        position: isPhoneModal ? 'relative' : 'fixed',
+        ...(isPhoneModal
+          ? {
+              width: `min(${CARD_WIDTH}px, calc(100vw - ${PHONE_CHROME_INSET * 2}px))`,
+              maxHeight: 'min(72dvh, 520px)',
+              ...chromeFrostedMenuStyle,
+            }
+          : {
+              top: coords?.top,
+              left: coords?.left,
+              width: CARD_WIDTH,
+              ...chromeFrostedMenuStyle,
+            }),
+        zIndex: isPhoneModal ? 56 : 46,
         fontFamily: font.family,
         color: font.colorPrimary,
         overflow: 'hidden',
         pointerEvents: 'auto',
+        display: isPhoneModal ? 'flex' : undefined,
+        flexDirection: isPhoneModal ? 'column' : undefined,
       }}
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
-      <div style={{ position: 'relative' }}>
-        <div
-          aria-hidden
-          style={{
-            height: PROFILE_BANNER_HEIGHT,
-            position: 'relative',
-            overflow: 'hidden',
-            background: profile.bannerGradient ?? 'var(--card-bg)',
-          }}
-        >
-          {profile.bannerImageUrl && (
-            <img
-              src={profile.bannerImageUrl}
-              alt=""
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                objectPosition: 'center 18%',
+      <div
+        style={{
+          flex: isPhoneModal ? 1 : undefined,
+          minHeight: isPhoneModal ? 0 : undefined,
+          overflowY: isPhoneModal ? 'auto' : undefined,
+        }}
+        className={isPhoneModal ? 'chrome-scroll-hidden' : undefined}
+      >
+        <div style={{ position: 'relative' }}>
+          {isPhoneModal && (
+            <button
+              type="button"
+              aria-label="Back"
+              onClick={() => {
+                playSubmenuTap()
+                onClose()
               }}
-            />
+              style={{
+                position: 'absolute',
+                top: 6,
+                left: 6,
+                zIndex: 3,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 28,
+                height: 28,
+                padding: 0,
+                border: 'none',
+                borderRadius: 8,
+                background: 'transparent',
+                cursor: 'pointer',
+                opacity: 0.58,
+              }}
+            >
+              <ArrowLeft
+                size={16}
+                strokeWidth={2}
+                color={font.colorMuted}
+                style={{ filter: 'drop-shadow(0 1px 2px rgba(20, 30, 50, 0.16))' }}
+              />
+            </button>
           )}
+          <div
+            aria-hidden
+            style={{
+              height: PROFILE_BANNER_HEIGHT,
+              position: 'relative',
+              overflow: 'hidden',
+              background: profile.bannerGradient ?? 'var(--card-bg)',
+            }}
+          >
+            {profile.bannerImageUrl && (
+              <img
+                src={profile.bannerImageUrl}
+                alt=""
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  objectPosition: 'center 18%',
+                }}
+              />
+            )}
+          </div>
+          <div
+            style={{
+              position: 'absolute',
+              left: 14,
+              bottom: 0,
+              transform: 'translateY(50%)',
+              zIndex: 2,
+              borderRadius: '50%',
+              boxShadow: isPhoneModal
+                ? '0 0 0 3px var(--chrome-solid-bg)'
+                : '0 0 0 3px var(--card-bg)',
+            }}
+          >
+            <UserAvatar
+              displayName={profile.avatarInitial}
+              avatarColor={profile.avatarColor}
+              avatarImageUrl={profile.avatarImageUrl}
+              size={44}
+              fontSize={16}
+            />
+          </div>
         </div>
         <div
           style={{
-            position: 'absolute',
-            left: 14,
-            bottom: 0,
-            transform: 'translateY(50%)',
-            zIndex: 2,
-            borderRadius: '50%',
-            boxShadow: '0 0 0 3px var(--card-bg)',
+            padding: '28px 14px 14px',
           }}
         >
-          <UserAvatar
-            displayName={profile.avatarInitial}
-            avatarColor={profile.avatarColor}
-            avatarImageUrl={profile.avatarImageUrl}
-            size={44}
-            fontSize={16}
-          />
-        </div>
-      </div>
-      <div style={{ padding: '28px 14px 14px' }}>
         <div className={CHROME_PRESERVE_CASE_CLASS}>
           <p
             style={{
@@ -327,6 +413,7 @@ const ProfilePreviewCard = forwardRef<
           previewImageUrl={profile.canvasPreviewImageUrl}
           onClick={onVisitCanvas}
         />
+        </div>
       </div>
     </motion.div>
   )
@@ -334,6 +421,7 @@ const ProfilePreviewCard = forwardRef<
 
 type ActorProfileContextValue = {
   openHandle: string | null
+  profilePreviewOpen: boolean
   setAnchor: (el: HTMLElement | null) => void
   handleTriggerClick: (
     profile: NotificationActorProfile,
@@ -385,12 +473,15 @@ function ProfilePreviewFlyout({
   coords,
   cardRef,
   onVisitCanvas,
+  onClose,
 }: {
   profile: NotificationActorProfile
-  coords: { top: number; left: number }
+  coords: PreviewCoords
   cardRef: React.RefObject<HTMLDivElement | null>
   onVisitCanvas: () => void
+  onClose: () => void
 }) {
+  const isPhone = useIsPhoneLayout()
   const [mounted, setMounted] = useState(false)
 
   useLayoutEffect(() => {
@@ -399,12 +490,49 @@ function ProfilePreviewFlyout({
 
   if (!mounted) return null
 
+  if (isPhone) {
+    return createPortal(
+      <motion.div
+        data-notification-profile-preview-scrim=""
+        className="ui-chrome-scrim notification-profile-preview-scrim"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={FLYOUT_TRANSITION}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 55,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: PHONE_CHROME_INSET,
+        }}
+        onClick={() => {
+          playSubmenuTap()
+          onClose()
+        }}
+      >
+        <ProfilePreviewCard
+          ref={cardRef}
+          profile={profile}
+          layout="phone-modal"
+          onVisitCanvas={onVisitCanvas}
+          onClose={onClose}
+        />
+      </motion.div>,
+      document.body,
+    )
+  }
+
   return createPortal(
     <ProfilePreviewCard
       ref={cardRef}
       profile={profile}
+      layout="desktop-flyout"
       coords={coords}
       onVisitCanvas={onVisitCanvas}
+      onClose={onClose}
     />,
     document.body,
   )
@@ -428,7 +556,7 @@ export function NotificationProfilePreviewScope({
   const cardRef = useRef<HTMLDivElement>(null)
   const openRef = useRef(false)
   const [openProfile, setOpenProfile] = useState<NotificationActorProfile | null>(null)
-  const [coords, setCoords] = useState({ top: 0, left: 0 })
+  const [coords, setCoords] = useState<PreviewCoords>({ top: 0, left: 0 })
   const updateCoords = useProfilePreviewCoords(activeAnchorRef, cardRef)
 
   const closeProfile = useCallback((opts?: ChromeMenuSoundOpts) => {
@@ -472,7 +600,9 @@ export function NotificationProfilePreviewScope({
     active: isActive,
     panelRef,
     onDismiss: dismissFromOutside,
-    isInside: (target) => !!target.closest('[data-notification-profile-preview]'),
+    isInside: (target) =>
+      !!target.closest('[data-notification-profile-preview]') ||
+      !!target.closest('[data-notification-profile-preview-scrim]'),
     dismissInsidePanel: openProfile !== null,
   })
 
@@ -527,6 +657,7 @@ export function NotificationProfilePreviewScope({
       <ActorProfileContext.Provider
         value={{
           openHandle: openProfile?.handle ?? null,
+          profilePreviewOpen: openProfile !== null,
           setAnchor,
           handleTriggerClick,
         }}
@@ -540,6 +671,7 @@ export function NotificationProfilePreviewScope({
             profile={openProfile}
             coords={coords}
             cardRef={cardRef}
+            onClose={closeProfile}
             onVisitCanvas={() => {
               onVisitCanvas?.(openProfile.handle)
               closeProfile()
@@ -564,7 +696,7 @@ export function NotificationActorProfileProvider({
   const cardRef = useRef<HTMLDivElement>(null)
   const openRef = useRef(false)
   const [open, setOpen] = useState(false)
-  const [coords, setCoords] = useState({ top: 0, left: 0 })
+  const [coords, setCoords] = useState<PreviewCoords>({ top: 0, left: 0 })
   const updateCoords = useProfilePreviewCoords(activeAnchorRef, cardRef)
 
   const closeProfile = useCallback((opts?: ChromeMenuSoundOpts) => {
@@ -648,6 +780,7 @@ export function NotificationActorProfileProvider({
     <ActorProfileContext.Provider
       value={{
         openHandle: open ? profile.handle : null,
+        profilePreviewOpen: open,
         setAnchor,
         handleTriggerClick: (_triggerProfile, e) => handleTriggerClick(e),
       }}
@@ -660,6 +793,7 @@ export function NotificationActorProfileProvider({
             profile={profile}
             coords={coords}
             cardRef={cardRef}
+            onClose={closeProfile}
             onVisitCanvas={() => {
               onVisitCanvas?.(profile.handle)
               closeProfile()

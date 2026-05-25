@@ -2,6 +2,8 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Eraser, Highlighter, Pen } from 'lucide-react'
+import { useIsPhoneLayout } from '../hooks/useLayoutProfile'
+import { useCanvasEditStore } from '../canvasEdit/canvasEditStore'
 import type { PenToolMenuState } from '../drawing/usePenToolMenu'
 import { pillScreenRect } from '../drawing/penToolMenuLayout'
 import type { ToolMode } from '../drawing/toolStore'
@@ -50,6 +52,8 @@ type Props = {
 }
 
 export default function PenToolPillMenu({ state }: Props) {
+  const isPhone = useIsPhoneLayout()
+  const canvasEditEnabled = useCanvasEditStore((s) => s.enabled)
   const [mounted, setMounted] = useState(false)
   const layoutRef = useRef(pillScreenRect(0, 0))
 
@@ -64,6 +68,7 @@ export default function PenToolPillMenu({ state }: Props) {
   }, [])
 
   if (!mounted) return null
+  if (isPhone && !canvasEditEnabled) return null
 
   return createPortal(
     <AnimatePresence initial={false}>

@@ -1,4 +1,5 @@
 import { isPhoneLayout } from '../platform/layoutProfile'
+import { useCanvasEditStore } from '../canvasEdit/canvasEditStore'
 import { useShortcutUiStore } from '../shortcuts/shortcutUiStore'
 import { useToolStore } from './toolStore'
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from './canvasDimensions'
@@ -30,6 +31,7 @@ export function isToolPaletteOpen(): boolean {
 
 /** Phone: pen FAB open — finger draws on canvas instead of panning. */
 export function isPhoneFingerDrawMode(): boolean {
+  if (isPhoneLayout() && !useCanvasEditStore.getState().enabled) return false
   return isPhoneLayout() && isToolPaletteOpen()
 }
 
@@ -82,6 +84,7 @@ export function isStylusTouch(touch: Touch): boolean {
 
 /** True when a new pointer down may start a canvas stroke. */
 export function canStartDrawingPointer(event: PointerEvent): boolean {
+  if (isPhoneLayout() && !useCanvasEditStore.getState().enabled) return false
   if (event.pointerType === 'pen') {
     noteStylusInput()
     return true

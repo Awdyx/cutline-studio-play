@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { Newspaper } from 'lucide-react'
 import { useIsPhoneLayout } from '../hooks/useLayoutProfile'
 import { CHROME_FROSTED_MENU_CLASS, CHROME_PRESERVE_CASE_CLASS, chromeFrostedMenuStyle, chromeLabel, font } from '../styles/tokens'
-import { phonePanelSheetStyle, phoneSubmenuSlideMotion } from '../styles/phoneChrome'
+import { phonePanelSheetStyle, phoneTopPanelSlideMotion, phoneTopPanelTransformOrigin, PHONE_TOP_PANEL_SCALE } from '../styles/phoneChrome'
 import { isSwapChromeMenuTarget } from './chromeMenuDismiss'
 import { partitionNewOld, PanelNewOldDivider } from './PanelNewOldDivider'
 import ChromeScrollFade from './ChromeScrollFade'
@@ -31,6 +31,24 @@ const panelTone = {
   tabInactive: font.colorMuted,
   rowHover: 'rgba(20, 30, 50, 0.04)',
 } as const
+
+/** Visual weight — higher layers read first; chrome recedes. */
+const opacity = {
+  title: 1,
+  subtitle: 0.68,
+  tabActive: 1,
+  tabInactive: 0.52,
+  meta: 0.46,
+  emptyIcon: 0.4,
+  emptyText: 0.62,
+} as const
+
+const metaStyle: React.CSSProperties = {
+  fontSize: 10,
+  fontWeight: 400,
+  letterSpacing: '0.04em',
+  color: font.colorMuted,
+}
 
 const cardBase: React.CSSProperties = {
   position: 'fixed',
@@ -88,10 +106,10 @@ function NewsRow({ post, onClick }: { post: NewsPost; onClick: () => void }) {
         {post.version && (
           <span
             style={{
-              fontSize: 10,
+              ...metaStyle,
               fontWeight: 700,
-              letterSpacing: '0.04em',
               color: 'var(--ui-accent)',
+              opacity: opacity.meta,
             }}
           >
             v{post.version}
@@ -99,11 +117,9 @@ function NewsRow({ post, onClick }: { post: NewsPost; onClick: () => void }) {
         )}
         <span
           style={{
-            fontSize: 10,
-            fontWeight: 600,
-            letterSpacing: '0.04em',
-            color: post.version ? font.colorMuted : 'var(--ui-accent)',
+            ...metaStyle,
             textTransform: 'lowercase',
+            opacity: opacity.meta,
           }}
         >
           {chromeLabel(categoryLabel[post.category])}
@@ -112,9 +128,12 @@ function NewsRow({ post, onClick }: { post: NewsPost; onClick: () => void }) {
           <span
             style={{
               marginLeft: 'auto',
-              fontSize: 12,
+              fontSize: 10,
+              fontWeight: 400,
+              letterSpacing: '0.04em',
               color: font.colorMuted,
               flexShrink: 0,
+              opacity: opacity.meta,
             }}
           >
             {post.date}
@@ -148,6 +167,7 @@ function NewsRow({ post, onClick }: { post: NewsPost; onClick: () => void }) {
                 fontSize: 13,
                 lineHeight: 1.45,
                 color: font.colorMuted,
+                opacity: opacity.subtitle,
                 marginBottom: 4,
               }}
             >
@@ -163,6 +183,7 @@ function NewsRow({ post, onClick }: { post: NewsPost; onClick: () => void }) {
               fontSize: 13,
               color: font.colorMuted,
               lineHeight: 1.45,
+              opacity: opacity.subtitle,
             }}
           >
             {post.summary}
@@ -235,7 +256,12 @@ export default function NewsPanel({
       ref={panelRef}
       className={`theme-surface ${CHROME_FROSTED_MENU_CLASS}`}
       style={{
-        ...(isPhone ? phonePanelSheetStyle(undefined, 'right') : cardBase),
+        ...(isPhone
+          ? {
+              ...phonePanelSheetStyle(undefined, 'right', PHONE_TOP_PANEL_SCALE),
+              transformOrigin: phoneTopPanelTransformOrigin,
+            }
+          : cardBase),
         ...chromeFrostedMenuStyle,
         fontFamily: font.family,
         color: font.colorPrimary,
@@ -244,7 +270,7 @@ export default function NewsPanel({
         flexDirection: 'column',
         overflow: 'hidden',
       }}
-      {...(isPhone ? phoneSubmenuSlideMotion : {
+      {...(isPhone ? phoneTopPanelSlideMotion : {
         initial: { opacity: 0, scale: 0.96, y: -4 },
         animate: { opacity: 1, scale: 1, y: 0 },
         exit: { opacity: 0, scale: 0.96, y: -4 },
@@ -266,6 +292,7 @@ export default function NewsPanel({
             fontSize: 12,
             color: font.colorMuted,
             lineHeight: 1.4,
+            opacity: opacity.subtitle,
           }}
         >
           {chromeLabel('Blogs, release notes, and product updates')}
@@ -295,11 +322,12 @@ export default function NewsPanel({
               padding: '6px 12px',
               cursor: 'pointer',
               fontSize: 13,
-              fontWeight: activeTab === key ? 600 : 400,
+              fontWeight: 400,
               color:
                 activeTab === key ? panelTone.tabActive : panelTone.tabInactive,
               fontFamily: font.family,
-              transition: 'color 150ms ease',
+              opacity: activeTab === key ? opacity.tabActive : opacity.tabInactive,
+              transition: 'color 150ms ease, opacity 150ms ease',
             }}
           >
             {chromeLabel(label)}

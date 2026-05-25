@@ -2,8 +2,10 @@ import { useState, type ReactNode, type RefObject } from 'react'
 import { Bell, Newspaper } from 'lucide-react'
 import type { ReactZoomPanPinchContentRef } from 'react-zoom-pan-pinch'
 import { useIsPhoneLayout } from '../hooks/useLayoutProfile'
-import { CHROME_GLASS_CLASS, CHROME_PRESERVE_CASE_CLASS, glass, font } from '../styles/tokens'
+import { CHROME_GLASS_CLASS, CHROME_PRESERVE_CASE_CLASS, CHROME_TAP_SQUEEZE_TARGET_CLASS, glass, font } from '../styles/tokens'
+import { PHONE_HEADER_ROW_GAP } from '../styles/phoneChrome'
 import CanvasSearchBar from './CanvasSearchBar'
+import ChromeTapSqueezeWrap from './ChromeTapSqueezeWrap'
 import UserAvatar from './UserAvatar'
 import type { ProfileMediaFrame } from '../profile/types'
 
@@ -37,7 +39,7 @@ export function BrandPill({ isOpen = false, onClick }: BrandPillProps) {
       aria-expanded={isOpen}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className={`theme-surface ${CHROME_GLASS_CLASS}`}
+      className={`${CHROME_TAP_SQUEEZE_TARGET_CLASS} theme-surface ${CHROME_GLASS_CLASS}`}
       style={{
         ...islandBase,
         gap: 8,
@@ -126,74 +128,81 @@ export function UserCluster({
 }: UserClusterProps) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: compact ? 6 : 8 }}>
-      <button
-        type="button"
-        onClick={onNewsClick}
-        aria-label={newsCount > 0 ? `News, ${newsCount} new` : 'News'}
-        data-panel-trigger="news"
-        className={`theme-surface ${CHROME_GLASS_CLASS}`}
-        style={{
-          ...islandBase,
-          background: glass.bg,
-          padding: 10,
-          cursor: 'pointer',
-        }}
-      >
-        <AttentionIcon active={newsCount > 0} origin="center center">
-          <Newspaper size={16} color="var(--ui-text)" strokeWidth={1.8} />
-        </AttentionIcon>
-      </button>
+      <ChromeTapSqueezeWrap compact>
+        <button
+          type="button"
+          onClick={onNewsClick}
+          aria-label={newsCount > 0 ? `News, ${newsCount} new` : 'News'}
+          data-panel-trigger="news"
+          className={`theme-surface ${CHROME_GLASS_CLASS}`}
+          style={{
+            ...islandBase,
+            background: glass.bg,
+            padding: 10,
+            cursor: 'pointer',
+          }}
+        >
+          <AttentionIcon active={newsCount > 0} origin="center center">
+            <Newspaper size={16} color="var(--ui-text)" strokeWidth={1.8} />
+          </AttentionIcon>
+        </button>
+      </ChromeTapSqueezeWrap>
 
-      <button
-        type="button"
-        onClick={onNotificationClick}
-        aria-label={
-          unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'
-        }
-        data-panel-trigger="notifications"
-        className={`theme-surface ${CHROME_GLASS_CLASS}`}
-        style={{
-          ...islandBase,
-          background: glass.bg,
-          padding: 10,
-          cursor: 'pointer',
-        }}
-      >
-        <AttentionIcon active={unreadCount > 0} origin="top center">
-          <Bell size={16} color="var(--ui-text)" strokeWidth={1.8} />
-        </AttentionIcon>
-      </button>
+      <ChromeTapSqueezeWrap compact>
+        <button
+          type="button"
+          onClick={onNotificationClick}
+          aria-label={
+            unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'
+          }
+          data-panel-trigger="notifications"
+          className={`theme-surface ${CHROME_GLASS_CLASS}`}
+          style={{
+            ...islandBase,
+            background: glass.bg,
+            padding: 10,
+            cursor: 'pointer',
+          }}
+        >
+          <AttentionIcon active={unreadCount > 0} origin="top center">
+            <Bell size={16} color="var(--ui-text)" strokeWidth={1.8} />
+          </AttentionIcon>
+        </button>
+      </ChromeTapSqueezeWrap>
 
-      <button
-        onClick={onProfileClick}
-        aria-label={`Profile: ${user.name}`}
-        data-panel-trigger="profile"
-        className={`theme-surface ${CHROME_GLASS_CLASS}`}
-        style={{
-          ...islandBase,
-          background: glass.bg,
-          gap: compact ? 0 : 8,
-          padding: compact ? 6 : '6px 12px 6px 8px',
-          cursor: 'pointer',
-        }}
-      >
-        <UserAvatar
-          displayName={user.name}
-          avatarColor={user.avatarColor}
-          avatarImageUrl={user.avatarImageUrl}
-          avatarFrame={user.avatarFrame}
-          size={compact ? 28 : 24}
-          fontSize={11}
-        />
-        {!compact && (
-          <span
-            className={CHROME_PRESERVE_CASE_CLASS}
-            style={{ fontSize: 14, fontWeight: 500, color: font.colorPrimary }}
-          >
-            {user.name}
-          </span>
-        )}
-      </button>
+      <ChromeTapSqueezeWrap compact={compact}>
+        <button
+          type="button"
+          onClick={onProfileClick}
+          aria-label={`Profile: ${user.name}`}
+          data-panel-trigger="profile"
+          className={`theme-surface ${CHROME_GLASS_CLASS}`}
+          style={{
+            ...islandBase,
+            background: glass.bg,
+            gap: compact ? 0 : 8,
+            padding: compact ? 6 : '6px 12px 6px 8px',
+            cursor: 'pointer',
+          }}
+        >
+          <UserAvatar
+            displayName={user.name}
+            avatarColor={user.avatarColor}
+            avatarImageUrl={user.avatarImageUrl}
+            avatarFrame={user.avatarFrame}
+            size={compact ? 28 : 24}
+            fontSize={11}
+          />
+          {!compact && (
+            <span
+              className={CHROME_PRESERVE_CASE_CLASS}
+              style={{ fontSize: 14, fontWeight: 500, color: font.colorPrimary }}
+            >
+              {user.name}
+            </span>
+          )}
+        </button>
+      </ChromeTapSqueezeWrap>
     </div>
   )
 }
@@ -239,7 +248,7 @@ export default function TopBar({
           right: 12,
           display: 'flex',
           flexDirection: 'column',
-          gap: 8,
+          gap: PHONE_HEADER_ROW_GAP,
           zIndex: 20,
           pointerEvents: 'none',
         }}

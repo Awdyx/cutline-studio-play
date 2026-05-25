@@ -4,6 +4,7 @@ import {
   syncLayoutProfileAttribute,
   type LayoutProfile,
 } from '../platform/layoutProfile'
+import { useCanvasEditStore } from '../canvasEdit/canvasEditStore'
 
 export function useLayoutProfile(): LayoutProfile {
   const [profile, setProfile] = useState<LayoutProfile>(() => {
@@ -17,6 +18,7 @@ export function useLayoutProfile(): LayoutProfile {
 
     function update() {
       setProfile(syncLayoutProfileAttribute())
+      useCanvasEditStore.getState().syncLayoutChrome()
     }
 
     narrowMq.addEventListener('change', update)

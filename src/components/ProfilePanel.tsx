@@ -1,9 +1,15 @@
-import { useCallback, useRef, useEffect, useState } from 'react'
+import { useCallback, useRef, useEffect, useLayoutEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { User, CreditCard, HelpCircle, LogOut } from 'lucide-react'
 import { useIsPhoneLayout } from '../hooks/useLayoutProfile'
-import { CHROME_FROSTED_MENU_CLASS, CHROME_PRESERVE_CASE_CLASS, chromeFrostedMenuStyle, chromeLabel, font, menuDividerStyle } from '../styles/tokens'
-import { phonePanelSheetStyle, phoneSubmenuSlideMotion } from '../styles/phoneChrome'
+import { CHROME_FROSTED_MENU_CLASS, CHROME_PRESERVE_CASE_CLASS, chromeFrostedMenuStyle, font, menuDividerStyle, phoneMenuDividerStyle } from '../styles/tokens'
+import {
+  phonePanelSheetStyle,
+  phoneTopMenuMaxHeight,
+  phoneTopPanelSlideMotion,
+  phoneTopPanelTransformOrigin,
+  PHONE_TOP_PANEL_SCALE,
+} from '../styles/phoneChrome'
 import { useProfileStore } from '../profile/profileStore'
 import type { UserProfile } from '../profile/types'
 import { isProfileFilePickerOpen } from '../profile/profileFilePickerSession'
@@ -13,9 +19,10 @@ import ProfileIdentityTags from './ProfileIdentityTags'
 import ProfileSocialPills from './ProfileSocialPills'
 import ProfileSubmenu from './ProfileSubmenu'
 import SubscriptionSubmenu from './SubscriptionSubmenu'
+import { MenuRow } from './MenuRow'
+import { SubmenuSoundScope } from './SubmenuSoundScope'
 import { useMenuOutsideDismiss } from './useMenuOutsideDismiss'
 import { useVisualViewportOffset } from '../platform/useVisualViewportOffset'
-import { playSubmenuHover, playSubmenuTap } from '../sound/submenuSound'
 
 type ProfileDestination = 'profile' | 'subscription' | 'help'
 type ProfileSubmenuId = 'profile' | 'subscription'
@@ -53,63 +60,6 @@ const NAV_ITEMS: {
   { icon: HelpCircle, label: 'Help & support', destination: 'help' },
 ]
 
-function NavRow({
-  icon: Icon,
-  label,
-  onClick,
-  danger = false,
-}: {
-  icon: React.ElementType
-  label: string
-  onClick: () => void
-  danger?: boolean
-}) {
-  const [hovered, setHovered] = useState(false)
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        playSubmenuTap()
-        onClick()
-      }}
-      onMouseEnter={() => {
-        setHovered(true)
-        playSubmenuHover()
-      }}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        width: '100%',
-        padding: '9px 16px',
-        background: hovered ? 'rgba(20, 30, 50, 0.04)' : 'transparent',
-        border: 'none',
-        cursor: 'pointer',
-        textAlign: 'left',
-        fontFamily: font.family,
-        transition: 'background 150ms ease',
-      }}
-    >
-      <Icon
-        size={15}
-        strokeWidth={1.8}
-        color={danger ? '#c0392b' : font.colorMuted}
-        style={{ flexShrink: 0 }}
-      />
-      <span
-        style={{
-          fontSize: 14,
-          fontWeight: 400,
-          color: danger ? '#c0392b' : font.colorPrimary,
-        }}
-      >
-        {chromeLabel(label)}
-      </span>
-    </button>
-  )
-}
-
 export default function ProfilePanel({
   isOpen,
   onClose,
@@ -120,6 +70,8 @@ export default function ProfilePanel({
 }: ProfilePanelProps) {
   const isPhone = useIsPhoneLayout()
   const panelRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const [phoneContentFillScale, setPhoneContentFillScale] = useState(1)
   const [openSubmenu, setOpenSubmenu] = useState<ProfileSubmenuId | null>(null)
   const [profileDraft, setProfileDraft] = useState<UserProfile | null>(null)
   const profile = useProfileStore((s) => s.profile)
@@ -143,6 +95,37 @@ export default function ProfilePanel({
     useShortcutUiStore.getState().registerProfileMenu({ closeSubmenus: closeAllSubmenus })
     return () => useShortcutUiStore.getState().registerProfileMenu(null)
   }, [closeAllSubmenus])
+
+  useLayoutEffect(() => {
+    if (!isPhone || !isOpen) return
+
+    const panel = panelRef.current
+    const content = contentRef.current
+    if (!panel || !content) return
+
+    const updateFillScale = () => {
+      const targetHeight = panel.clientHeight
+      const naturalHeight = content.scrollHeight
+      if (targetHeight <= 0 || naturalHeight <= 0) return
+
+      const nextScale = targetHeight / naturalHeight
+      setPhoneContentFillScale((prev) =>
+        Math.abs(prev - nextScale) < 0.004 ? prev : nextScale,
+      )
+    }
+
+    updateFillScale()
+    const observer = new ResizeObserver(updateFillScale)
+    observer.observe(panel)
+    observer.observe(content)
+    return () => observer.disconnect()
+  }, [
+    isOpen,
+    isPhone,
+    profile.displayName,
+    profile.handle,
+    profile.studentCohort,
+  ])
 
   const dismissFromOutside = useCallback(
     (target: Element) => {
@@ -170,6 +153,7 @@ export default function ProfilePanel({
     isInside: (target) =>
       isProfileFilePickerOpen() ||
       !!target.closest('[data-profile-submenu]') ||
+      !!target.closest('[data-phone-chrome-modal-scrim]') ||
       !!target.closest('[data-profile-save-bubble]') ||
       !!target.closest('[data-subscription-submenu]'),
     dismissInsidePanel: openSubmenu !== null,
@@ -194,6 +178,7 @@ export default function ProfilePanel({
     onNavigate(destination)
   }
 
+
   return (
     <>
       <motion.div
@@ -201,21 +186,48 @@ export default function ProfilePanel({
         className={`theme-surface ${CHROME_FROSTED_MENU_CLASS}`}
         style={{
           ...(isPhone
-            ? phonePanelSheetStyle(undefined, 'right')
+            ? {
+                ...phonePanelSheetStyle(
+                  {
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden',
+                    height: phoneTopMenuMaxHeight(PHONE_TOP_PANEL_SCALE),
+                  },
+                  'right',
+                  PHONE_TOP_PANEL_SCALE,
+                ),
+                transformOrigin: phoneTopPanelTransformOrigin,
+              }
             : { ...cardBase, top: PROFILE_PANEL_TOP + visualViewportOffsetTop }),
           ...chromeFrostedMenuStyle,
           fontFamily: font.family,
           color: font.colorPrimary,
           zIndex: 30,
-          overflow: isPhone ? 'auto' : 'hidden',
+          overflow: 'hidden',
         }}
-        {...(isPhone ? phoneSubmenuSlideMotion : {
+        {...(isPhone ? phoneTopPanelSlideMotion : {
           initial: { opacity: 0, scale: 0.96, y: -4 },
           animate: { opacity: 1, scale: 1, y: 0 },
           exit: { opacity: 0, scale: 0.96, y: -4 },
           transition: { duration: 0.18, ease: 'easeOut' },
         })}
       >
+        <div
+          ref={contentRef}
+          style={
+            isPhone
+              ? {
+                  position: 'absolute',
+                  top: 0,
+                  right: 0,
+                  width: `${100 / phoneContentFillScale}%`,
+                  transform: `scale(${phoneContentFillScale})`,
+                  transformOrigin: phoneTopPanelTransformOrigin,
+                }
+              : undefined
+          }
+        >
         <div data-profile-panel-header>
           <ProfileBannerHeader
             bannerImageUrl={profileDraft?.bannerImageUrl ?? profile.bannerImageUrl}
@@ -224,6 +236,10 @@ export default function ProfilePanel({
             avatarColor={profile.avatarColor}
             avatarImageUrl={profileDraft?.avatarImageUrl ?? profile.avatarImageUrl}
             avatarFrame={profileDraft?.avatarFrame ?? profile.avatarFrame}
+            bannerHeight={isPhone ? 48 : undefined}
+            avatarSize={isPhone ? 32 : undefined}
+            contentGap={isPhone ? 4 : undefined}
+            contentPaddingBottom={isPhone ? 6 : undefined}
             edgeToEdge
           >
             <div className={CHROME_PRESERVE_CASE_CLASS}>
@@ -231,8 +247,9 @@ export default function ProfilePanel({
                 displayName={profileDraft?.displayName ?? profile.displayName}
                 handle={profileDraft?.handle ?? profile.handle}
                 studentCohort={profile.studentCohort}
+                compact={isPhone}
               />
-              {(profileDraft?.bio ?? profile.bio) && (
+              {!isPhone && (profileDraft?.bio ?? profile.bio) && (
                 <p
                   style={{
                     margin: '16px 0 0',
@@ -244,28 +261,42 @@ export default function ProfilePanel({
                   {profileDraft?.bio ?? profile.bio}
                 </p>
               )}
-              <ProfileSocialPills socials={profileDraft?.socials ?? profile.socials} centered />
+              {!isPhone && (
+                <ProfileSocialPills socials={profileDraft?.socials ?? profile.socials} centered />
+              )}
             </div>
           </ProfileBannerHeader>
         </div>
 
-        <div style={menuDividerStyle} />
+        <div style={isPhone ? phoneMenuDividerStyle : menuDividerStyle} />
 
-        <div style={{ padding: '4px 0' }}>
-          {NAV_ITEMS.map(({ icon, label, destination }) => (
-            <NavRow
-              key={destination}
-              icon={icon}
-              label={label}
-              onClick={() => handleNav(destination)}
+        <SubmenuSoundScope>
+          <div style={{ padding: isPhone ? '2px 0' : '4px 0' }}>
+            {NAV_ITEMS.map(({ icon, label, destination }) => (
+              <MenuRow
+                key={destination}
+                icon={icon}
+                label={label}
+                inset
+                compact={isPhone}
+                onClick={() => handleNav(destination)}
+              />
+            ))}
+          </div>
+
+          <div style={isPhone ? phoneMenuDividerStyle : menuDividerStyle} />
+
+          <div style={{ padding: isPhone ? '2px 0 6px' : '4px 0 8px' }}>
+            <MenuRow
+              icon={LogOut}
+              label="Sign out"
+              inset
+              compact={isPhone}
+              destructive
+              onClick={onSignOut}
             />
-          ))}
-        </div>
-
-        <div style={menuDividerStyle} />
-
-        <div style={{ padding: '4px 0 8px' }}>
-          <NavRow icon={LogOut} label="Sign out" onClick={onSignOut} danger />
+          </div>
+        </SubmenuSoundScope>
         </div>
       </motion.div>
 

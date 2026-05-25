@@ -1,5 +1,6 @@
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { useCanvasNavigationStore } from '../canvas/canvasNavigationStore'
+import { canvasEditingAllowed } from '../canvasEdit/layer'
 import { primaryPointerReleased } from './canvasPointerSession'
 import { clientToCanvasFromElement } from '../drawing/canvasCoords'
 import { playSound } from '../sound/playSound'
@@ -70,7 +71,6 @@ function commitDragStart() {
   session.phase = 'dragging'
   const store = useCanvasItemsStore.getState()
   store.beginItemDrag(session.itemId)
-  store.raiseInPlane(session.itemId)
   playSound('itemGrab')
   startItemDragSound()
   useCanvasItemDragStore.setState({ activeItemId: session.itemId })
@@ -146,6 +146,7 @@ export function attachCanvasItemDragPointerDown(
   event: ReactPointerEvent<HTMLElement>,
   options?: { onReleaseWithoutDrag?: () => void },
 ) {
+  if (!canvasEditingAllowed()) return
   if (event.pointerType === 'pen') return
   if (event.pointerType === 'mouse' && event.button !== 0) return
   if (

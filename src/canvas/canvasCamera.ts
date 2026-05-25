@@ -1,4 +1,6 @@
 import type { ReactZoomPanPinchContentRef } from 'react-zoom-pan-pinch'
+import { isPhoneLayout } from '../platform/layoutProfile'
+import { PHONE_HEADER_BLOCK_HEIGHT } from '../styles/phoneChrome'
 import {
   CANVAS_HEIGHT,
   CANVAS_MAX_SCALE,
@@ -6,6 +8,178 @@ import {
   getCanvasMinScale,
 } from '../drawing/canvasDimensions'
 import type { SpaceCamera } from '../spaces/types'
+
+export type FocusItemRect = {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+export type FocusItemOptions = {
+  animationMs?: number
+  scale?: number
+  screenOffsetY?: number
+  /** Scale and pan so the full item fits in the viewport with padding. */
+  fit?: boolean
+  /** Eased pan with a slight arc (uses RAF; implies simultaneous scale when fit is set). */
+  curved?: boolean
+  fitPaddingX?: number
+  fitPaddingTop?: number
+  fitPaddingBottom?: number
+}
+
+const FOCUS_FIT_PADDING_X = 40
+const FOCUS_FIT_PADDING_TOP_DESKTOP = 56
+const FOCUS_FIT_PADDING_BOTTOM = 48
+const FOCUS_FIT_PHONE_HEADER_CLEARANCE = 16
+
+let activeFocusRaf: number | null = null
+
+export function cancelFocusItemAnimation(): void {
+  if (activeFocusRaf !== null) {
+    cancelAnimationFrame(activeFocusRaf)
+    activeFocusRaf = null
+  }
+}
+
+function easeInOutCubic(t: number): number {
+  const u = 1 - t
+  return 1 - u * u * u * u * u
+}
+
+function quadraticPoint(a: number, b: number, c: number, t: number): number {
+  const u = 1 - t
+  return u * u * a + 2 * u * t * b + t * t * c
+}
+
+function focusDurationMs(
+  start: SpaceCamera,
+  end: SpaceCamera,
+  requestedMs?: number,
+): number {
+  if (requestedMs != null) return requestedMs
+  const panDist = Math.hypot(end.positionX - start.positionX, end.positionY - start.positionY)
+  const scaleDelta = Math.abs(end.scale - start.scale)
+  return Math.min(720, Math.max(460, 400 + panDist * 0.06 + scaleDelta * 260))
+}
+
+function defaultFitPadding(): {
+  paddingX: number
+  paddingTop: number
+  paddingBottom: number
+} {
+  if (isPhoneLayout()) {
+    return {
+      paddingX: FOCUS_FIT_PADDING_X,
+      paddingTop:
+        PHONE_HEADER_BLOCK_HEIGHT +
+        FOCUS_FIT_PHONE_HEADER_CLEARANCE,
+      paddingBottom: FOCUS_FIT_PADDING_BOTTOM,
+    }
+  }
+  return {
+    paddingX: FOCUS_FIT_PADDING_X,
+    paddingTop: FOCUS_FIT_PADDING_TOP_DESKTOP,
+    paddingBottom: FOCUS_FIT_PADDING_BOTTOM,
+  }
+}
+
+/** Camera that fits an item inside the viewport with even padding. */
+export function computeCameraToFitItem(
+  ref: ReactZoomPanPinchContentRef,
+  item: FocusItemRect,
+  options?: Pick<
+    FocusItemOptions,
+    'fitPaddingX' | 'fitPaddingTop' | 'fitPaddingBottom' | 'screenOffsetY' | 'scale'
+  >,
+): SpaceCamera | null {
+  const size = wrapperSize(ref)
+  if (!size) return null
+
+  const padding = defaultFitPadding()
+  const paddingX = options?.fitPaddingX ?? padding.paddingX
+  const paddingTop = options?.fitPaddingTop ?? padding.paddingTop
+  const paddingBottom = options?.fitPaddingBottom ?? padding.paddingBottom
+  const screenOffsetY = options?.screenOffsetY ?? 0
+
+  const availW = Math.max(1, size.width - paddingX * 2)
+  const availH = Math.max(1, size.height - paddingTop - paddingBottom)
+  const fitScale = Math.min(availW / item.width, availH / item.height)
+
+  const minScale = getCanvasMinScale(size.width, size.height)
+  const scale =
+    options?.scale ??
+    Math.min(CANVAS_MAX_SCALE, Math.max(minScale, fitScale))
+
+  const viewCenterX = paddingX + availW / 2
+  const viewCenterY = paddingTop + availH / 2 + screenOffsetY
+  const cx = item.x + item.width / 2
+  const cy = item.y + item.height / 2
+
+  const bounds = canvasPanBoundsForScale(size.width, size.height, scale)
+  const { positionX, positionY } = clampPanPosition(
+    viewCenterX - cx * scale,
+    viewCenterY - cy * scale,
+    bounds,
+  )
+
+  return { positionX, positionY, scale }
+}
+
+function animateCameraTo(
+  ref: ReactZoomPanPinchContentRef,
+  target: SpaceCamera,
+  options?: { curved?: boolean; animationMs?: number },
+): void {
+  cancelFocusItemAnimation()
+  cancelLibraryAnimation(ref)
+
+  const start = readCameraFromRef(ref)
+  if (!start) return
+
+  const duration = focusDurationMs(start, target, options?.animationMs)
+  const startTime = performance.now()
+
+  const arcStrength = options?.curved
+    ? Math.min(120, Math.hypot(target.positionX - start.positionX, target.positionY - start.positionY) * 0.22)
+    : 0
+  const midX = (start.positionX + target.positionX) / 2
+  const midY = (start.positionY + target.positionY) / 2
+  const panDx = target.positionX - start.positionX
+  const panDy = target.positionY - start.positionY
+  const panLen = Math.hypot(panDx, panDy)
+  const perpX = panLen > 0 ? (-panDy / panLen) * arcStrength : 0
+  const perpY = panLen > 0 ? (panDx / panLen) * arcStrength : 0
+  const ctrlX = midX + perpX
+  const ctrlY = midY + perpY
+
+  const tick = (now: number) => {
+    const rawT = Math.min(1, (now - startTime) / duration)
+    const t = easeInOutCubic(rawT)
+    const nextScale = start.scale + (target.scale - start.scale) * t
+    const nextX = options?.curved
+      ? quadraticPoint(start.positionX, ctrlX, target.positionX, t)
+      : start.positionX + (target.positionX - start.positionX) * t
+    const nextY = options?.curved
+      ? quadraticPoint(start.positionY, ctrlY, target.positionY, t)
+      : start.positionY + (target.positionY - start.positionY) * t
+
+    ref.setTransform(nextX, nextY, nextScale, 0)
+
+    if (rawT < 1) {
+      activeFocusRaf = requestAnimationFrame(tick)
+      return
+    }
+
+    ref.setTransform(target.positionX, target.positionY, target.scale, 0)
+    syncLibraryBounds(ref)
+    clampToLibraryBounds(ref)
+    activeFocusRaf = null
+  }
+
+  activeFocusRaf = requestAnimationFrame(tick)
+}
 
 /** Trackpad pinch / modifier wheel step (matches react-zoom-pan-pinch smooth wheel). */
 export const CANVAS_WHEEL_ZOOM_STEP = 0.017
@@ -305,15 +479,25 @@ export function applyCameraToRef(
   clampToLibraryBounds(ref)
 }
 
-/** Pan the viewport so the item's center sits in the wrapper center. */
+/** Pan the viewport so the item is centered; optionally fit and animate with a curve. */
 export function focusItemOnCanvas(
   ref: ReactZoomPanPinchContentRef | null,
-  item: { x: number; y: number; width: number; height: number },
-  options?: { animationMs?: number; scale?: number; screenOffsetY?: number },
+  item: FocusItemRect,
+  options?: FocusItemOptions,
 ): void {
   if (!ref) return
   const size = wrapperSize(ref)
   if (!size) return
+
+  if (options?.fit) {
+    const target = computeCameraToFitItem(ref, item, options)
+    if (!target) return
+    animateCameraTo(ref, target, {
+      curved: options.curved,
+      animationMs: options.animationMs,
+    })
+    return
+  }
 
   const scale = options?.scale ?? ref.state.scale
   const cx = item.x + item.width / 2
@@ -328,6 +512,17 @@ export function focusItemOnCanvas(
     bounds,
   )
 
+  if (options?.curved) {
+    animateCameraTo(
+      ref,
+      { positionX, positionY, scale },
+      { curved: true, animationMs },
+    )
+    return
+  }
+
+  cancelFocusItemAnimation()
+  cancelLibraryAnimation(ref)
   ref.setTransform(positionX, positionY, scale, animationMs)
   syncLibraryBounds(ref)
 

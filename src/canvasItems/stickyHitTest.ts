@@ -2,16 +2,16 @@ import { effectiveCanvasLocked } from '../canvasLock/layer'
 import { useCanvasLockStore } from '../canvasLock/canvasLockStore'
 import { isAnnotationItem } from './canvasZOrder'
 import { useCanvasItemsStore } from './canvasItemsStore'
-import { isDrawableSurface, type CanvasItem, type DrawableSurfaceItem } from './types'
+import { isStickyItem, type CanvasItem, type StickyCanvasItem } from './types'
 
-function drawableHitTestOrder(a: DrawableSurfaceItem, b: DrawableSurfaceItem): number {
+function stickyHitTestOrder(a: StickyCanvasItem, b: StickyCanvasItem): number {
   const aAnn = isAnnotationItem(a) ? 1 : 0
   const bAnn = isAnnotationItem(b) ? 1 : 0
   if (aAnn !== bAnn) return bAnn - aAnn
   return b.zIndex - a.zIndex
 }
 
-/** Top-most sticky or study topic at canvas coordinates — used for pen routing. */
+/** Top-most sticky at canvas coordinates — used for pen routing. */
 export function hitTestStickyAtCanvasPoint(
   x: number,
   y: number,
@@ -19,24 +19,24 @@ export function hitTestStickyAtCanvasPoint(
 ): string | null {
   const list = items ?? useCanvasItemsStore.getState().items
   const isLocked = effectiveCanvasLocked(useCanvasLockStore.getState().isLocked)
-  const surfaces = list
-    .filter((item): item is DrawableSurfaceItem => {
-      if (!isDrawableSurface(item)) return false
-      // While locked, only temporary surfaces capture pen input; committed
+  const stickies = list
+    .filter((item): item is StickyCanvasItem => {
+      if (!isStickyItem(item)) return false
+      // While locked, only temporary stickies capture pen input; committed
       // ones are visual-only for drawing (ink uses annotation strokes).
       if (isLocked) return isAnnotationItem(item)
       return true
     })
-    .sort(drawableHitTestOrder)
+    .sort(stickyHitTestOrder)
 
-  for (const surface of surfaces) {
+  for (const sticky of stickies) {
     if (
-      x >= surface.x &&
-      x <= surface.x + surface.width &&
-      y >= surface.y &&
-      y <= surface.y + surface.height
+      x >= sticky.x &&
+      x <= sticky.x + sticky.width &&
+      y >= sticky.y &&
+      y <= sticky.y + sticky.height
     ) {
-      return surface.id
+      return sticky.id
     }
   }
   return null

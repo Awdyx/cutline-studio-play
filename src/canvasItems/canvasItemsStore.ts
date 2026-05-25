@@ -7,9 +7,11 @@ import {
   itemLayer,
   isItemFrozen,
   newItemLayer,
+  type CanvasLayer,
 } from '../canvasLock/layer'
 import { useCanvasLockStore } from '../canvasLock/canvasLockStore'
 import { ERASE_HIT_RADIUS, hitTestStroke } from '../drawing/eraseUtils'
+import { useStrokesStore } from '../drawing/strokesStore'
 import { generateStrokeId } from '../drawing/strokeId'
 import { strokeToSvgPath, ensureMinimumStrokePoints } from '../drawing/strokePath'
 import type { DrawTool, Stroke, StrokePoint } from '../drawing/types'
@@ -22,6 +24,7 @@ import {
   isAboveStrokes,
   isAnnotationItem,
   isBelowStrokes,
+  maxCommittedStrokeZ,
   nextZIndexForLayer,
   zIndexForBringToFront,
   zIndexForRaiseInPlane,
@@ -38,8 +41,7 @@ import {
   type CanvasItem,
   type ImageCanvasItem,
   type SpaceCanvasItem,
-  isDrawableSurface,
-  type DrawableSurfaceItem,
+  isStickyItem,
   type StickyCanvasItem,
   type StudyHubCanvasItem,
   type TextCanvasItem,
@@ -64,6 +66,11 @@ import {
   resolveItemTextAlignment,
 } from './textAlignment'
 import { isStoredTextEmpty } from './textEditorContent'
+
+function nextItemZIndex(items: CanvasItem[], layer: CanvasLayer): number {
+  const strokes = useStrokesStore.getState().strokes
+  return nextZIndexForLayer(items, layer, maxCommittedStrokeZ(strokes))
+}
 
 type StrokeConfig = {
   color: string
@@ -114,13 +121,19 @@ type CanvasItemsState = {
   previewAdjustSpaceId: string | null
   restoreSizingAnimatingId: string | null
   zOrderPulse: ZOrderPulse | null
+  /** Sole-selected item id that should not show the arrangement submenu (programmatic focus). */
+  zMenuSuppressedItemId: string | null
   /** Set when user spawns text; consumed on mount to focus editor once. */
   pendingEditorFocusId: string | null
   activeStickyStroke: { stickyId: string; stroke: Stroke } | null
   hydrate: () => void
   takePendingEditorFocus: (id: string) => boolean
   setSelectedIds: (ids: string[]) => void
-  selectItem: (id: string, additive?: boolean, options?: { allowFrozen?: boolean }) => void
+  selectItem: (
+    id: string,
+    additive?: boolean,
+    options?: { allowFrozen?: boolean; suppressZMenu?: boolean },
+  ) => void
   clearSelection: (opts?: { silent?: boolean }) => void
   selectAll: () => void
   deleteSelected: () => void
@@ -160,7 +173,7 @@ type CanvasItemsState = {
   setItemTextAlignment: (id: string, alignment: ItemTextAlignment) => void
   setPreviewAdjustSpace: (id: string | null) => void
   updateSpacePreviewPan: (id: string, pan: SpacePreviewPan) => void
-  getStickyById: (id: string) => DrawableSurfaceItem | undefined
+  getStickyById: (id: string) => StickyCanvasItem | undefined
   startStickyStroke: (stickyId: string, point: StrokePoint, config: StrokeConfig) => void
   addStickyStrokePoint: (point: StrokePoint) => void
   endStickyStroke: () => void
@@ -207,6 +220,16 @@ export function hasStudyHubForSubject(
 ): boolean {
   return items.some(
     (item) => item.type === 'study_hub' && item.subjectId === subjectId,
+  )
+}
+
+export function findStudyHubForSubject(
+  items: CanvasItem[],
+  subjectId: StudySubjectId,
+): StudyHubCanvasItem | undefined {
+  return items.find(
+    (item): item is StudyHubCanvasItem =>
+      item.type === 'study_hub' && item.subjectId === subjectId,
   )
 }
 
@@ -291,6 +314,7 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
   previewAdjustSpaceId: null,
   restoreSizingAnimatingId: null,
   zOrderPulse: null,
+  zMenuSuppressedItemId: null,
   pendingEditorFocusId: null,
   activeStickyStroke: null,
 
@@ -319,16 +343,31 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
       if (additive) {
         const has = state.selectedIds.includes(id)
         if (has) {
-          return { selectedIds: state.selectedIds.filter((x) => x !== id) }
+          return {
+            selectedIds: state.selectedIds.filter((x) => x !== id),
+            zMenuSuppressedItemId: null,
+          }
         }
         shouldPlay = true
-        return { selectedIds: [...state.selectedIds, id] }
+        return {
+          selectedIds: [...state.selectedIds, id],
+          zMenuSuppressedItemId: null,
+        }
       }
       if (state.selectedIds.length === 1 && state.selectedIds[0] === id) {
+        if (options?.suppressZMenu) {
+          return { zMenuSuppressedItemId: id }
+        }
+        if (state.zMenuSuppressedItemId === id) {
+          return { zMenuSuppressedItemId: null }
+        }
         return state
       }
       shouldPlay = true
-      return { selectedIds: [id] }
+      return {
+        selectedIds: [id],
+        zMenuSuppressedItemId: options?.suppressZMenu ? id : null,
+      }
     })
 
     const nextSelected = get().selectedIds
@@ -357,6 +396,7 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
     set({
       selectedIds: [],
       previewAdjustSpaceId: null,
+      zMenuSuppressedItemId: null,
     })
     flushActiveTextEditor()
     dismissEmptyTextItemsOnDeselect(get, set, prevSelected)
@@ -450,7 +490,7 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
       type: 'sticky',
       x: x - STICKY_WIDTH / 2,
       y: y - STICKY_HEIGHT / 2,
-      zIndex: nextZIndexForLayer(items, layer),
+      zIndex: nextItemZIndex(items, layer),
       width: STICKY_WIDTH,
       height: STICKY_HEIGHT,
       text: '',
@@ -476,7 +516,7 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
       type: 'text',
       x: x - TEXT_WIDTH / 2,
       y: y - TEXT_HEIGHT / 2,
-      zIndex: nextZIndexForLayer(items, layer),
+      zIndex: nextItemZIndex(items, layer),
       width: TEXT_WIDTH,
       height: TEXT_HEIGHT,
       text: '',
@@ -503,7 +543,7 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
       type: 'image',
       x: x - width / 2,
       y: y - height / 2,
-      zIndex: nextZIndexForLayer(items, layer),
+      zIndex: nextItemZIndex(items, layer),
       width,
       height,
       importWidth: width,
@@ -526,7 +566,7 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
       type: 'video',
       x: x - width / 2,
       y: y - height / 2,
-      zIndex: nextZIndexForLayer(items, layer),
+      zIndex: nextItemZIndex(items, layer),
       width,
       height,
       importWidth: width,
@@ -552,7 +592,7 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
       type: 'space',
       x: x - SPACE_WIDTH / 2,
       y: y - SPACE_HEIGHT / 2,
-      zIndex: nextZIndexForLayer(items, layer),
+      zIndex: nextItemZIndex(items, layer),
       width: SPACE_WIDTH,
       height: SPACE_HEIGHT,
       name: DEFAULT_SPACE_NAME,
@@ -586,7 +626,7 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
       type: 'study_hub',
       x: x - width / 2 + offset.x,
       y: y - height / 2 + offset.y,
-      zIndex: nextZIndexForLayer(items, layer),
+      zIndex: nextItemZIndex(items, layer),
       width,
       height,
       subjectId,
@@ -879,7 +919,7 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
 
   getStickyById: (id) => {
     const item = get().items.find((i) => i.id === id)
-    return item && isDrawableSurface(item) ? item : undefined
+    return item && isStickyItem(item) ? item : undefined
   },
 
   startStickyStroke: (stickyId, point, config) => {
@@ -910,7 +950,7 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
     let changed = false
     set((state) => {
       const items = state.items.map((item) => {
-        if (!isDrawableSurface(item)) return item
+        if (!isStickyItem(item)) return item
 
         const localX = canvasPos.x - item.x
         const localY = canvasPos.y - item.y
@@ -968,7 +1008,7 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
 
     set((state) => ({
       items: state.items.map((item) => {
-        if (item.id !== active.stickyId || !isDrawableSurface(item)) return item
+        if (item.id !== active.stickyId || !isStickyItem(item)) return item
         const onCommittedLayer = isLocked && itemLayer(item) === 'committed'
         if (onCommittedLayer) {
           const annotationStrokes = [...(item.annotationStrokes ?? []), completed]
@@ -1001,8 +1041,8 @@ type ItemsDerived = {
   liveCandidatesAbove: readonly CanvasItem[]
   /** All committed stickies, sorted by zIndex (used for annotation overlay search). */
   stickies: readonly StickyCanvasItem[]
-  /** Stickies + study topic widgets — drawable surfaces for pen routing overlays. */
-  drawableSurfaces: readonly DrawableSurfaceItem[]
+  /** Stickies — pen-routed surfaces for annotation overlays while flattened. */
+  drawableSurfaces: readonly StickyCanvasItem[]
 }
 
 const EMPTY_ITEMS_DERIVED: ItemsDerived = {
@@ -1039,13 +1079,13 @@ function deriveItems(items: readonly CanvasItem[]): ItemsDerived {
   const liveBelow: CanvasItem[] = []
   const liveAbove: CanvasItem[] = []
   const stickies: StickyCanvasItem[] = []
-  const drawableSurfaces: DrawableSurfaceItem[] = []
+  const drawableSurfaces: StickyCanvasItem[] = []
 
   for (const item of items) {
     itemsById.set(item.id, item)
 
     if (item.type === 'sticky') stickies.push(item)
-    if (isDrawableSurface(item)) drawableSurfaces.push(item)
+    if (item.type === 'sticky') drawableSurfaces.push(item)
 
     if (isAnnotationItem(item)) {
       annotation.push(item)
@@ -1141,7 +1181,7 @@ export function useStickies(): readonly StickyCanvasItem[] {
   return useCanvasItemsStore((s) => deriveItems(s.items).stickies)
 }
 
-export function useDrawableSurfaces(): readonly DrawableSurfaceItem[] {
+export function useDrawableSurfaces(): readonly StickyCanvasItem[] {
   return useCanvasItemsStore((s) => deriveItems(s.items).drawableSurfaces)
 }
 
