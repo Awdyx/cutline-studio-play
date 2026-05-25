@@ -7,7 +7,7 @@ alwaysApply: true
 
 The user works in `cutline-studio` and should never need to run git commands manually.
 
-When they say things like "push", "push my changes", "upload to github", or "ship it":
+When they say things like **"ship it"**, "push", "push my changes", "upload to github", or "ship it — commit and push everything":
 
 1. Commit any uncommitted changes in `cutline-studio` (use a clear message from the diff).
 2. Run `npm run push` from the `cutline-studio` directory.

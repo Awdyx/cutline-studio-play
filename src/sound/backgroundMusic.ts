@@ -7,7 +7,7 @@ import {
   setMusicOutputGainImmediate,
 } from './soundEngine'
 
-const MUSIC_SRC = '/audio/account-selection.mp3'
+const MUSIC_SRC = `${import.meta.env.BASE_URL}audio/account-selection.mp3`
 const INTRO_FADE_SEC = 8
 
 function deferHeavyWork(fn: () => void): void {
