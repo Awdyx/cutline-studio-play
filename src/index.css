@@ -2140,6 +2140,14 @@ html[data-ui-customize='1'][data-ui-prompt-hover]:not([data-ui-focused='1'])
     drop-shadow(0 0 6px rgba(255, 255, 255, 0.232));
 }
 
+/* Brand pill: −10% prompt-hover glow. */
+html[data-ui-customize='1'][data-ui-prompt-hover]:not([data-ui-focused='1'])
+  [data-ui-anchor='brand-pill'] {
+  filter: brightness(1.052)
+    drop-shadow(0 0 20px rgba(255, 255, 255, 0.166))
+    drop-shadow(0 0 6px rgba(255, 255, 255, 0.209));
+}
+
 /* Search bar: −20% prompt-hover glow (wide pill amplifies scale visually). */
 html[data-ui-customize='1'][data-ui-prompt-hover]:not([data-ui-focused='1'])
   [data-ui-anchor='search-bar'] {
@@ -2154,6 +2162,13 @@ html[data-theme='dark'][data-ui-customize='1'][data-ui-prompt-hover]:not([data-u
   filter: brightness(1.046)
     drop-shadow(0 0 20px rgba(255, 255, 255, 0.147))
     drop-shadow(0 0 6px rgba(255, 255, 255, 0.186));
+}
+
+html[data-theme='dark'][data-ui-customize='1'][data-ui-prompt-hover]:not([data-ui-focused='1'])
+  [data-ui-anchor='brand-pill'] {
+  filter: brightness(1.041)
+    drop-shadow(0 0 20px rgba(255, 255, 255, 0.132))
+    drop-shadow(0 0 6px rgba(255, 255, 255, 0.167));
 }
 
 html[data-theme='dark'][data-ui-customize='1'][data-ui-prompt-hover]:not([data-ui-focused='1'])
