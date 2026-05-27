@@ -5,7 +5,7 @@ import { Music, Music2, Volume2, VolumeX } from 'lucide-react'
 import { useIsPhoneLayout } from '../hooks/useLayoutProfile'
 import { CHROME_FROSTED_MENU_CLASS, chromeFrostedMenuStyle, font, menuDividerStyle } from '../styles/tokens'
 import { useSubmenuPosition } from './useSubmenuPosition'
-import { backgroundMusic } from '../sound/backgroundMusic'
+import { unlockAudioFromUserGesture } from '../sound/unlockAudio'
 import { playSubmenuTap, playSubmenuTapThen } from '../sound/submenuSound'
 import { useSoundStore } from '../sound/soundStore'
 import MenuToggleRow from './MenuToggleRow'
@@ -43,7 +43,7 @@ export default function SoundSubmenu({
 
   function handleMusicToggle(next: boolean) {
     setMusicEnabled(next)
-    if (next) backgroundMusic.unlock()
+    if (next) unlockAudioFromUserGesture()
   }
 
   if (!mounted) return null

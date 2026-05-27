@@ -1,6 +1,10 @@
 import { useEffect } from 'react'
+import { useCanvasItemsStore } from '../canvasItems/canvasItemsStore'
+import { useCanvasWorkspaceStore } from '../spaces/canvasWorkspaceStore'
 import { backgroundMusic } from '../sound/backgroundMusic'
+import { syncBackgroundMusicEnclosedAcoustics } from '../sound/backgroundMusicAcoustics'
 import { useSoundStore } from '../sound/soundStore'
+import { unlockAudioFromUserGesture } from '../sound/unlockAudio'
 
 export function useBackgroundMusic() {
   useEffect(() => {
@@ -11,6 +15,7 @@ export function useBackgroundMusic() {
     }
 
     backgroundMusic.preload()
+    syncBackgroundMusicEnclosedAcoustics()
 
     const startSync = () => sync()
     if (typeof requestIdleCallback === 'function') {
@@ -19,19 +24,27 @@ export function useBackgroundMusic() {
       setTimeout(startSync, 0)
     }
 
-    const unsub = useSoundStore.subscribe(sync)
+    const unsubSound = useSoundStore.subscribe(sync)
+    const unsubWorkspace = useCanvasWorkspaceStore.subscribe(() => {
+      syncBackgroundMusicEnclosedAcoustics()
+    })
+    const unsubStudyFocus = useCanvasItemsStore.subscribe(() => {
+      syncBackgroundMusicEnclosedAcoustics()
+    })
 
     function unlock() {
-      backgroundMusic.unlock()
+      unlockAudioFromUserGesture()
     }
 
-    document.addEventListener('pointerdown', unlock, { once: true })
-    document.addEventListener('keydown', unlock, { once: true })
+    document.addEventListener('pointerdown', unlock, { capture: true })
+    document.addEventListener('keydown', unlock, { capture: true })
 
     return () => {
-      unsub()
-      document.removeEventListener('pointerdown', unlock)
-      document.removeEventListener('keydown', unlock)
+      unsubSound()
+      unsubWorkspace()
+      unsubStudyFocus()
+      document.removeEventListener('pointerdown', unlock, { capture: true })
+      document.removeEventListener('keydown', unlock, { capture: true })
     }
   }, [])
 }

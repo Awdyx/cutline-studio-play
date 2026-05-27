@@ -432,8 +432,8 @@ html[data-ui-customize='1'] .chrome-tap-squeeze--pulse {
     rgba(0, 0, 0, 0.26) 70%,
     rgba(0, 0, 0, 0.5) 100%
   );
-  --menu-row-hover-bg: rgba(255, 255, 255, 0.11);
-  --menu-row-hover-fill: rgba(255, 255, 255, 0.11);
+  --menu-row-hover-bg: rgba(255, 255, 255, 0.05);
+  --menu-row-hover-fill: rgba(255, 255, 255, 0.05);
   --menu-row-active-bg: rgba(255, 255, 255, 0.13);
   --menu-row-tap-bg: rgba(255, 255, 255, 0.16);
   --menu-row-toggle-active-bg: rgba(255, 255, 255, 0.15);

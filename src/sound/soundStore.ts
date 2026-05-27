@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { backgroundMusic } from './backgroundMusic'
+import { unlockAudioFromUserGesture } from './unlockAudio'
 import { ensureAudioContext, setMasterOutputGain } from './soundEngine'
 import { SFX_ON_GAIN } from './soundLevels'
 import {
@@ -43,6 +44,7 @@ export const useSoundStore = create<SoundState>((set, get) => ({
     ensureAudioContext()
     applyOutputGain(loaded.muted)
     backgroundMusic.preload()
+    applyMusic(loaded.musicEnabled)
   },
 
   setMuted: (muted) => {
@@ -62,7 +64,7 @@ export const useSoundStore = create<SoundState>((set, get) => ({
     set({ musicEnabled })
     persist(get())
     applyMusic(musicEnabled)
-    if (musicEnabled) void backgroundMusic.unlock()
+    if (musicEnabled) unlockAudioFromUserGesture()
   },
 
   toggleMusicEnabled: () => {
@@ -70,6 +72,6 @@ export const useSoundStore = create<SoundState>((set, get) => ({
     set({ musicEnabled })
     persist(get())
     applyMusic(musicEnabled)
-    if (musicEnabled) void backgroundMusic.unlock()
+    if (musicEnabled) unlockAudioFromUserGesture()
   },
 }))

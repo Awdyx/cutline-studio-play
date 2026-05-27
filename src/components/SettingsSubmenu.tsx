@@ -16,7 +16,7 @@ import { useIsPhoneLayout } from '../hooks/useLayoutProfile'
 import { CHROME_FROSTED_MENU_CLASS, chromeFrostedMenuStyle, font } from '../styles/tokens'
 import type { ThemeMode } from '../theme/themeStore'
 import { useEffectiveMode } from '../theme/useEffectiveMode'
-import { backgroundMusic } from '../sound/backgroundMusic'
+import { unlockAudioFromUserGesture } from '../sound/unlockAudio'
 import { playSubmenuTap, playSubmenuTapThen } from '../sound/submenuSound'
 import { useSoundStore } from '../sound/soundStore'
 import { useCanvasEditStore } from '../canvasEdit/canvasEditStore'
@@ -129,7 +129,7 @@ export default function SettingsSubmenu({
     }
     setMuted(false)
     setMusicEnabled(true)
-    void backgroundMusic.unlock()
+    unlockAudioFromUserGesture()
     playSubmenuTap()
   }
 

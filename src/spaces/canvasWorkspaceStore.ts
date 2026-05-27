@@ -35,6 +35,7 @@ import {
 import { hardClampScale } from '../canvas/canvasZoomEdgeEase'
 import { getCanvasMinScale } from '../drawing/canvasDimensions'
 import { captureCanvasSnapshot } from './spaceSnapshot'
+import { syncBackgroundMusicEnclosedAcoustics } from '../sound/backgroundMusicAcoustics'
 import type { SpaceCanvasItem } from '../canvasItems/types'
 import {
   DEFAULT_SPACE_CAMERA,
@@ -178,6 +179,7 @@ function runCanvasSpaceSwap(
     canvasFadeOpacity: 1,
     canvasVeilOpacity: 0,
   })
+  syncBackgroundMusicEnclosedAcoustics()
 
   requestAnimationFrame(() => {
     set({ canvasFadeOpacity: 0, canvasVeilOpacity: 1 })
@@ -185,6 +187,7 @@ function runCanvasSpaceSwap(
 
   window.setTimeout(() => {
     performSwap()
+    syncBackgroundMusicEnclosedAcoustics()
 
     const revealEase =
       mode === 'exit'
@@ -208,6 +211,7 @@ function runCanvasSpaceSwap(
             canvasSwapSpaceId: null,
             canvasVeilOpacity: 0,
           })
+          syncBackgroundMusicEnclosedAcoustics()
         }, CANVAS_SWAP_FADE_IN_MS)
       })
     })
