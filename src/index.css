@@ -2026,6 +2026,30 @@ html[data-ui-customize='1']:not([data-ui-focused='1'])
     drop-shadow(0 0 6px rgba(255, 255, 255, 0.374));
 }
 
+/* Dark mode: −30% anchor hover glow (brightness lift + shadow opacity). */
+html[data-theme='dark'][data-ui-customize='1']:not([data-ui-focused='1'])
+  [data-ui-anchor]:hover {
+  filter: brightness(1.0655)
+    drop-shadow(0 0 20px rgba(255, 255, 255, 0.208))
+    drop-shadow(0 0 6px rgba(255, 255, 255, 0.262));
+}
+
+/* Search bar (dark mode): brighten placeholder with the hover glow. */
+html[data-theme='dark'][data-ui-customize='1']
+  [data-ui-anchor='search-bar']
+  [data-canvas-search-input]::placeholder {
+  transition:
+    color 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+html[data-theme='dark'][data-ui-customize='1']:not([data-ui-focused='1'])
+  [data-ui-anchor='search-bar']:hover
+  [data-canvas-search-input]::placeholder {
+  color: rgba(255, 255, 255, 0.75);
+  opacity: 1;
+}
+
 /* "tap a ui element" select-prompt pill — breathes the same hover glow
    continuously so it reads as interactive without being distracting. */
 @keyframes ui-select-prompt-glow {
@@ -2043,6 +2067,26 @@ html[data-ui-customize='1']:not([data-ui-focused='1'])
 
 html[data-ui-customize='1']:not([data-ui-focused='1']) [data-ui-select-prompt] {
   animation: ui-select-prompt-glow 3.2s ease-in-out infinite;
+}
+
+/* Dark mode: softer halo — white drop-shadows read harsh on dark chrome. */
+@keyframes ui-select-prompt-glow-dark {
+  0%, 100% {
+    filter: brightness(1.02)
+      drop-shadow(0 0 5px rgba(255, 255, 255, 0.07))
+      drop-shadow(0 0 2px rgba(255, 255, 255, 0.09));
+  }
+  50% {
+    filter: brightness(1.05)
+      drop-shadow(0 0 10px rgba(255, 255, 255, 0.12))
+      drop-shadow(0 0 4px rgba(255, 255, 255, 0.14));
+  }
+}
+
+html[data-theme='dark'][data-ui-customize='1']:not([data-ui-focused='1'])
+  [data-ui-select-prompt] {
+  animation: ui-select-prompt-glow-dark 3.2s ease-in-out infinite;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.38) !important;
 }
 
 /* ── Prompt click: anchors nudge subtly into the screen ────────────────── */
