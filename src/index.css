@@ -2071,7 +2071,7 @@ html[data-theme='dark'][data-ui-customize='1']:not([data-ui-focused='1'])
   opacity: 1;
 }
 
-/* "tap a ui element" select-prompt pill — breathes the same hover glow
+/* "tap a menu element" select-prompt pill — breathes the same hover glow
    continuously so it reads as interactive without being distracting. */
 @keyframes ui-select-prompt-glow {
   0%, 100% {
@@ -2135,36 +2135,32 @@ html[data-ui-customize='1'][data-ui-prompt-nudge] [data-ui-anchor='search-bar'] 
 /* ── Prompt hover: all anchors glow + backdrop darkens ─────────────────── */
 html[data-ui-customize='1'][data-ui-prompt-hover]:not([data-ui-focused='1'])
   [data-ui-anchor] {
-  filter: brightness(1.04)
-    drop-shadow(0 0 10px rgba(255, 255, 255, 0.13))
-    drop-shadow(0 0 3px rgba(255, 255, 255, 0.18));
+  filter: brightness(1.058)
+    drop-shadow(0 0 20px rgba(255, 255, 255, 0.184))
+    drop-shadow(0 0 6px rgba(255, 255, 255, 0.232));
 }
 
-/* News + notifications get the full-strength glow */
+/* Search bar: −20% prompt-hover glow (wide pill amplifies scale visually). */
 html[data-ui-customize='1'][data-ui-prompt-hover]:not([data-ui-focused='1'])
-  [data-ui-anchor='news'],
-html[data-ui-customize='1'][data-ui-prompt-hover]:not([data-ui-focused='1'])
-  [data-ui-anchor='notifications'] {
-  filter: brightness(1.0935)
-    drop-shadow(0 0 20px rgba(255, 255, 255, 0.297))
-    drop-shadow(0 0 6px rgba(255, 255, 255, 0.374));
+  [data-ui-anchor='search-bar'] {
+  filter: brightness(1.046)
+    drop-shadow(0 0 20px rgba(255, 255, 255, 0.147))
+    drop-shadow(0 0 6px rgba(255, 255, 255, 0.186));
 }
 
-/* Dark mode: −20% prompt-hover anchor glow. */
+/* Dark mode prompt-hover anchor glow. */
 html[data-theme='dark'][data-ui-customize='1'][data-ui-prompt-hover]:not([data-ui-focused='1'])
   [data-ui-anchor] {
-  filter: brightness(1.032)
-    drop-shadow(0 0 10px rgba(255, 255, 255, 0.104))
-    drop-shadow(0 0 3px rgba(255, 255, 255, 0.144));
+  filter: brightness(1.046)
+    drop-shadow(0 0 20px rgba(255, 255, 255, 0.147))
+    drop-shadow(0 0 6px rgba(255, 255, 255, 0.186));
 }
 
 html[data-theme='dark'][data-ui-customize='1'][data-ui-prompt-hover]:not([data-ui-focused='1'])
-  [data-ui-anchor='news'],
-html[data-theme='dark'][data-ui-customize='1'][data-ui-prompt-hover]:not([data-ui-focused='1'])
-  [data-ui-anchor='notifications'] {
-  filter: brightness(1.0748)
-    drop-shadow(0 0 20px rgba(255, 255, 255, 0.2376))
-    drop-shadow(0 0 6px rgba(255, 255, 255, 0.2992));
+  [data-ui-anchor='search-bar'] {
+  filter: brightness(1.037)
+    drop-shadow(0 0 20px rgba(255, 255, 255, 0.118))
+    drop-shadow(0 0 6px rgba(255, 255, 255, 0.148));
 }
 
 /* Extra dim layer on the backdrop when hovering the prompt pill */

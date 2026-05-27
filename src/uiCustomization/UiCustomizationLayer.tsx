@@ -750,7 +750,7 @@ export default function UiCustomizationLayer() {
                   }}
                 >
                   <Pencil size={14} strokeWidth={2} aria-hidden style={{ opacity: 0.7 }} />
-                  <span>tap a ui element to start editing</span>
+                  <span>tap a menu element to start customizing</span>
                 </div>
               </div>
             </motion.div>
