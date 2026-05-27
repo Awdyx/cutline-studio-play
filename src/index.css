@@ -2017,6 +2017,27 @@ html[data-ui-customize='1']:not([data-ui-focused='1'])
     drop-shadow(0 0 6px rgba(255, 255, 255, 0.19448));
 }
 
+/* Dark mode: −20% ambient anchor glow (brightness lift + shadow opacity). */
+html[data-theme='dark'][data-ui-customize='1']:not([data-ui-focused='1'])
+  [data-ui-anchor] {
+  filter: brightness(1.03)
+    drop-shadow(0 0 20px rgba(255, 255, 255, 0.095))
+    drop-shadow(0 0 6px rgba(255, 255, 255, 0.12));
+}
+
+html[data-theme='dark'][data-ui-customize='1']:not([data-ui-focused='1'])
+  [data-ui-anchor='pen-fab'],
+html[data-theme='dark'][data-ui-customize='1']:not([data-ui-focused='1'])
+  [data-ui-anchor='plus-fab'],
+html[data-theme='dark'][data-ui-customize='1']:not([data-ui-focused='1'])
+  [data-ui-anchor='news'],
+html[data-theme='dark'][data-ui-customize='1']:not([data-ui-focused='1'])
+  [data-ui-anchor='notifications'] {
+  filter: brightness(1.039)
+    drop-shadow(0 0 20px rgba(255, 255, 255, 0.124))
+    drop-shadow(0 0 6px rgba(255, 255, 255, 0.156));
+}
+
 /* Hover affordance in the "select an element" state — full-strength glow,
    no geometry change. Overrides the ambient glow above via :hover specificity. */
 html[data-ui-customize='1']:not([data-ui-focused='1'])
@@ -2029,9 +2050,9 @@ html[data-ui-customize='1']:not([data-ui-focused='1'])
 /* Dark mode: −30% anchor hover glow (brightness lift + shadow opacity). */
 html[data-theme='dark'][data-ui-customize='1']:not([data-ui-focused='1'])
   [data-ui-anchor]:hover {
-  filter: brightness(1.0655)
-    drop-shadow(0 0 20px rgba(255, 255, 255, 0.208))
-    drop-shadow(0 0 6px rgba(255, 255, 255, 0.262));
+  filter: brightness(1.0524)
+    drop-shadow(0 0 20px rgba(255, 255, 255, 0.1664))
+    drop-shadow(0 0 6px rgba(255, 255, 255, 0.2096));
 }
 
 /* Search bar (dark mode): brighten placeholder with the hover glow. */
@@ -2072,14 +2093,14 @@ html[data-ui-customize='1']:not([data-ui-focused='1']) [data-ui-select-prompt] {
 /* Dark mode: softer halo — white drop-shadows read harsh on dark chrome. */
 @keyframes ui-select-prompt-glow-dark {
   0%, 100% {
-    filter: brightness(1.02)
-      drop-shadow(0 0 5px rgba(255, 255, 255, 0.07))
-      drop-shadow(0 0 2px rgba(255, 255, 255, 0.09));
+    filter: brightness(1.016)
+      drop-shadow(0 0 5px rgba(255, 255, 255, 0.056))
+      drop-shadow(0 0 2px rgba(255, 255, 255, 0.072));
   }
   50% {
-    filter: brightness(1.05)
-      drop-shadow(0 0 10px rgba(255, 255, 255, 0.12))
-      drop-shadow(0 0 4px rgba(255, 255, 255, 0.14));
+    filter: brightness(1.04)
+      drop-shadow(0 0 10px rgba(255, 255, 255, 0.096))
+      drop-shadow(0 0 4px rgba(255, 255, 255, 0.112));
   }
 }
 
@@ -2127,6 +2148,23 @@ html[data-ui-customize='1'][data-ui-prompt-hover]:not([data-ui-focused='1'])
   filter: brightness(1.0935)
     drop-shadow(0 0 20px rgba(255, 255, 255, 0.297))
     drop-shadow(0 0 6px rgba(255, 255, 255, 0.374));
+}
+
+/* Dark mode: −20% prompt-hover anchor glow. */
+html[data-theme='dark'][data-ui-customize='1'][data-ui-prompt-hover]:not([data-ui-focused='1'])
+  [data-ui-anchor] {
+  filter: brightness(1.032)
+    drop-shadow(0 0 10px rgba(255, 255, 255, 0.104))
+    drop-shadow(0 0 3px rgba(255, 255, 255, 0.144));
+}
+
+html[data-theme='dark'][data-ui-customize='1'][data-ui-prompt-hover]:not([data-ui-focused='1'])
+  [data-ui-anchor='news'],
+html[data-theme='dark'][data-ui-customize='1'][data-ui-prompt-hover]:not([data-ui-focused='1'])
+  [data-ui-anchor='notifications'] {
+  filter: brightness(1.0748)
+    drop-shadow(0 0 20px rgba(255, 255, 255, 0.2376))
+    drop-shadow(0 0 6px rgba(255, 255, 255, 0.2992));
 }
 
 /* Extra dim layer on the backdrop when hovering the prompt pill */
