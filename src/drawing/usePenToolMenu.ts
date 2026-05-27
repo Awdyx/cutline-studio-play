@@ -3,7 +3,12 @@ import type { ReactZoomPanPinchContentRef } from 'react-zoom-pan-pinch'
 import { playSound } from '../sound/playSound'
 import { clientToCanvas } from './canvasCoords'
 import { isPenInput, isPenMenuPointer, noteStylusInput } from './penInput'
-import { hitTestPenToolPill } from './penToolMenuLayout'
+import {
+  hitTestPenToolPill,
+  isUiDrawCanvasTarget,
+  PEN_TOOL_ORDER,
+  UI_DRAW_PEN_TOOL_ORDER,
+} from './penToolMenuLayout'
 import { useShortcutUiStore } from '../shortcuts/shortcutUiStore'
 import { useStrokesStore } from './strokesStore'
 import { useToolStore, type ToolMode } from './toolStore'
@@ -31,6 +36,8 @@ export type PenToolMenuState = {
   anchorX: number
   anchorY: number
   hoveredTool: ToolMode | null
+  /** Tools shown in the pill — omits lasso on the UI customization draw canvas. */
+  toolOrder: ToolMode[]
 }
 
 const idleUi: PenToolMenuState = {
@@ -38,6 +45,7 @@ const idleUi: PenToolMenuState = {
   anchorX: 0,
   anchorY: 0,
   hoveredTool: null,
+  toolOrder: PEN_TOOL_ORDER,
 }
 
 type InternalPhase = 'idle' | 'pending' | 'open'
@@ -76,6 +84,7 @@ export function usePenToolMenu(
   const anchorRef = useRef({ x: 0, y: 0 })
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const graceUntilRef = useRef(0)
+  const toolOrderRef = useRef<ToolMode[]>(PEN_TOOL_ORDER)
   const bridgeRef = useRef<PenToolMenuBridge>(null!)
 
   const clearHoldTimer = () => {
@@ -110,10 +119,12 @@ export function usePenToolMenu(
       anchorX: x,
       anchorY: y,
       hoveredTool: null,
+      toolOrder: toolOrderRef.current,
     })
   }
 
-  const startPending = (clientX: number, clientY: number) => {
+  const startPending = (clientX: number, clientY: number, toolOrder: ToolMode[]) => {
+    toolOrderRef.current = toolOrder
     clearHoldTimer()
     anchorRef.current = { x: clientX, y: clientY }
     graceUntilRef.current = performance.now() + MOVE_GRACE_MS
@@ -148,7 +159,13 @@ export function usePenToolMenu(
 
   const updateHover = (clientX: number, clientY: number) => {
     const { x, y } = anchorRef.current
-    const hovered = hitTestPenToolPill(clientX, clientY, x, y)
+    const hovered = hitTestPenToolPill(
+      clientX,
+      clientY,
+      x,
+      y,
+      toolOrderRef.current,
+    )
     setState((prev) =>
       prev.hoveredTool === hovered ? prev : { ...prev, hoveredTool: hovered },
     )
@@ -156,7 +173,13 @@ export function usePenToolMenu(
 
   const finishOpenHold = (clientX: number, clientY: number) => {
     const { x, y } = anchorRef.current
-    const hovered = hitTestPenToolPill(clientX, clientY, x, y)
+    const hovered = hitTestPenToolPill(
+      clientX,
+      clientY,
+      x,
+      y,
+      toolOrderRef.current,
+    )
     if (hovered) {
       useToolStore.getState().setMode(hovered)
     }
@@ -181,7 +204,8 @@ export function usePenToolMenu(
     isMenuOpen: () => phaseRef.current === 'open',
 
     onPointerDown(e) {
-      if (!isPenMenuPointer(e)) return false
+      const uiDraw = isUiDrawCanvasTarget(e.target)
+      if (!uiDraw && !isPenMenuPointer(e)) return false
       if (isPenInput(e)) noteStylusInput()
       if (phaseRef.current === 'open') return false
 
@@ -196,17 +220,23 @@ export function usePenToolMenu(
         return false
       }
 
-      const canvas = clientToCanvas(e.clientX, e.clientY, transformRef)
-      if (!canvas) return false
+      if (!uiDraw) {
+        const canvas = clientToCanvas(e.clientX, e.clientY, transformRef)
+        if (!canvas) return false
+      }
 
       holdSourceRef.current = 'pointer'
       pointerIdRef.current = e.pointerId
-      startPending(e.clientX, e.clientY)
+      startPending(
+        e.clientX,
+        e.clientY,
+        uiDraw ? UI_DRAW_PEN_TOOL_ORDER : PEN_TOOL_ORDER,
+      )
       return false
     },
 
     onPointerMove(e) {
-      if (!isPenMenuPointer(e)) return false
+      if (!isPenMenuPointer(e) && phaseRef.current === 'idle') return false
       if (holdSourceRef.current === 'space') return false
       if (
         pointerIdRef.current !== null &&
@@ -222,7 +252,7 @@ export function usePenToolMenu(
     },
 
     onPointerUp(e) {
-      if (!isPenMenuPointer(e)) return false
+      if (!isPenMenuPointer(e) && phaseRef.current === 'idle') return false
       if (
         pointerIdRef.current !== null &&
         e.pointerId !== pointerIdRef.current
@@ -255,12 +285,17 @@ export function usePenToolMenu(
       if (phaseRef.current === 'open') return
       if (holdSourceRef.current === 'pointer') return
 
-      const canvas = clientToCanvas(clientX, clientY, transformRef)
-      if (!canvas) return
+      const el = document.elementFromPoint(clientX, clientY)
+      const uiDraw = isUiDrawCanvasTarget(el)
+
+      if (!uiDraw) {
+        const canvas = clientToCanvas(clientX, clientY, transformRef)
+        if (!canvas) return
+      }
 
       holdSourceRef.current = 'space'
       pointerIdRef.current = null
-      startPending(clientX, clientY)
+      startPending(clientX, clientY, uiDraw ? UI_DRAW_PEN_TOOL_ORDER : PEN_TOOL_ORDER)
     },
 
     moveSpaceHold(clientX, clientY) {

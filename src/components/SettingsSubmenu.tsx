@@ -52,6 +52,7 @@ interface SettingsSubmenuProps {
   onToggleCanvasLock: () => void
   showCanvasLock?: boolean
   onBack?: () => void
+  hideHints?: boolean
 }
 
 export default function SettingsSubmenu({
@@ -62,6 +63,7 @@ export default function SettingsSubmenu({
   onToggleCanvasLock,
   showCanvasLock = true,
   onBack,
+  hideHints = false,
 }: SettingsSubmenuProps) {
   const isPhone = useIsPhoneLayout()
   const [mounted, setMounted] = useState(false)
@@ -138,7 +140,7 @@ export default function SettingsSubmenu({
   if (!mounted) return null
 
   function hintRow(key: HintKey, children: ReactNode) {
-    if (isPhone) return <>{children}</>
+    if (isPhone || hideHints) return <>{children}</>
     return (
       <div
         onMouseEnter={(e) => startHint(key, e.currentTarget)}

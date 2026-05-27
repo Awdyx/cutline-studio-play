@@ -20,6 +20,7 @@ import type { StrokePoint } from './types'
 import { clientToCanvasFromElement } from './canvasCoords'
 import { useLassoStore } from './useLassoStore'
 import { isPointerOnCanvasItem } from '../canvas/canvasSelectionDismiss'
+import { isUiDrawCanvasTarget } from './penToolMenuLayout'
 
 const captureOpts = { capture: true } as const
 const capturePassiveOpts = { capture: true, passive: false } as const
@@ -260,6 +261,7 @@ export function useDrawing(
     }
 
     function isCanvasEventTarget(target: EventTarget | null): boolean {
+      if (isUiDrawCanvasTarget(target)) return true
       // Canvas DOM hit — always allow (covers items, mesh blobs, etc.).
       if (target instanceof Node && canvasEl.contains(target)) return true
       // Outside the canvas viewport (chrome UI: FABs, top bar, panels, menus)
@@ -312,6 +314,7 @@ export function useDrawing(
       if (isHandleTarget(event.target)) return
       if (penMenu()?.isMenuOpen()) return
       penMenu()?.onPointerDown(event)
+      if (isUiDrawCanvasTarget(event.target)) return
       if (!canStartDrawingPointer(event)) return
 
       const mode = useToolStore.getState().mode
@@ -453,6 +456,10 @@ export function useDrawing(
     canvasEl.addEventListener('pointercancel', releasePen, captureOpts)
 
     function onWindowPointerEnd(event: PointerEvent) {
+      if (penMenu()?.isActive()) {
+        releasePen(event)
+        return
+      }
       if (pointerPenActive && event.pointerId === activePointerId) {
         releasePen(event)
         return

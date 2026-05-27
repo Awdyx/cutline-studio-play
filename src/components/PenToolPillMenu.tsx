@@ -15,7 +15,7 @@ const ICON_STROKE = 2
 /** Thin physical ring behind the glyph (theme-colored via --pill-icon-halo). */
 const ICON_HALO_STROKE = 3
 
-const tools: { mode: ToolMode; Icon: typeof Pen; label: string }[] = [
+const TOOL_DEFS: { mode: ToolMode; Icon: typeof Pen; label: string }[] = [
   { mode: 'pen', Icon: Pen, label: 'Pen' },
   { mode: 'highlighter', Icon: Highlighter, label: 'Highlighter' },
   { mode: 'lasso', Icon: LassoIcon, label: 'Lasso' },
@@ -60,10 +60,13 @@ export default function PenToolPillMenu({ state }: Props) {
   const layoutRef = useRef(pillScreenRect(0, 0))
 
   if (state.phase === 'open') {
-    layoutRef.current = pillScreenRect(state.anchorX, state.anchorY)
+    layoutRef.current = pillScreenRect(state.anchorX, state.anchorY, state.toolOrder)
   }
 
   const { left, top, width, height } = layoutRef.current
+  const tools = state.toolOrder
+    .map((mode) => TOOL_DEFS.find((tool) => tool.mode === mode))
+    .filter((tool): tool is (typeof TOOL_DEFS)[number] => tool != null)
 
   useLayoutEffect(() => {
     setMounted(true)

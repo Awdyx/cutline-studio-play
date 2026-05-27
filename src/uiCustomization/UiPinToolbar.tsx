@@ -57,7 +57,7 @@ function RotateControl({ pin }: { pin: UiPin }) {
 
   const rotDrag = useDragControl({
     onDelta: (dx) => {
-      const next = ((pin.rotation + dx * 0.8) % 360 + 360) % 360
+      const next = ((pin.rotation - dx * 0.8) % 360 + 360) % 360
       const signed = next > 180 ? next - 360 : next
       rotatePin(pin.id, Math.round(signed))
     },

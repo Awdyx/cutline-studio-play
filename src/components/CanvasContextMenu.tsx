@@ -75,8 +75,22 @@ function clampMenuPosition(
 ) {
   const pad = VIEWPORT_PAD
   const leftOfCursor = clientX - menuWidth - MENU_GAP
-  const left =
-    leftOfCursor >= pad ? leftOfCursor : clientX + MENU_GAP_RIGHT
+  const rightOfCursor = clientX + MENU_GAP_RIGHT
+
+  // On touch devices (iPad) the preferred side follows which half of the screen
+  // was tapped — right of the tap on the left half (thumb-friendly), left of
+  // the tap on the right half.  Desktop always keeps the original left-side
+  // preference.  Both cases fall back to the opposite side when the preferred
+  // placement would overflow the viewport — preserving the existing edge-avoidance.
+  const isTouch = window.matchMedia('(pointer: coarse)').matches
+  const tapOnLeftHalf = clientX < window.innerWidth / 2
+  let left: number
+  if (isTouch && tapOnLeftHalf) {
+    const rightFits = rightOfCursor + menuWidth <= window.innerWidth - pad
+    left = rightFits ? rightOfCursor : leftOfCursor
+  } else {
+    left = leftOfCursor >= pad ? leftOfCursor : rightOfCursor
+  }
 
   let top = clientY - menuHeight / 2
   top = Math.min(

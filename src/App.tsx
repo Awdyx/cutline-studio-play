@@ -975,6 +975,7 @@ function App() {
             }}
             showCanvasLock={!isInsideSpace}
             onBack={() => setFloatingSettingsPos(null)}
+            hideHints
           />
         )}
       </AnimatePresence>

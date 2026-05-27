@@ -405,7 +405,6 @@ export function attachCanvasItemDragPointerDown(
   options?: { onReleaseWithoutDrag?: () => void },
 ) {
   if (!canvasEditingAllowed()) return
-  if (event.pointerType === 'pen') return
   if (event.pointerType === 'mouse' && event.button !== 0) return
   if (
     event.pointerType === 'touch' &&
