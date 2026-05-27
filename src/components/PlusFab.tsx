@@ -24,7 +24,7 @@ import { MAX_SPACE_WIDGETS } from '../canvasItems/types'
 import { MenuRow } from './MenuRow'
 import { SubmenuSoundScope } from './SubmenuSoundScope'
 import { useCanvasMeshPauseWhile } from '../canvas/useCanvasMeshPause'
-import WidgetsSubmenu from './widgets/WidgetsSubmenu'
+import { ComingSoonOverlay } from './ComingSoonOverlay'
 import { useMenuOutsideDismiss } from './useMenuOutsideDismiss'
 import StudySubjectMenuRow from './study/StudySubjectMenuRow'
 import { STUDY_SUBJECTS, type StudySubjectId } from './study/studyHubData'
@@ -95,7 +95,6 @@ function MainMenuContent({
   showSpaceOption,
   showCanvasEditSection,
   spaceWidgetCount,
-  widgetsAnchorRef,
 }: {
   onAddToCanvas: (type: CanvasAddType) => void
   onWidgetsClick: () => void
@@ -103,7 +102,6 @@ function MainMenuContent({
   showSpaceOption: boolean
   showCanvasEditSection: boolean
   spaceWidgetCount: number
-  widgetsAnchorRef: React.RefObject<HTMLDivElement | null>
 }) {
   const addItems = showSpaceOption
     ? ADD_TO_CANVAS_ITEMS
@@ -141,7 +139,7 @@ function MainMenuContent({
               onClick={() => onAddToCanvas(type)}
             />
           ))}
-          <div ref={widgetsAnchorRef} data-plus-fab-submenu-anchor="widgets" style={{ paddingBottom: 10 }}>
+          <div style={{ paddingBottom: 10 }}>
             <MenuRow
               icon={LayoutGrid}
               label="Widgets"
@@ -180,13 +178,12 @@ export default function PlusFab({
   const showCanvasEditSection = !isPhone || canvasEditEnabled
   const [isOpen, setIsOpen] = useState(false)
   const [fabHoverScale, setFabHoverScale] = useState(false)
-  const [widgetsSubmenuOpen, setWidgetsSubmenuOpen] = useState(false)
+  const [widgetsComingSoon, setWidgetsComingSoon] = useState(false)
   const spaceWidgetCount = useCanvasItemsStore((s) => countSpaceWidgets(s.items))
 
   const containerRef = useRef<HTMLDivElement>(null)
   const menuPanelRef = useRef<HTMLDivElement>(null)
   const menuContentRef = useRef<HTMLDivElement>(null)
-  const widgetsAnchorRef = useRef<HTMLDivElement>(null)
   const [menuShellHeight, setMenuShellHeight] = useState(440)
   const isOpenRef = useRef(isOpen)
   isOpenRef.current = isOpen
@@ -201,7 +198,6 @@ export default function PlusFab({
   function closeMenu(opts?: ChromeMenuSoundOpts) {
     if (!opts?.silent && isOpenRef.current) playSound('menuClose')
     setFabHoverScale(false)
-    setWidgetsSubmenuOpen(false)
     setIsOpen(false)
   }
 
@@ -227,7 +223,8 @@ export default function PlusFab({
   }
 
   function handleWidgetsClick() {
-    setWidgetsSubmenuOpen((o) => !o)
+    closeMenu({ silent: true })
+    setWidgetsComingSoon(true)
   }
 
   function handleStudySubjectClick(subject: StudySubjectId) {
@@ -241,10 +238,6 @@ export default function PlusFab({
     captureMenuShellHeight()
   }, [isOpen, showSpaceOption, showCanvasEditSection])
 
-  useEffect(() => {
-    if (showCanvasEditSection) return
-    setWidgetsSubmenuOpen(false)
-  }, [showCanvasEditSection])
 
   useEffect(() => {
     useShortcutUiStore.getState().registerPlusFab({
@@ -255,26 +248,15 @@ export default function PlusFab({
     return () => useShortcutUiStore.getState().registerPlusFab(null)
   }, [])
 
-  useEffect(() => {
-    if (!isOpen) setWidgetsSubmenuOpen(false)
-  }, [isOpen])
-
   useMenuOutsideDismiss({
     active: isOpen,
     panelRef: containerRef,
     onDismiss: (target) => {
-      if (target.closest('[data-plus-fab-submenu-anchor]')) return
-
-      if (containerRef.current?.contains(target)) {
-        setWidgetsSubmenuOpen(false)
-        return
-      }
-
-      setWidgetsSubmenuOpen(false)
+      if (containerRef.current?.contains(target)) return
       closeMenu()
     },
-    isInside: (target) => !!target.closest('[data-plus-fab-submenu]'),
-    dismissInsidePanel: widgetsSubmenuOpen,
+    isInside: () => false,
+    dismissInsidePanel: false,
   })
 
   useEffect(() => {
@@ -282,16 +264,12 @@ export default function PlusFab({
 
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key !== 'Escape') return
-      if (widgetsSubmenuOpen) {
-        setWidgetsSubmenuOpen(false)
-        return
-      }
       closeMenu()
     }
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, widgetsSubmenuOpen])
+  }, [isOpen])
 
   return (
     <div
@@ -337,7 +315,6 @@ export default function PlusFab({
                   showSpaceOption={showSpaceOption}
                   showCanvasEditSection={showCanvasEditSection}
                   spaceWidgetCount={spaceWidgetCount}
-                  widgetsAnchorRef={widgetsAnchorRef}
                 />
               </div>
             </SubmenuSoundScope>
@@ -345,14 +322,9 @@ export default function PlusFab({
         )}
       </AnimatePresence>
 
-      <AnimatePresence mode="sync">
-        {widgetsSubmenuOpen && showCanvasEditSection && (
-          <WidgetsSubmenu
-            key="widgets-submenu"
-            anchorRef={widgetsAnchorRef}
-            menuPanelRef={menuPanelRef}
-            onBack={() => setWidgetsSubmenuOpen(false)}
-          />
+      <AnimatePresence>
+        {widgetsComingSoon && (
+          <ComingSoonOverlay key="widgets-coming-soon" onDismiss={() => setWidgetsComingSoon(false)} />
         )}
       </AnimatePresence>
 

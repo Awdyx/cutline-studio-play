@@ -21,7 +21,7 @@ import { STUDY_SUBJECTS, type StudySubjectId } from './study/studyHubData'
 import { MenuRow } from './MenuRow'
 import { SubmenuSoundScope } from './SubmenuSoundScope'
 import { useMenuOutsideDismiss } from './useMenuOutsideDismiss'
-import WidgetsSubmenu from './widgets/WidgetsSubmenu'
+import { ComingSoonOverlay } from './ComingSoonOverlay'
 import {
   CHROME_FROSTED_MENU_CLASS,
   card,
@@ -127,9 +127,8 @@ export default function CanvasContextMenu({
   const clientY = useCanvasContextMenuStore((s) => s.clientY)
   const canvasX = useCanvasContextMenuStore((s) => s.canvasX)
   const canvasY = useCanvasContextMenuStore((s) => s.canvasY)
-  const widgetsOpen = useCanvasContextMenuStore((s) => s.widgetsOpen)
   const close = useCanvasContextMenuStore((s) => s.close)
-  const setWidgetsOpen = useCanvasContextMenuStore((s) => s.setWidgetsOpen)
+  const [widgetsComingSoon, setWidgetsComingSoon] = useState(false)
 
   const editingAllowed = useCanvasEditingAllowed()
   const spaceWidgetCount = useCanvasItemsStore((s) => countSpaceWidgets(s.items))
@@ -139,7 +138,6 @@ export default function CanvasContextMenu({
   )
   const panelRef = useRef<HTMLDivElement>(null)
   const menuPanelRef = useRef<HTMLDivElement>(null)
-  const widgetsAnchorRef = useRef<HTMLDivElement>(null)
   const [menuHeight, setMenuHeight] = useState(220)
   const [position, setPosition] = useState({ left: 0, top: 0 })
   const lastRowPointerYRef = useRef(0)
@@ -203,19 +201,11 @@ export default function CanvasContextMenu({
     active: open,
     panelRef,
     onDismiss: (target) => {
-      if (target.closest('[data-canvas-context-menu-anchor]')) {
-        setWidgetsOpen(false)
-        return
-      }
-      if (panelRef.current?.contains(target)) {
-        setWidgetsOpen(false)
-        return
-      }
-      setWidgetsOpen(false)
+      if (panelRef.current?.contains(target)) return
       handleClose()
     },
-    isInside: (target) => !!target.closest('[data-plus-fab-submenu]'),
-    dismissInsidePanel: widgetsOpen,
+    isInside: () => false,
+    dismissInsidePanel: false,
   })
 
   useEffect(() => {
@@ -234,16 +224,12 @@ export default function CanvasContextMenu({
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key !== 'Escape') return
-      if (widgetsOpen) {
-        setWidgetsOpen(false)
-        return
-      }
       handleClose()
     }
 
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [open, widgetsOpen, setWidgetsOpen])
+  }, [open])
 
   useEffect(() => {
     if (!open) {
@@ -338,19 +324,14 @@ export default function CanvasContextMenu({
                           onClick={() => handleAdd(type)}
                         />
                       ))}
-                      <div
-                        ref={widgetsAnchorRef}
-                        data-canvas-context-menu-anchor="widgets"
-                      >
-                        <MenuRow
-                          icon={LayoutGrid}
-                          label="Widgets"
-                          compact
-                          labelHoverScale
-                          noHoverFill
-                          onClick={() => setWidgetsOpen(!widgetsOpen)}
-                        />
-                      </div>
+                      <MenuRow
+                        icon={LayoutGrid}
+                        label="Widgets"
+                        compact
+                        labelHoverScale
+                        noHoverFill
+                        onClick={() => { handleClose({ silent: true }); setWidgetsComingSoon(true) }}
+                      />
                     </>
                   )}
               </div>
@@ -398,14 +379,9 @@ export default function CanvasContextMenu({
         )}
       </AnimatePresence>
 
-      <AnimatePresence mode="sync">
-        {open && !studyMenu && widgetsOpen && (
-          <WidgetsSubmenu
-            key="canvas-context-widgets-submenu"
-            anchorRef={widgetsAnchorRef}
-            menuPanelRef={menuPanelRef}
-            onBack={() => setWidgetsOpen(false)}
-          />
+      <AnimatePresence>
+        {widgetsComingSoon && (
+          <ComingSoonOverlay key="widgets-coming-soon" onDismiss={() => setWidgetsComingSoon(false)} />
         )}
       </AnimatePresence>
     </>,

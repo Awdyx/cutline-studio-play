@@ -116,8 +116,8 @@ export function MenuRow({
           aria-hidden
           style={{
             position: 'absolute',
-            top: 3,
-            bottom: 3,
+            top: 1,
+            bottom: 1,
             left: 6,
             right: 6,
             zIndex: -1,
@@ -140,8 +140,8 @@ export function MenuRow({
             transition={{ duration: 0.22, ease: 'easeOut' }}
             style={{
               position: 'absolute',
-              top: 3,
-              bottom: 3,
+              top: 1,
+              bottom: 1,
               left: inset ? 0 : 6,
               right: inset ? 0 : 6,
               zIndex: -1,
@@ -161,8 +161,8 @@ export function MenuRow({
           transition={{ duration: 1.25, ease: [0.45, 0, 0.55, 1] }}
           style={{
             position: 'absolute',
-            top: 3,
-            bottom: 3,
+            top: 1,
+            bottom: 1,
             left: inset ? 0 : 6,
             right: inset ? 0 : 6,
             zIndex: -1,
