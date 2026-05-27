@@ -173,7 +173,7 @@ export function BrandPill({ isOpen = false, onClick, fullWidth = false }: BrandP
           width: fullWidth ? '100%' : undefined,
           justifyContent: fullWidth ? 'center' : undefined,
           cursor: 'pointer',
-          transition: CHROME_SURFACE_BG_TRANSITION,
+          transition: editingUi ? undefined : CHROME_SURFACE_BG_TRANSITION,
           background: chromeGlassSurfaceBg({
             active: isOpen || holdOpen,
             hoverLift: showHoverBackground,
@@ -305,7 +305,7 @@ function ChromeIslandButton({
         ...islandBase,
         position: 'relative',
         cursor: 'pointer',
-        transition: CHROME_SURFACE_BG_TRANSITION,
+        transition: editingUi ? undefined : CHROME_SURFACE_BG_TRANSITION,
         background: chromeGlassSurfaceBg({ active, hoverLift }),
         ...islandStyle,
         ...style,

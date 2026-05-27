@@ -67,14 +67,15 @@ function applyAnchorFocus(anchorId: UiAnchorId | null) {
     return
   }
 
-  const prevTransition = el.style.transition
   el.style.transition = 'none'
   el.style.removeProperty('--ui-focus-tx')
   el.style.removeProperty('--ui-focus-ty')
   el.style.removeProperty('--ui-focus-scale')
   void el.offsetWidth
   const rect = el.getBoundingClientRect()
-  el.style.transition = prevTransition
+  // Drop inline transition so the stylesheet focus animation (transform 380ms)
+  // wins over any component hover-lift shorthand.
+  el.style.removeProperty('transition')
   void el.offsetWidth
 
   const tx = window.innerWidth / 2 - (rect.left + rect.width / 2)
@@ -451,9 +452,14 @@ export default function UiCustomizationLayer() {
     }
 
     const onUp = async (e: PointerEvent) => {
-      const over = overAnchorRef.current
       const hasMoved = ghostHasMovedRef.current
       const anchorId = focusedAnchorIdRef.current
+      // Re-evaluate position at the exact moment of release so that dragging
+      // back to the source area (tray) and releasing correctly dismisses even
+      // if overAnchorRef was not yet updated by a final pointermove.
+      const over = hasMoved && isPointerOverFocusedAnchor(e.clientX, e.clientY)
+      overAnchorRef.current = over
+      setOverAnchor(over)
 
       // Clear anchor hover attr
       document

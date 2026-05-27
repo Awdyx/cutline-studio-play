@@ -346,7 +346,7 @@ export default function PlusFab({
             isOpen ? 'chrome-fab-trigger--open' : ''
           } ${fabHoverScale ? 'chrome-fab-trigger--hover' : ''}`}
           style={{
-            transition: CHROME_SURFACE_BG_TRANSITION,
+            transition: editingUi ? undefined : CHROME_SURFACE_BG_TRANSITION,
             background: chromeGlassSurfaceBg({ active: isOpen, hoverLift: fabHoverLift }),
             border: glass.border,
             position: 'relative',

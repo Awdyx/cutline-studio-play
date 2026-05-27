@@ -214,7 +214,7 @@ export default function CanvasSearchBar({
         style={{
           ...islandBase,
           position: 'relative',
-          transition: CHROME_SURFACE_BG_TRANSITION,
+          transition: editingUi ? undefined : CHROME_SURFACE_BG_TRANSITION,
           background: chromeGlassSurfaceBg({ active: showDropdown, hoverLift }),
           gap: 8,
           padding: compact ? '8px 12px 8px 14px' : '8px 14px',

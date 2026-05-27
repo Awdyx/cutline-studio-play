@@ -638,6 +638,7 @@ function EmojiPickerCell({
       }}
       onClick={(e) => {
         e.stopPropagation()
+        if (useUiCustomizationStore.getState().pinDrag) return
         onPick(emoji.emoji)
       }}
       style={{
@@ -712,6 +713,15 @@ function DraggableImage({
   const my = useMotionValue(pos.y)
   const imgW = Math.round(IMG_H * Math.min(Math.max(img.aspect, 0.5), 2.8))
 
+  // When this specific image is being pin-dragged to a UI anchor, hide the
+  // original so only the ghost is visible — giving the feel of picking it up
+  // rather than creating a copy.
+  const pinDrag = useUiCustomizationStore((s) => s.pinDrag)
+  const isPinDragged =
+    pinDrag != null &&
+    pinDrag.asset.kind === 'image' &&
+    (pinDrag.asset as { kind: 'image'; mediaId: string }).mediaId === img.mediaId
+
   // Spring to new position when nudged by external state changes
   useEffect(() => {
     animate(mx, pos.x, { type: 'spring', stiffness: 320, damping: 28 })
@@ -720,7 +730,7 @@ function DraggableImage({
 
   return (
     <motion.div
-      drag
+      drag={!isPinDragged}
       dragMomentum={false}
       dragElastic={0.06}
       dragConstraints={containerRef}
@@ -737,15 +747,19 @@ function DraggableImage({
         border: '1px solid var(--glass-border)',
         background: 'rgba(20, 30, 50, 0.04)',
         boxShadow: '0 2px 10px rgba(0,0,0,0.13)',
-        cursor: 'grab',
+        cursor: isPinDragged ? 'grabbing' : 'grab',
         touchAction: 'none',
       }}
-      whileDrag={{ scale: 1.05, boxShadow: '0 10px 28px rgba(0,0,0,0.22)', zIndex: 20, cursor: 'grabbing' }}
+      whileDrag={isPinDragged ? {} : { scale: 1.05, boxShadow: '0 10px 28px rgba(0,0,0,0.22)', zIndex: 20, cursor: 'grabbing' }}
       initial={{ scale: 0.5, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
+      animate={isPinDragged ? { scale: 0.88, opacity: 0 } : { scale: 1, opacity: 1 }}
       exit={{ scale: 0.5, opacity: 0 }}
       transition={{ type: 'spring', stiffness: 380, damping: 26, mass: 0.7 }}
-      onClick={(e) => { e.stopPropagation(); onPick(img) }}
+      onClick={(e) => {
+        e.stopPropagation()
+        if (useUiCustomizationStore.getState().pinDrag) return
+        onPick(img)
+      }}
       onPointerDown={(e) => { e.stopPropagation(); onDragStart(img, e.clientX, e.clientY) }}
       onDragEnd={() => onDragEnd(img.id, mx.get(), my.get())}
     >
@@ -1183,7 +1197,15 @@ function KlipyMediaGrid({
                   type="button"
                   aria-label="Add to UI element"
                   onPointerDown={(e) => { e.stopPropagation(); onDragStartGif(item, e.clientX, e.clientY) }}
-                  onClick={(e) => { e.stopPropagation(); onPickGif(item) }}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    // If a drag gesture was in progress, pinDrag is still set
+                    // (endPinDrag is deferred until the dismiss animation finishes).
+                    // On a plain tap, endPinDrag runs synchronously before click
+                    // fires so pinDrag is null — tap-to-add still works normally.
+                    if (useUiCustomizationStore.getState().pinDrag) return
+                    onPickGif(item)
+                  }}
                   style={{
                     position: 'relative',
                     width: '100%',
@@ -1853,7 +1875,7 @@ function DrawTab({
           display: 'flex',
           alignItems: 'center',
           borderRadius: 16,
-          background: 'rgba(255,255,255,0.45)',
+          background: 'var(--glass-bg)',
           border: '1px solid var(--glass-border)',
           padding: '6px 8px',
           gap: 4,
