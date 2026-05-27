@@ -40,10 +40,10 @@ export function ShortcutKeycaps({
               fontWeight: 600,
               fontFamily: font.family,
               color: font.colorPrimary,
-              background: 'rgba(255, 255, 255, 0.35)',
-              border: '1px solid rgba(20, 30, 50, 0.1)',
+              background: 'var(--keycap-bg)',
+              border: '1px solid var(--keycap-border)',
               borderRadius: 6,
-              boxShadow: '0 1px 0 rgba(20, 30, 50, 0.06)',
+              boxShadow: 'var(--keycap-shadow)',
               lineHeight: 1.2,
             }}
           >

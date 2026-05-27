@@ -3,6 +3,7 @@ import { AnimatePresence, motion, useAnimate } from 'framer-motion'
 import { CHROME_GLASS_CLASS, chromeLabel, font, glass } from '../styles/tokens'
 import { useShortcutUiStore } from '../shortcuts/shortcutUiStore'
 import { ShortcutKeycaps } from './ShortcutKeycaps'
+import { effectiveDisplayKeys } from '../shortcuts/shortcutCustomStore'
 
 const DEFAULT_HOLD_MS = 1200
 
@@ -76,7 +77,7 @@ export default function ActionToast() {
             <span style={{ fontSize: 13, fontWeight: 500, color: font.colorPrimary }}>
               {chromeLabel(toast.label)}
             </span>
-            <ShortcutKeycaps keys={toast.keys} size="sm" />
+            <ShortcutKeycaps keys={effectiveDisplayKeys(toast.shortcutId)} size="sm" />
           </div>
         </motion.div>
       )}

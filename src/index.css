@@ -409,6 +409,9 @@ html[data-ui-customize='1'] .chrome-tap-squeeze--pulse {
   --menu-row-toggle-active-bg: rgba(20, 30, 50, 0.1);
   --menu-row-destructive-hover: rgba(196, 78, 78, 0.064);
   --menu-row-destructive-tap: rgba(196, 78, 78, 0.1);
+  --keycap-bg: rgba(255, 255, 255, 0.35);
+  --keycap-border: rgba(20, 30, 50, 0.1);
+  --keycap-shadow: 0 1px 0 rgba(20, 30, 50, 0.06);
   --cursor-default: url('/cursors/default.svg') 2 2, default;
   /* Flat dim — applied to the backdrop layer. Stays uniform whether or not
      an anchor is focused. */
@@ -439,6 +442,9 @@ html[data-ui-customize='1'] .chrome-tap-squeeze--pulse {
   --menu-row-toggle-active-bg: rgba(255, 255, 255, 0.15);
   --menu-row-destructive-hover: rgba(255, 110, 110, 0.14);
   --menu-row-destructive-tap: rgba(255, 110, 110, 0.2);
+  --keycap-bg: rgba(255, 255, 255, 0.10);
+  --keycap-border: rgba(255, 255, 255, 0.12);
+  --keycap-shadow: 0 1px 0 rgba(0, 0, 0, 0.22);
 }
 
 .profile-cohort-pill {

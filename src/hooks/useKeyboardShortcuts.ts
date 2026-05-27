@@ -15,14 +15,20 @@ import { SHORTCUTS_BY_ID } from '../shortcuts/shortcutDefs'
 import { modKeyEvent } from '../shortcuts/modKey'
 import { useShortcutUiStore } from '../shortcuts/shortcutUiStore'
 import { useUiCustomizationStore } from '../uiCustomization/uiCustomizationStore'
+import {
+  effectiveDisplayKeys,
+  matchesShortcut,
+  useShortcutCustomStore,
+  comboMatchesEvent,
+} from '../shortcuts/shortcutCustomStore'
 
-/** Map cmd+digit → study hub subject id */
-const STUDY_HUB_DIGIT_MAP: Record<string, string> = {
-  '1': 'hubs',
-  '2': 'cels',
-  '3': 'chem',
-  '4': 'phsi',
-}
+/** Map shortcut id → study hub subject id */
+const STUDY_HUB_SHORTCUTS: { id: string; subjectId: string }[] = [
+  { id: 'study-hub-1', subjectId: 'hubs' },
+  { id: 'study-hub-2', subjectId: 'cels' },
+  { id: 'study-hub-3', subjectId: 'chem' },
+  { id: 'study-hub-4', subjectId: 'phsi' },
+]
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
@@ -46,23 +52,18 @@ function fireToast(shortcutId: string) {
   useShortcutUiStore.getState().showActionToast({
     shortcutId,
     label: def.label,
-    keys: def.keys,
+    keys: effectiveDisplayKeys(shortcutId),
     icon: def.icon,
   })
 }
 
-const DRAW_TOOL_KEYS: Record<string, { mode: ToolMode; shortcutId: string }> = {
-  d: { mode: 'pen', shortcutId: 'draw-pen-d' },
-  D: { mode: 'pen', shortcutId: 'draw-pen-d' },
-  p: { mode: 'pen', shortcutId: 'draw-pen' },
-  P: { mode: 'pen', shortcutId: 'draw-pen' },
-  h: { mode: 'highlighter', shortcutId: 'draw-highlighter' },
-  H: { mode: 'highlighter', shortcutId: 'draw-highlighter' },
-  e: { mode: 'erase', shortcutId: 'draw-eraser' },
-  E: { mode: 'erase', shortcutId: 'draw-eraser' },
-  l: { mode: 'lasso', shortcutId: 'draw-lasso' },
-  L: { mode: 'lasso', shortcutId: 'draw-lasso' },
-}
+const DRAW_SHORTCUT_MODES: { id: string; mode: ToolMode }[] = [
+  { id: 'draw-pen', mode: 'pen' },
+  { id: 'draw-pen-d', mode: 'pen' },
+  { id: 'draw-highlighter', mode: 'highlighter' },
+  { id: 'draw-eraser', mode: 'erase' },
+  { id: 'draw-lasso', mode: 'lasso' },
+]
 
 function openToolPaletteAndSetMode(mode: ToolMode, shortcutId: string) {
   const ui = useShortcutUiStore.getState()
@@ -89,14 +90,16 @@ function openToolPaletteAndSetMode(mode: ToolMode, shortcutId: string) {
   fireToast(shortcutId)
 }
 
-function handleDesktopDrawToolShortcut(key: string): boolean {
+function handleDesktopDrawToolShortcut(e: KeyboardEvent): boolean {
   if (isPhoneLayout()) return false
 
-  const mapping = DRAW_TOOL_KEYS[key]
-  if (!mapping) return false
-
-  openToolPaletteAndSetMode(mapping.mode, mapping.shortcutId)
-  return true
+  for (const { id, mode } of DRAW_SHORTCUT_MODES) {
+    if (matchesShortcut(e, id)) {
+      openToolPaletteAndSetMode(mode, id)
+      return true
+    }
+  }
+  return false
 }
 
 function handleEscape(
@@ -168,17 +171,16 @@ export function useKeyboardShortcuts(
       const mod = modKeyEvent(e)
 
       if (e.key === 'Escape') {
-        if (
-          handleEscape(openPanel, closePanel, transformRef)
-        ) {
+        if (handleEscape(openPanel, closePanel, transformRef)) {
           e.preventDefault()
         }
         return
       }
 
       if (editable) {
+        // Let browser handle undo/redo in text fields even if the shortcut is overridden
         if (mod && (e.key === 'z' || e.key === 'Z')) return
-        if (mod && (e.key === 'f' || e.key === 'F')) {
+        if (matchesShortcut(e, 'find')) {
           e.preventDefault()
           useShortcutUiStore.getState().canvasSearch?.focus()
           return
@@ -186,27 +188,34 @@ export function useKeyboardShortcuts(
         return
       }
 
-      if (mod && (e.key === 'z' || e.key === 'Z')) {
+      // ── Undo / Redo ───────────────────────────────────────────────────────
+      if (matchesShortcut(e, 'redo')) {
         e.preventDefault()
-        if (e.shiftKey) {
-          if (redo()) fireToast('redo')
-        } else {
-          // If the lasso just had its selection cleared, restore it instead of
-          // consuming a canvas undo step.
-          if (!e.shiftKey && useLassoStore.getState().undoClearSelection()) return
-          if (undo()) fireToast('undo')
-        }
+        if (redo()) fireToast('redo')
         return
       }
 
-      if (mod && (e.key === 'd' || e.key === 'D')) {
+      if (matchesShortcut(e, 'undo')) {
+        e.preventDefault()
+        if (useLassoStore.getState().undoClearSelection()) return
+        if (undo()) fireToast('undo')
+        return
+      }
+
+      // ── Duplicate ─────────────────────────────────────────────────────────
+      if (matchesShortcut(e, 'duplicate')) {
         e.preventDefault()
         useCanvasItemsStore.getState().duplicateSelected()
         fireToast('duplicate')
         return
       }
 
-      if (e.key === 'Delete' || e.key === 'Backspace') {
+      // ── Delete ────────────────────────────────────────────────────────────
+      const deleteOverride = useShortcutCustomStore.getState().overrides['delete']
+      const isDelete = deleteOverride
+        ? comboMatchesEvent(deleteOverride, e)
+        : (!modKeyEvent(e) && !e.shiftKey && !e.altKey && (e.key === 'Delete' || e.key === 'Backspace'))
+      if (isDelete) {
         const { selectedIds } = useCanvasItemsStore.getState()
         if (selectedIds.length > 0) {
           e.preventDefault()
@@ -216,7 +225,8 @@ export function useKeyboardShortcuts(
         return
       }
 
-      if (mod && (e.key === 'l' || e.key === 'L')) {
+      // ── Canvas lock ───────────────────────────────────────────────────────
+      if (matchesShortcut(e, 'toggle-lock')) {
         const onMain = useCanvasWorkspaceStore.getState().isOnMainCanvas()
         if (!onMain) return
         e.preventDefault()
@@ -230,7 +240,8 @@ export function useKeyboardShortcuts(
         return
       }
 
-      if (mod && (e.key === 'k' || e.key === 'K')) {
+      // ── Add to canvas (FAB) ───────────────────────────────────────────────
+      if (matchesShortcut(e, 'open-fab')) {
         e.preventDefault()
         const fab = useShortcutUiStore.getState().plusFab
         if (fab?.isOpen()) fab.close()
@@ -238,28 +249,29 @@ export function useKeyboardShortcuts(
         return
       }
 
-      if (mod && (e.key === 'f' || e.key === 'F')) {
+      // ── Search canvas ─────────────────────────────────────────────────────
+      if (matchesShortcut(e, 'find')) {
         e.preventDefault()
         useShortcutUiStore.getState().canvasSearch?.focus()
         return
       }
 
       // ── Create shortcuts ──────────────────────────────────────────────────
-      if (mod && !e.shiftKey && (e.key === 'e' || e.key === 'E')) {
+      if (matchesShortcut(e, 'add-text')) {
         e.preventDefault()
         useShortcutUiStore.getState().canvasSpawn?.spawnText()
         fireToast('add-text')
         return
       }
 
-      if (mod && !e.shiftKey && (e.key === 's' || e.key === 'S')) {
+      if (matchesShortcut(e, 'add-sticky')) {
         e.preventDefault()
         useShortcutUiStore.getState().canvasSpawn?.spawnSticky()
         fireToast('add-sticky')
         return
       }
 
-      if (mod && !e.shiftKey && (e.key === 'i' || e.key === 'I')) {
+      if (matchesShortcut(e, 'add-image')) {
         e.preventDefault()
         useShortcutUiStore.getState().canvasSpawn?.openImageAtMousePos()
         fireToast('add-image')
@@ -267,21 +279,20 @@ export function useKeyboardShortcuts(
       }
 
       // ── Panel shortcuts ────────────────────────────────────────────────────
-      if (mod && e.shiftKey && (e.key === 'S' || e.key === 's')) {
+      if (matchesShortcut(e, 'open-settings')) {
         e.preventDefault()
         useShortcutUiStore.getState().openSettingsNearMouse?.()
         return
       }
 
-      if (mod && e.shiftKey && (e.key === 'P' || e.key === 'p')) {
+      if (matchesShortcut(e, 'open-profile')) {
         e.preventDefault()
         useShortcutUiStore.getState().openPanel?.('profile')
         return
       }
 
-      if (mod && e.shiftKey && (e.key === 'N' || e.key === 'n')) {
+      if (matchesShortcut(e, 'open-notifications')) {
         e.preventDefault()
-        // Toggle: if notifications is already open, switch to news.
         const currentPanel = openPanel
         if (currentPanel === 'notifications') {
           useShortcutUiStore.getState().openPanel?.('news')
@@ -292,16 +303,17 @@ export function useKeyboardShortcuts(
       }
 
       // ── Study hub shortcuts ───────────────────────────────────────────────
-      if (mod && !e.shiftKey && STUDY_HUB_DIGIT_MAP[e.key]) {
-        e.preventDefault()
-        const subjectId = STUDY_HUB_DIGIT_MAP[e.key]
-        useShortcutUiStore.getState().canvasSpawn?.spawnStudyHub(subjectId)
-        const shortcutId = `study-hub-${e.key}`
-        fireToast(shortcutId)
-        return
+      for (const { id, subjectId } of STUDY_HUB_SHORTCUTS) {
+        if (matchesShortcut(e, id)) {
+          e.preventDefault()
+          useShortcutUiStore.getState().canvasSpawn?.spawnStudyHub(subjectId)
+          fireToast(id)
+          return
+        }
       }
 
-      if (!mod && !e.altKey && handleDesktopDrawToolShortcut(e.key)) {
+      // ── Draw tool shortcuts ───────────────────────────────────────────────
+      if (handleDesktopDrawToolShortcut(e)) {
         e.preventDefault()
         return
       }
