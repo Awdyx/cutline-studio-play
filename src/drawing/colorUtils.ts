@@ -15,7 +15,7 @@ export const PEN_PRESETS = [
   '#F0C818',
 ] as const
 
-export const DEFAULT_PEN_COLOR = CONTRAST_INK
+export const DEFAULT_PEN_COLOR = '#E07070'
 
 export const HIGHLIGHTER_PRESETS = [
   'rgba(255, 245, 140, 0.35)',

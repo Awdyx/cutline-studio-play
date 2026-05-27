@@ -142,6 +142,11 @@ function resolveCanvasEl(target: EventTarget | null): HTMLElement | null {
 
 function setDragActiveClass(active: boolean) {
   document.documentElement.classList.toggle(DRAG_ACTIVE_CLASS, active)
+  if (active) {
+    document.documentElement.setAttribute('data-canvas-item-dragging', '')
+  } else {
+    document.documentElement.removeAttribute('data-canvas-item-dragging')
+  }
 }
 
 function clearActiveItem() {

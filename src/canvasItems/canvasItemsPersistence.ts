@@ -7,7 +7,12 @@ import {
   resolveSpacePreviewPan,
 } from '../spaces/spacePreviewPan'
 import { DEFAULT_SPACE_NAME_ALIGNMENT, normalizeTextAlignment } from './textAlignment'
-import type { CanvasItem } from './types'
+import type { CanvasItem, StickyColorId } from './types'
+
+function normalizeStickyColor(value: unknown): StickyColorId | undefined {
+  if (value === 'yellow' || value === 'pink' || value === 'blue') return value
+  return undefined
+}
 import { studyHubDimensionsForWidth } from './studyHubBounds'
 
 export const CANVAS_ITEMS_STORAGE_KEY = 'cutline-canvas-items-v1'
@@ -94,6 +99,9 @@ function normalizeItem(raw: unknown): CanvasItem | null {
       strokes,
       ...(annotationStrokes.length > 0 ? { annotationStrokes } : {}),
       textAlign: normalizeTextAlignment((o as { textAlign?: unknown }).textAlign),
+      ...(normalizeStickyColor((o as { color?: unknown }).color) !== undefined
+        ? { color: normalizeStickyColor((o as { color?: unknown }).color) }
+        : {}),
       ...(layer ? { layer } : {}),
     }
   }

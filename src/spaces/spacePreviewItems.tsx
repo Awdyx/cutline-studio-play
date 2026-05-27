@@ -19,7 +19,7 @@ import type {
 import { TEXT_BOX_PADDING } from '../canvasItems/types'
 import { studyHubBorderRadiusForWidth } from '../canvasItems/studyHubSpawnScale'
 import { font } from '../styles/tokens'
-import { resolveStickyColor, resolveStickyTextColor } from '../theme/paletteGenerator'
+import { resolveStickyColorById, resolveStickyTextColor } from '../theme/paletteGenerator'
 
 const PREVIEW_ROOT: CSSProperties = {
   pointerEvents: 'none',
@@ -110,7 +110,7 @@ export function PreviewStickyItem({
   opacity?: number
 }) {
   const alignment = resolveItemTextAlignment(item)
-  const stickyBg = resolveStickyColor(effectiveMode)
+  const stickyBg = resolveStickyColorById(item.color, effectiveMode)
   const stickyText = resolveStickyTextColor(effectiveMode)
 
   return (

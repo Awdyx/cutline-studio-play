@@ -1,9 +1,5 @@
 import { create } from 'zustand'
-import {
-  DEFAULT_HIGHLIGHTER_COLOR,
-  DEFAULT_PEN_COLOR,
-  normalizeStoredPenInk,
-} from './colorUtils'
+import { DEFAULT_HIGHLIGHTER_COLOR, DEFAULT_PEN_COLOR } from './colorUtils'
 import { useLassoStore } from './useLassoStore'
 
 export type ToolMode = 'pen' | 'highlighter' | 'erase' | 'lasso'
@@ -75,7 +71,7 @@ const persisted = loadPersisted()
 
 export const useToolStore = create<ToolState>((set, get) => ({
   mode: 'pen' as ToolMode,
-  penColor: normalizeStoredPenInk(persisted.penColor ?? defaults.penColor),
+  penColor: defaults.penColor,
   penSize: persisted.penSize ?? defaults.penSize,
   highlighterColor: persisted.highlighterColor ?? defaults.highlighterColor,
   highlighterSize: persisted.highlighterSize ?? defaults.highlighterSize,

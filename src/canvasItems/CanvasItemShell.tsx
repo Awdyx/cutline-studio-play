@@ -259,7 +259,13 @@ export default function CanvasItemShell({
         // Framer-motion x/y compose with animate's scale — no conflict
         x: lassoDx,
         y: lassoDy,
-        ...(isStudyHub ? { borderRadius: studyHubBorderRadiusCss(item.width) } : null),
+        borderRadius: isStudyHub
+          ? studyHubBorderRadiusCss(item.width)
+          : item.type === 'sticky'
+            ? 4
+            : isFlatChrome
+              ? 0
+              : 8,
       }}
     >
       {!interactionFrozen && !hideItemHandles && (

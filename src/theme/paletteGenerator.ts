@@ -174,3 +174,26 @@ export function resolveStickyColor(mode: 'light' | 'dark'): string {
 export function resolveStickyTextColor(mode: 'light' | 'dark'): string {
   return mode === 'light' ? '#423a24' : neutral(0.9, uiChroma(0.006))
 }
+
+type StickyColorId = 'yellow' | 'pink' | 'blue'
+
+/** Light-mode sticky surface colours for each preset. */
+const STICKY_BG_LIGHT: Record<StickyColorId, string> = {
+  yellow: '#F4EFCE',
+  pink: '#FBE0EF',
+  blue: '#D4E9F8',
+}
+
+/** Resolve the background colour for a sticky preset in a given theme mode. */
+export function resolveStickyColorById(id: StickyColorId | undefined, mode: 'light' | 'dark'): string {
+  if (mode === 'dark') return resolveStickyColor('dark')
+  if (!id || id === 'yellow') return resolveStickyColor('light')
+  return STICKY_BG_LIGHT[id]
+}
+
+/** UI swatch colour (always opaque, shown in menus regardless of theme). */
+export const STICKY_SWATCH_COLORS: Record<StickyColorId, string> = {
+  yellow: '#F4EFCE',
+  pink: '#FBE0EF',
+  blue: '#D4E9F8',
+}

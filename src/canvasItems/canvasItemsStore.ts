@@ -137,6 +137,7 @@ type CanvasItemsState = {
   /** Set when user spawns text; consumed on mount to focus editor once. */
   pendingEditorFocusId: string | null
   activeStickyStroke: { stickyId: string; stroke: Stroke } | null
+  lastStickyColor: import('./types').StickyColorId | undefined
   hydrate: () => void
   takePendingEditorFocus: (id: string) => boolean
   setSelectedIds: (ids: string[]) => void
@@ -196,6 +197,7 @@ type CanvasItemsState = {
   commitTextItemEdit: (id: string, text: string) => void
   updateTextItemText: (id: string, text: string) => void
   setItemTextAlignment: (id: string, alignment: ItemTextAlignment) => void
+  setStickyColor: (id: string, color: import('./types').StickyColorId | undefined) => void
   setPreviewAdjustSpace: (id: string | null) => void
   updateSpacePreviewPan: (id: string, pan: SpacePreviewPan) => void
   getStickyById: (id: string) => StickyCanvasItem | undefined
@@ -346,6 +348,7 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
   menuFocusDismissItemId: null,
   pendingEditorFocusId: null,
   activeStickyStroke: null,
+  lastStickyColor: undefined,
 
   hydrate: () => {
     persistEnabled = true
@@ -551,6 +554,7 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
     const items = get().items
     const prevSelected = get().selectedIds
     const layer = newItemLayer(useCanvasLockStore.getState().isLocked)
+    const lastColor = get().lastStickyColor
     const sticky: StickyCanvasItem = {
       id,
       type: 'sticky',
@@ -562,6 +566,7 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
       text: '',
       strokes: [],
       textAlign: DEFAULT_TEXT_ALIGNMENT,
+      ...(lastColor ? { color: lastColor } : {}),
       ...(layer === 'annotation' ? { layer } : {}),
     }
     const next = [...items, sticky]
@@ -1114,6 +1119,21 @@ export const useCanvasItemsStore = create<CanvasItemsState>((set, get) => ({
           ? { ...entry, textAlign: alignment }
           : entry,
       ),
+    }))
+    persistItems({ immediate: true })
+  },
+
+  setStickyColor: (id, color) => {
+    const item = get().items.find((i) => i.id === id)
+    if (!itemIsMutable(item) || item?.type !== 'sticky') return
+    pushUndoSnapshot()
+    set((state) => ({
+      items: state.items.map((entry) =>
+        entry.id === id && entry.type === 'sticky'
+          ? { ...entry, color }
+          : entry,
+      ),
+      lastStickyColor: color,
     }))
     persistItems({ immediate: true })
   },

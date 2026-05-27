@@ -24,6 +24,7 @@ import { useCanvasItemsStore } from './canvasItemsStore'
 import { useLassoStore } from '../drawing/useLassoStore'
 import { useCanvasWorkspaceStore } from '../spaces/canvasWorkspaceStore'
 import TextAlignmentMenuSection from './TextAlignmentMenuSection'
+import StickyColorMenuSection from './StickyColorMenuSection'
 import { resolveItemTextAlignment } from './textAlignment'
 
 export default function CanvasItemZOrderMenu() {
@@ -121,6 +122,12 @@ export default function CanvasItemZOrderMenu() {
           }}
         >
           <SubmenuSoundScope>
+            {menuItem?.type === 'sticky' && (
+              <StickyColorMenuSection
+                itemId={menuItem.id}
+                currentColor={menuItem.color}
+              />
+            )}
             {showTextAlign && menuItem && (
               <TextAlignmentMenuSection
                 itemId={menuItem.id}

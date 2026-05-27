@@ -11,7 +11,7 @@ import {
   textAlignmentEditorStyle,
 } from './textAlignment'
 import { useThemeStore } from '../theme/themeStore'
-import { resolveStickyColor, resolveStickyTextColor } from '../theme/paletteGenerator'
+import { resolveStickyColorById, resolveStickyTextColor } from '../theme/paletteGenerator'
 import { useEffectiveMode } from '../theme/useEffectiveMode'
 import { useEditableCanvasTap } from '../canvas/useEditableCanvasTap'
 import { useCanvasItemAreaPointer } from '../canvas/useCanvasItemAreaPointer'
@@ -34,7 +34,7 @@ export default function StickyNote({
 }) {
   const themeMode = useThemeStore((s) => s.mode)
   const effectiveMode = useEffectiveMode(themeMode)
-  const stickyBg = resolveStickyColor(effectiveMode)
+  const stickyBg = resolveStickyColorById(item.color, effectiveMode)
   const stickyText = resolveStickyTextColor(effectiveMode)
   const isLocked = useCanvasLockStore((s) => s.isLocked)
   const frozen = isItemFrozen(item, isLocked)
@@ -161,6 +161,7 @@ export default function StickyNote({
           inset: 0,
           backgroundColor: stickyBg,
           borderRadius: 4,
+          transition: 'background-color 320ms ease',
         }}
       >
         <StickyStrokesSvg
@@ -244,7 +245,7 @@ export default function StickyNote({
             }
           }}
             style={{
-              padding: '28px 14px 14px',
+              padding: '14px',
               fontSize: 15,
               lineHeight: 1.35,
               color: stickyText,
