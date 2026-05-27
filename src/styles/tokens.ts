@@ -66,7 +66,7 @@ export const card = {
 /** Hover lift + open-state background crossfade for frosted chrome islands/buttons.
  *  Also owns the filter transition so the customization-mode hover glow fades
  *  gently on all elements that carry an inline style (inline styles override CSS). */
-export const CHROME_SURFACE_BG_TRANSITION = 'background 150ms ease, filter 220ms ease-out'
+export const CHROME_SURFACE_BG_TRANSITION = 'transform 0.2s ease-out, box-shadow 0.2s ease-out, background 150ms ease, filter 220ms ease-out'
 
 export function chromeGlassSurfaceBg(options: {
   active?: boolean
