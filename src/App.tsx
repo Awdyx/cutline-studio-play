@@ -84,7 +84,6 @@ import { useCanvasPanBounce } from './canvas/useCanvasPanBounce'
 import { useCanvasCompositorWarmup } from './canvas/useCanvasCompositorWarmup'
 import CanvasSwapVeil from './canvas/CanvasSwapVeil'
 import { blurStrayTextFocus } from './platform/textFocus'
-import { useChromeUiScale } from './hooks/useChromeUiScale'
 import { useLayoutProfile } from './hooks/useLayoutProfile'
 import { useShortcutUiStore } from './shortcuts/shortcutUiStore'
 import SettingsSubmenu from './components/SettingsSubmenu'
@@ -292,7 +291,6 @@ type OpenPanel =
 
 function App() {
   useLayoutProfile()
-  useChromeUiScale()
   const { onPanning, onPanningStop } = usePanMotionHandler()
   useCanvasMotionBlur()
 

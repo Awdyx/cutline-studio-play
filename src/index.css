@@ -357,8 +357,6 @@ html[data-ui-customize='1'] .chrome-tap-squeeze--pulse {
 }
 
 :root {
-  /* Desktop chrome scales down on short/narrow viewports (see chromeUiScale.ts). */
-  --chrome-ui-scale: 1;
   --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', sans-serif;
   --glass-bg: rgba(255, 255, 255, 0.55);
   --glass-border: rgba(255, 255, 255, 0.7);
@@ -586,11 +584,6 @@ body,
   color: var(--ui-text);
   font-family: var(--font-sans);
   cursor: var(--cursor-default);
-}
-
-/* Shrink fixed chrome (including body portaled menus) on smaller laptop viewports. */
-html:not([data-layout='phone']) body {
-  zoom: var(--chrome-ui-scale);
 }
 
 a,

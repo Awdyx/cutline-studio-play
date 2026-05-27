@@ -31,22 +31,6 @@
         document.body.style.backgroundColor = bg
         var tc = document.querySelector('meta[name="theme-color"]')
         if (tc) tc.setAttribute('content', bg)
-
-        var phone =
-          window.matchMedia('(max-width: 639px)').matches &&
-          window.matchMedia('(pointer: coarse)').matches
-        if (!phone) {
-          var refW = 1440
-          var refH = 900
-          var minScale = 0.82
-          var scale = Math.min(
-            window.innerWidth / refW,
-            window.innerHeight / refH,
-            1,
-          )
-          scale = Math.max(minScale, scale)
-          root.style.setProperty('--chrome-ui-scale', String(scale))
-        }
       })()
     </script>
     <style>
