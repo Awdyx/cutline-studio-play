@@ -8,6 +8,27 @@ import {
 } from './uiCustomizationStore'
 import { DrawingStrokesSvg } from './DrawingStrokesSvg'
 
+/** Screen pixels a pin must sit beyond the anchor edge before throw-to-dismiss. */
+const UI_PIN_DISMISS_MARGIN_PX = 75
+
+/** Screen-pixel distance from pin centre to the nearest point outside the anchor bounds. */
+function pinDistanceBeyondAnchorBounds(
+  anchorId: string,
+  offsetX: number,
+  offsetY: number,
+): number | null {
+  const el = document.querySelector<HTMLElement>(`[data-ui-anchor='${anchorId}']`)
+  if (!el) return null
+  const rect = el.getBoundingClientRect()
+  const halfW = rect.width / 2
+  const halfH = rect.height / 2
+  const px = offsetX * UI_FOCUS_SCALE
+  const py = offsetY * UI_FOCUS_SCALE
+  const beyondX = Math.max(0, Math.abs(px) - halfW)
+  const beyondY = Math.max(0, Math.abs(py) - halfH)
+  return Math.hypot(beyondX, beyondY)
+}
+
 interface UiPinViewProps {
   pin: UiPin
   editing: boolean
@@ -104,6 +125,7 @@ function UiPinViewInner({ pin, editing, selected, anchorId }: UiPinViewProps) {
   const setSelectedPinId = useUiCustomizationStore((s) => s.setSelectedPinId)
   const bringPinToFront = useUiCustomizationStore((s) => s.bringPinToFront)
   const movePin = useUiCustomizationStore((s) => s.movePin)
+  const deletePin = useUiCustomizationStore((s) => s.deletePin)
   const resizePinUniform = useUiCustomizationStore((s) => s.resizePinUniform)
   const resizePinRect = useUiCustomizationStore((s) => s.resizePinRect)
   const rotatePin = useUiCustomizationStore((s) => s.rotatePin)
@@ -117,6 +139,16 @@ function UiPinViewInner({ pin, editing, selected, anchorId }: UiPinViewProps) {
     return () => clearTimeout(t)
   }, [])
 
+  // Dismiss pins that are already placed beyond the anchor edge.
+  // Skipped while a drag is active — deletion is handled on pointer-up instead.
+  useEffect(() => {
+    if (dragRef.current) return
+    const beyond = pinDistanceBeyondAnchorBounds(anchorId, pin.offsetX, pin.offsetY)
+    if (beyond != null && beyond > UI_PIN_DISMISS_MARGIN_PX) {
+      deletePin(pin.id)
+    }
+  }, [pin.id, pin.offsetX, pin.offsetY, anchorId, deletePin])
+
   // Active pointer tracking for drag-to-move and pinch-to-scale/rotate
   const activePointers = useRef<Map<number, { x: number; y: number }>>(new Map())
   const dragRef = useRef<{
@@ -125,6 +157,7 @@ function UiPinViewInner({ pin, editing, selected, anchorId }: UiPinViewProps) {
     startOffsetX: number
     startOffsetY: number
     moved: boolean
+    outOfBoundsDelete: boolean
   } | null>(null)
   const pinchRef = useRef<{
     dist: number
@@ -181,6 +214,7 @@ function UiPinViewInner({ pin, editing, selected, anchorId }: UiPinViewProps) {
         startOffsetX: pin.offsetX,
         startOffsetY: pin.offsetY,
         moved: false,
+        outOfBoundsDelete: false,
       }
     }
   }
@@ -220,11 +254,19 @@ function UiPinViewInner({ pin, editing, selected, anchorId }: UiPinViewProps) {
     const dy = e.clientY - dragRef.current.startY
     if (!dragRef.current.moved && Math.hypot(dx, dy) < 3) return
     dragRef.current.moved = true
+    const newOffsetX = dragRef.current.startOffsetX + dx / UI_FOCUS_SCALE
+    const newOffsetY = dragRef.current.startOffsetY + dy / UI_FOCUS_SCALE
+    const beyond = pinDistanceBeyondAnchorBounds(anchorId, newOffsetX, newOffsetY)
+    // Latch: once true within a drag gesture, never reset back to false.
+    if (beyond != null) {
+      dragRef.current.outOfBoundsDelete =
+        dragRef.current.outOfBoundsDelete || beyond > UI_PIN_DISMISS_MARGIN_PX
+    }
     movePin(
       pin.id,
       anchorId as Parameters<typeof movePin>[1],
-      dragRef.current.startOffsetX + dx / UI_FOCUS_SCALE,
-      dragRef.current.startOffsetY + dy / UI_FOCUS_SCALE,
+      newOffsetX,
+      newOffsetY,
     )
   }
 
@@ -237,6 +279,9 @@ function UiPinViewInner({ pin, editing, selected, anchorId }: UiPinViewProps) {
       pinchRef.current = null
     }
     if (activePointers.current.size === 0) {
+      if (dragRef.current?.outOfBoundsDelete) {
+        deletePin(pin.id)
+      }
       dragRef.current = null
     }
   }

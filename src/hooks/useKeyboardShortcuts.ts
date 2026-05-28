@@ -74,6 +74,9 @@ function openToolPaletteAndSetMode(mode: ToolMode, shortcutId: string) {
     if (!ui.toolPaletteOpen) {
       ui.dismissPeerChromeForFab('pen')
       ui.toolPalette?.open()
+    } else if (tools.mode === mode) {
+      ui.toolPalette?.close()
+      return
     }
 
     if (tools.mode !== mode) {

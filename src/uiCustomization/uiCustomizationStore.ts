@@ -125,7 +125,7 @@ export const useUiCustomizationStore = create<UiCustomizationState>(
     selectedPinId: null,
     focusedAnchorId: null,
     drawing: false,
-    drawTool: { color: DRAW_TOOL_DARK_COLOR, size: DRAW_TOOL_SIZE_DEFAULT },
+    drawTool: { color: DRAW_TOOL_COLORS[0] as string, size: DRAW_TOOL_SIZE_DEFAULT },
     clippedAnchorIds: new Set<UiAnchorId>(),
     deletingPinIds: new Set<string>(),
     pinDrag: null,
