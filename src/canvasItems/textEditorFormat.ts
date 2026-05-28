@@ -1,3 +1,6 @@
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { ensureEditorCaretAnchor } from './textEditorContent'
+
 export type TextFormatKind = 'bold' | 'italic' | 'underline' | 'strikethrough'
 
 const EXEC_COMMAND: Record<TextFormatKind, string> = {
@@ -7,8 +10,53 @@ const EXEC_COMMAND: Record<TextFormatKind, string> = {
   strikethrough: 'strikeThrough',
 }
 
-export function applyTextFormat(kind: TextFormatKind): void {
-  document.execCommand(EXEC_COMMAND[kind], false)
+type FormatKeyEvent = KeyboardEvent | ReactKeyboardEvent
+
+function cloneSelectionRange(): Range | null {
+  const selection = window.getSelection()
+  if (!selection || selection.rangeCount === 0) return null
+  return selection.getRangeAt(0).cloneRange()
+}
+
+function restoreSelectionRange(editor: HTMLElement, range: Range | null): void {
+  const selection = window.getSelection()
+  if (!selection) return
+
+  if (range && editor.contains(range.commonAncestorContainer)) {
+    selection.removeAllRanges()
+    selection.addRange(range)
+    return
+  }
+
+  ensureEditorCaretAnchor(editor)
+  const fallback = document.createRange()
+  fallback.selectNodeContents(editor)
+  fallback.collapse(false)
+  selection.removeAllRanges()
+  selection.addRange(fallback)
+}
+
+export function applyTextFormat(editor: HTMLElement, kind: TextFormatKind): boolean {
+  editor.focus({ preventScroll: true })
+  const savedRange = cloneSelectionRange()
+  restoreSelectionRange(editor, savedRange)
+  return document.execCommand(EXEC_COMMAND[kind], false)
+}
+
+export function handleTextFormatShortcutEvent(
+  event: FormatKeyEvent,
+  editor: HTMLElement,
+  onApplied?: () => void,
+): boolean {
+  if (!isFormatModifierShortcut(event)) return false
+
+  const kind = formatKindFromShortcutKey(event.key, event.shiftKey)
+  if (!kind) return false
+
+  event.preventDefault()
+  applyTextFormat(editor, kind)
+  onApplied?.()
+  return true
 }
 
 export function formatKindFromShortcutKey(

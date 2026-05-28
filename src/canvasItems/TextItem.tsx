@@ -13,11 +13,8 @@ import {
   readEditorHtml,
   storedContentToHtml,
 } from './textEditorContent'
-import {
-  applyTextFormat,
-  formatKindFromShortcutKey,
-  isFormatModifierShortcut,
-} from './textEditorFormat'
+import { handleTextFormatShortcutEvent } from './textEditorFormat'
+import { useTextFormatShortcuts } from './useTextFormatShortcuts'
 import {
   textAlignmentContainerStyle,
   textAlignmentEditorStyle,
@@ -168,26 +165,15 @@ export default function TextItem({
     onPanCancel: stopEditing,
   })
 
-  const applyFormatShortcut = useCallback(
-    (e: React.KeyboardEvent<HTMLDivElement>) => {
-      if (!isFormatModifierShortcut(e)) return false
+  const notifyFormatApplied = useCallback(() => {
+    const el = editorRef.current
+    if (!el) return
+    scheduleSave(readEditorHtml(el))
+    setEditorEmpty(isEditorEmpty(el))
+    syncAutoSize()
+  }, [scheduleSave, syncAutoSize])
 
-      const kind = formatKindFromShortcutKey(e.key, e.shiftKey)
-      if (!kind) return false
-
-      e.preventDefault()
-      applyTextFormat(kind)
-
-      const el = editorRef.current
-      if (el) {
-        scheduleSave(readEditorHtml(el))
-        setEditorEmpty(isEditorEmpty(el))
-        syncAutoSize()
-      }
-      return true
-    },
-    [scheduleSave, syncAutoSize],
-  )
+  useTextFormatShortcuts(editorRef, isEditing, notifyFormatApplied)
 
   useEffect(() => {
     return () => {
@@ -362,7 +348,10 @@ export default function TextItem({
             flushSaveAndCommit()
           }}
           onKeyDown={(e) => {
-            if (applyFormatShortcut(e)) return
+            const editor = editorRef.current
+            if (editor && handleTextFormatShortcutEvent(e, editor, notifyFormatApplied)) {
+              return
+            }
             if (e.key === 'Escape') {
               e.preventDefault()
               flushSaveAndCommit()

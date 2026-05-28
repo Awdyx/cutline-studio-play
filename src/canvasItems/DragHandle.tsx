@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import { Grip } from 'lucide-react'
-import { useCanvasHandleOccluded } from './canvasHandleOcclusion'
 import {
   grabHandleHorizontalStyle,
   grabHandlePlacementKey,
@@ -14,16 +13,10 @@ const SWAP_MS = 180
 export default function DragHandle({
   placement,
   onPointerDown,
-  occlusionRevisionKey = '',
-  occlusionActive = true,
   hitSize = resolveCanvasHandleHitSize(),
 }: {
   placement: GrabHandlePlacement
   onPointerDown: (e: React.PointerEvent<HTMLButtonElement>) => void
-  /** Item layout key — re-check occlusion when position/size/z-index changes. */
-  occlusionRevisionKey?: string
-  /** Only probe occlusion while the item is selected (avoids flash on deselect). */
-  occlusionActive?: boolean
   /** Override the invisible tap/drag target size (layout-aware default). */
   hitSize?: number
 }) {
@@ -31,12 +24,6 @@ export default function DragHandle({
   const [revealed, setRevealed] = useState(true)
   const targetPlacementRef = useRef(placement)
   const swapTimerRef = useRef<number | null>(null)
-  const handleRef = useRef<HTMLButtonElement>(null)
-  const occluded = useCanvasHandleOccluded(
-    handleRef,
-    revealed && occlusionActive,
-    `${occlusionRevisionKey}:${grabHandlePlacementKey(shownPlacement)}`,
-  )
 
   useEffect(() => {
     targetPlacementRef.current = placement
@@ -86,11 +73,9 @@ export default function DragHandle({
       }}
     >
       <button
-        ref={handleRef}
         type="button"
         aria-label="Move or arrange canvas item"
         aria-haspopup="menu"
-        aria-disabled={occluded || undefined}
         onMouseDown={(e) => e.stopPropagation()}
         onTouchStart={(e) => e.stopPropagation()}
         onPointerDown={onPointerDown}
@@ -111,12 +96,7 @@ export default function DragHandle({
           pointerEvents: 'auto',
           opacity: 'var(--canvas-handle-opacity)',
         }}
-        className={[
-          'canvas-item-drag-handle',
-          occluded ? 'canvas-item-handle-occluded' : null,
-        ]
-          .filter(Boolean)
-          .join(' ')}
+        className="canvas-item-drag-handle"
       >
         <Grip size={13} strokeWidth={2} />
       </button>

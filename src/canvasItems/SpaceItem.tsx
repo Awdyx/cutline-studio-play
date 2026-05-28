@@ -326,8 +326,6 @@ export default function SpaceItem({
       ),
     [item.x, item.y, item.width, item.height, handleHitSize],
   )
-  const handleOcclusionKey = `${item.x},${item.y},${item.width},${item.height},${item.zIndex},${displayZIndex}`
-
   return (
     <motion.div
       ref={cardRef}
@@ -367,16 +365,12 @@ export default function SpaceItem({
             <DragHandle
               placement={grabHandlePlacement}
               onPointerDown={(e) => onGrabPointerDown(e, { onReleaseWithoutDrag: selectSelf })}
-              occlusionRevisionKey={handleOcclusionKey}
-              occlusionActive={isSelected}
               hitSize={handleHitSize}
             />
           )}
           <ResizeHandle
             onPointerDown={onResizeDown}
             cornerOutset={SPACE_RESIZE_CORNER_OUTSET}
-            occlusionRevisionKey={handleOcclusionKey}
-            occlusionActive={isSelected}
             hitSize={handleHitSize}
           />
         </div>

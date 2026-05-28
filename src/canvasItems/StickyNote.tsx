@@ -7,6 +7,13 @@ import { useCanvasItemsStore, useItemSelected } from './canvasItemsStore'
 import CanvasItemShell from './CanvasItemShell'
 import StickyStrokesSvg from './StickyStrokesSvg'
 import {
+  ensureEditorCaretAnchor,
+  readEditorHtml,
+  storedContentToHtml,
+} from './textEditorContent'
+import { handleTextFormatShortcutEvent } from './textEditorFormat'
+import { useTextFormatShortcuts } from './useTextFormatShortcuts'
+import {
   textAlignmentContainerStyle,
   textAlignmentEditorStyle,
 } from './textAlignment'
@@ -56,19 +63,41 @@ export default function StickyNote({
     onGrabPointerDown,
   })
   const scheduleSave = useCallback(
-    (text: string) => {
+    (html: string) => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
       saveTimerRef.current = setTimeout(() => {
         saveTimerRef.current = null
-        useCanvasItemsStore.getState().updateStickyText(item.id, text)
+        useCanvasItemsStore.getState().updateStickyText(item.id, html)
       }, textSaveDelayMs)
     },
     [item.id],
   )
 
   const commitTextEdit = useCallback(() => {
-    const text = editableRef.current?.textContent ?? ''
-    useCanvasItemsStore.getState().commitStickyTextEdit(item.id, text)
+    const el = editableRef.current
+    const html = el ? readEditorHtml(el) : ''
+    useCanvasItemsStore.getState().commitStickyTextEdit(item.id, html)
+  }, [item.id])
+
+  const syncFromStore = useCallback(() => {
+    const el = editableRef.current
+    if (!el) return
+    const html = storedContentToHtml(item.text)
+    if (el.innerHTML !== html) {
+      el.innerHTML = html
+    }
+  }, [item.text])
+
+  const notifyFormatApplied = useCallback(() => {
+    const el = editableRef.current
+    if (!el) return
+    scheduleSave(readEditorHtml(el))
+  }, [scheduleSave])
+
+  useTextFormatShortcuts(editableRef, isEditing, notifyFormatApplied)
+
+  useEffect(() => {
+    syncFromStore()
   }, [item.id])
 
   useEffect(() => {
@@ -80,14 +109,13 @@ export default function StickyNote({
   useEffect(() => {
     const el = editableRef.current
     if (!el || document.activeElement === el) return
-    if (el.textContent !== item.text) {
-      el.textContent = item.text
-    }
-  }, [item.text])
+    syncFromStore()
+  }, [item.text, syncFromStore])
 
   const focusEditor = useCallback((atEnd = true) => {
     const el = editableRef.current
     if (!el) return
+    ensureEditorCaretAnchor(el)
     el.focus({ preventScroll: true })
     if (!atEnd) return
     const range = document.createRange()
@@ -127,8 +155,9 @@ export default function StickyNote({
         el.blur()
       }
     }
-    document.addEventListener('pointerdown', onDocPointerDown)
-    return () => document.removeEventListener('pointerdown', onDocPointerDown)
+    document.addEventListener('pointerdown', onDocPointerDown, { capture: true })
+    return () =>
+      document.removeEventListener('pointerdown', onDocPointerDown, { capture: true })
   }, [])
 
   const flushSaveAndCommit = useCallback(() => {
@@ -183,6 +212,7 @@ export default function StickyNote({
           <div
             role="textbox"
             aria-label="Sticky note text"
+            aria-multiline
             ref={editableRef}
             contentEditable={!frozen && isEditing}
             spellCheck={false}
@@ -219,14 +249,19 @@ export default function StickyNote({
             }
             onContextMenu={areaPointer.onContextMenu}
           onInput={() => {
-            const text = editableRef.current?.textContent ?? ''
-            scheduleSave(text)
+            const el = editableRef.current
+            if (!el) return
+            scheduleSave(readEditorHtml(el))
           }}
           onBlur={() => {
             setIsEditing(false)
             flushSaveAndCommit()
           }}
           onKeyDown={(e) => {
+            const editor = editableRef.current
+            if (editor && handleTextFormatShortcutEvent(e, editor, notifyFormatApplied)) {
+              return
+            }
             if (e.key === 'Escape') {
               e.preventDefault()
               flushSaveAndCommit()
@@ -254,7 +289,7 @@ export default function StickyNote({
               pointerEvents: frozen ? 'none' : 'auto',
               ...textAlignmentEditorStyle(item.textAlign),
             }}
-            className="sticky-note-editor"
+            className="canvas-text-editor sticky-note-editor"
           />
         </div>
       </div>

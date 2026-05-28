@@ -112,6 +112,7 @@ export function PreviewStickyItem({
   const alignment = resolveItemTextAlignment(item)
   const stickyBg = resolveStickyColorById(item.color, effectiveMode)
   const stickyText = resolveStickyTextColor(effectiveMode)
+  const html = storedContentToHtml(item.text)
 
   return (
     <g>
@@ -146,19 +147,19 @@ export function PreviewStickyItem({
           }}
         >
           <div
+            className="canvas-text-editor sticky-note-editor"
             style={{
-              padding: '28px 14px 14px',
+              padding: '14px',
               fontSize: 15,
               lineHeight: 1.35,
               fontFamily: font.family,
               color: stickyText,
               wordBreak: 'break-word',
-              whiteSpace: 'pre-wrap',
+              overflowWrap: 'break-word',
               ...textAlignmentEditorStyle(alignment),
             }}
-          >
-            {item.text}
-          </div>
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
         </div>
       </PreviewHtmlForeignObject>
     </g>

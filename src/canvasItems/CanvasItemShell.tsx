@@ -183,8 +183,6 @@ export default function CanvasItemShell({
       ),
     [item.x, item.y, item.width, item.height, handleHitSize],
   )
-  const handleOcclusionKey = `${item.x},${item.y},${item.width},${item.height},${item.zIndex},${displayZIndex}`
-
   const studyHubLayout =
     isStudyHub && !isResizing && !isDragging && !snapBack ? ('size' as const) : false
   const textLayout =
@@ -284,15 +282,11 @@ export default function CanvasItemShell({
             <DragHandle
               placement={grabHandlePlacement}
               onPointerDown={(e) => onGrabPointerDown(e, { onReleaseWithoutDrag: selectSelf })}
-              occlusionRevisionKey={handleOcclusionKey}
-              occlusionActive={isSelected}
               hitSize={handleHitSize}
             />
           )}
           <ResizeHandle
             onPointerDown={onResizeDown}
-            occlusionRevisionKey={handleOcclusionKey}
-            occlusionActive={isSelected}
             hitSize={handleHitSize}
           />
           </motion.div>

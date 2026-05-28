@@ -1,5 +1,3 @@
-import { useRef } from 'react'
-import { useCanvasHandleOccluded } from './canvasHandleOcclusion'
 import {
   HANDLE_VISUAL_SIZE,
   RESIZE_CORNER_OUTSET,
@@ -10,31 +8,19 @@ import ResizeCornerBracket from './ResizeCornerBracket'
 export default function ResizeHandle({
   onPointerDown,
   cornerOutset = RESIZE_CORNER_OUTSET,
-  occlusionRevisionKey = '',
-  occlusionActive = true,
   hitSize = resolveCanvasHandleHitSize(),
 }: {
   onPointerDown: (e: React.PointerEvent<HTMLButtonElement>) => void
   cornerOutset?: number
-  occlusionRevisionKey?: string
-  occlusionActive?: boolean
   /** Override the invisible tap/drag target size (layout-aware default). */
   hitSize?: number
 }) {
   const hitOutset = (hitSize - HANDLE_VISUAL_SIZE) / 2
-  const handleRef = useRef<HTMLButtonElement>(null)
-  const occluded = useCanvasHandleOccluded(
-    handleRef,
-    occlusionActive,
-    occlusionRevisionKey,
-  )
 
   return (
     <button
-      ref={handleRef}
       type="button"
       aria-label="Resize item"
-      aria-disabled={occluded || undefined}
       onMouseDown={(e) => e.stopPropagation()}
       onTouchStart={(e) => e.stopPropagation()}
       onPointerDown={onPointerDown}
@@ -63,12 +49,7 @@ export default function ResizeHandle({
         opacity: 'var(--canvas-resize-handle-opacity)',
         zIndex: 3,
       }}
-      className={[
-        'canvas-item-resize-handle',
-        occluded ? 'canvas-item-handle-occluded' : null,
-      ]
-        .filter(Boolean)
-        .join(' ')}
+      className="canvas-item-resize-handle"
     >
       <ResizeCornerBracket />
     </button>
