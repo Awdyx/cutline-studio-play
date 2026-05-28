@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STUDIO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 COMPANY_ROOT="$(cd "$STUDIO_ROOT/../cutline-2.0" && pwd)"
-LEGACY_WEB_DIR="$COMPANY_ROOT/web"
+WEB_DIR="$COMPANY_ROOT/web"
 
 AUDIO_GIT_PATH="public/audio/account-selection.mp3"
 AUDIO_MIN_BYTES=1000000
@@ -15,6 +15,7 @@ done_msg() { echo "✓ $*"; }
 
 [[ -d "$STUDIO_ROOT/.git" ]] || die "cutline-studio git repo not found at $STUDIO_ROOT"
 [[ -d "$COMPANY_ROOT/.git" ]] || die "Company repo not found at $COMPANY_ROOT (expected ../cutline-2.0)"
+[[ -d "$WEB_DIR" ]] || die "Company web/ folder not found at $WEB_DIR"
 
 cd "$STUDIO_ROOT"
 
@@ -45,19 +46,6 @@ ensure_worktree_audio() {
   done_msg "Audio asset restored locally"
 }
 
-migrate_legacy_web_layout() {
-  [[ -d "$LEGACY_WEB_DIR" ]] || return 0
-
-  step "Migrating legacy cutline-2.0/web/ layout to repo root…"
-
-  if [[ -f "$LEGACY_WEB_DIR/server.js" && ! -f "$COMPANY_ROOT/server.js" ]]; then
-    cp "$LEGACY_WEB_DIR/server.js" "$COMPANY_ROOT/server.js"
-  fi
-
-  rm -rf "$LEGACY_WEB_DIR"
-  done_msg "Removed legacy web/ folder"
-}
-
 PAGES_BUILD_DIR=""
 
 cleanup_pages_build_dir() {
@@ -84,43 +72,6 @@ build_pages_dist() {
   fi
 
   done_msg "Pages build ready (includes audio)"
-}
-
-trigger_staging_deploy() {
-  local url="https://staging.cutlinetutoring.nz/deploy-staging-webhook"
-  local payload='{"ref":"refs/heads/main","repository":{"full_name":"Cutline-Tutoring/cutline-2.0"}}'
-
-  step "Triggering staging deploy (staging.cutlinetutoring.nz)…"
-
-  local curl_args=(
-    -sS -X POST "$url"
-    -H "Content-Type: application/json"
-    -H "X-GitHub-Event: push"
-    -d "$payload"
-  )
-
-  if [[ -n "${STAGING_WEBHOOK_SECRET:-}" ]]; then
-    local sig
-    sig="$(printf '%s' "$payload" | openssl dgst -sha256 -hmac "$STAGING_WEBHOOK_SECRET" | awk '{print $2}')"
-    curl_args+=(-H "X-Hub-Signature-256: sha256=${sig}")
-  else
-    echo "  Note: set STAGING_WEBHOOK_SECRET locally if the server rejects unsigned requests."
-  fi
-
-  local body_file http_code response
-  body_file="$(mktemp)"
-  http_code="$(curl "${curl_args[@]}" -o "$body_file" -w '%{http_code}' 2>/dev/null || echo "000")"
-  response="$(cat "$body_file" 2>/dev/null || true)"
-  rm -f "$body_file"
-
-  if [[ "$http_code" == "200" || "$http_code" == "202" ]]; then
-    done_msg "Staging deploy triggered (HTTP $http_code)"
-    return 0
-  fi
-
-  echo "WARN: Staging webhook returned HTTP ${http_code:-unknown}: ${response:-no response}" >&2
-  echo "  → Add STAGING_WEBHOOK_SECRET to GitHub repo secrets, or configure a push webhook on cutline-2.0." >&2
-  return 0
 }
 
 publish_personal_demo_live() {
@@ -151,9 +102,7 @@ ensure_tracked_audio
 ensure_worktree_audio
 build_pages_dist
 
-migrate_legacy_web_layout
-
-step "Syncing cutline-studio → cutline-2.0 (main repo root)"
+step "Syncing cutline-studio → cutline-2.0/web/"
 rsync -a --delete \
   --exclude node_modules \
   --exclude dist \
@@ -164,22 +113,14 @@ rsync -a --delete \
   --exclude Dockerfile \
   --exclude server.js \
   --exclude scripts/push-all.sh \
-  --exclude 'scripts/deploy-staging.sh' \
-  --exclude 'scripts/github-staging-webhook-server.js' \
-  --exclude 'scripts/README-STAGING-WEBHOOK.md' \
-  --exclude caddy \
-  --exclude systemd \
-  --exclude docker-compose.staging.yml \
-  --exclude STAGING_SETUP.md \
-  --exclude .env.staging.example \
   --exclude 'public/audio/' \
-  "$STUDIO_ROOT/" "$COMPANY_ROOT/"
+  "$STUDIO_ROOT/" "$WEB_DIR/"
 
-mkdir -p "$COMPANY_ROOT/public/audio"
-rsync -a "$STUDIO_ROOT/public/audio/" "$COMPANY_ROOT/public/audio/"
-[[ -f "$COMPANY_ROOT/$AUDIO_GIT_PATH" ]] \
-  || die "Company repo missing audio after sync ($AUDIO_GIT_PATH)."
-done_msg "Synced to company repo root"
+mkdir -p "$WEB_DIR/public/audio"
+rsync -a "$STUDIO_ROOT/public/audio/" "$WEB_DIR/public/audio/"
+[[ -f "$WEB_DIR/$AUDIO_GIT_PATH" ]] \
+  || die "Company web missing audio after sync ($AUDIO_GIT_PATH)."
+done_msg "Synced to company web/"
 
 step "Pushing personal demo source (github.com/Awdyx/cutline-studio-demo)"
 git push public-demo main
@@ -188,31 +129,29 @@ publish_personal_demo_live
 
 cd "$COMPANY_ROOT"
 
-if [[ -n "$(git status --porcelain)" ]]; then
-  if [[ ! -f "$COMPANY_ROOT/$AUDIO_GIT_PATH" ]]; then
-    die "Company repo missing audio asset; refusing to commit sync."
+if [[ -n "$(git status --porcelain -- web)" ]]; then
+  if [[ ! -f "$WEB_DIR/$AUDIO_GIT_PATH" ]]; then
+    die "Company web missing audio asset; refusing to commit sync."
   fi
 
   SYNC_MSG="Sync cutline-studio ($(git -C "$STUDIO_ROOT" log -1 --pretty=format:'%h %s'))"
-  git add -A
+  git add web
 
-  if git diff --cached --name-only --diff-filter=D | grep -Fq "$AUDIO_GIT_PATH"; then
-    die "Sync would delete $AUDIO_GIT_PATH from company repo. Aborting."
+  if git diff --cached --name-only --diff-filter=D -- web | grep -Fq "web/public/audio/account-selection.mp3"; then
+    die "Sync would delete web/public/audio/account-selection.mp3 from company web/. Aborting."
   fi
 
   git commit -m "$SYNC_MSG"
   done_msg "Committed to company repo"
 else
-  done_msg "Company repo already up to date (no new commit needed)"
+  done_msg "Company web/ already up to date (no new commit needed)"
 fi
 
 step "Pushing company repo (github.com/Cutline-Tutoring/cutline-2.0)"
 git push origin main
 done_msg "Company repo updated"
 
-trigger_staging_deploy
-
 echo ""
-echo "All done — company main pushed; staging deploy triggered if webhook is configured."
-echo "Staging demo: https://staging.cutlinetutoring.nz/"
-echo "Company repo: https://github.com/Cutline-Tutoring/cutline-2.0"
+echo "All done — personal demo live site + company GitHub are in sync."
+echo "Live demo: https://awdyx.github.io/cutline-studio-demo/"
+echo "If the site looks stale, set GitHub → Settings → Pages → Deploy from branch → gh-pages → / (root)."
