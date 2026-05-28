@@ -50,6 +50,7 @@ export const NOTIFICATION_ACTOR_PROFILES: Record<string, NotificationActorProfil
       art: '',
       preview: '',
       startTime: 0,
+      endTime: 30,
     },
     pinnedTrackAppleUrl:
       'https://music.apple.com/nz/album/your-face/1709413623?i=1709413704',

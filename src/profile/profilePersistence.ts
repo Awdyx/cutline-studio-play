@@ -46,7 +46,12 @@ function parsePinnedTrack(raw: unknown): PinnedTrack | null {
   const startTime = typeof o.startTime === 'number' && isFinite(o.startTime)
     ? Math.max(0, Math.min(o.startTime, 29))
     : 0
-  return { id: o.id, title: o.title, artist: o.artist, art: o.art, preview: o.preview, startTime }
+  let endTime =
+    typeof o.endTime === 'number' && isFinite(o.endTime)
+      ? Math.max(0, Math.min(o.endTime, 30))
+      : 30
+  if (endTime <= startTime) endTime = Math.min(30, startTime + 1)
+  return { id: o.id, title: o.title, artist: o.artist, art: o.art, preview: o.preview, startTime, endTime }
 }
 
 function parseProfileMeta(raw: unknown): PersistedProfileMeta | null {

@@ -81,6 +81,7 @@ export default function ResolvedProfilePinnedTrack({
         art: t.art,
         preview: t.preview,
         startTime: track?.startTime ?? 0,
+        endTime: track?.endTime ?? 30,
       })
     })
 

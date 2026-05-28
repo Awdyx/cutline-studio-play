@@ -87,7 +87,8 @@ export function profilesEqual(a: UserProfile, b: UserProfile): boolean {
     profileMediaFramesEqual(a.bannerFrame, b.bannerFrame) &&
     socialsEqual(a.socials, b.socials) &&
     a.pinnedTrack?.id === b.pinnedTrack?.id &&
-    a.pinnedTrack?.startTime === b.pinnedTrack?.startTime
+    a.pinnedTrack?.startTime === b.pinnedTrack?.startTime &&
+    a.pinnedTrack?.endTime === b.pinnedTrack?.endTime
   )
 }
 

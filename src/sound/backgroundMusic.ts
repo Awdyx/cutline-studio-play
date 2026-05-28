@@ -7,6 +7,9 @@ const INTRO_FADE_SEC = 8
 const STUDY_SPACE_ENTER_SEC = 1.05
 const STUDY_SPACE_EXIT_SEC = 0.88
 
+/** Fade UI music under profile / picker song previews. */
+export const PINNED_PREVIEW_DUCK_FADE_SEC = 4
+
 const ACOUSTICS = {
   outside: {
     lowpassHz: 16_000,
@@ -296,8 +299,10 @@ class BackgroundMusicController {
   private loadFailed = false
   private enclosedAcousticsActive = false
   private pendingEnclosedAcoustics: boolean | null = null
+  private pinnedPreviewDuckDepth = 0
+  private previewFadeGeneration = 0
 
-  private targetGain(): number {
+  private baseOutputGain(): number {
     if (!this.enabled) return 0
     const mult = this.enclosedAcousticsActive
       ? ACOUSTICS.inside.outputGain
@@ -305,16 +310,25 @@ class BackgroundMusicController {
     return MUSIC_ON_GAIN * mult
   }
 
-  private rampOutputGainForEnclosed(active: boolean, durationSec: number): void {
-    if (!this.enabled || !musicGain || !musicCtx) return
-    const mult = active ? ACOUSTICS.inside.outputGain : ACOUSTICS.outside.outputGain
+  private effectiveOutputGain(): number {
+    if (!this.enabled || this.pinnedPreviewDuckDepth > 0) return 0
+    return this.baseOutputGain()
+  }
+
+  private rampToEffectiveOutput(durationSec: number): void {
+    if (!musicGain || !musicCtx) return
     rampParam(
       musicGain.gain,
       musicGain.gain.value,
-      MUSIC_ON_GAIN * mult,
+      this.effectiveOutputGain(),
       musicCtx.currentTime,
       durationSec,
     )
+  }
+
+  private rampOutputGainForEnclosed(active: boolean, durationSec: number): void {
+    if (!this.enabled || !musicGain || !musicCtx) return
+    this.rampToEffectiveOutput(durationSec)
   }
 
   private ensureElement(): HTMLAudioElement | null {
@@ -386,11 +400,16 @@ class BackgroundMusicController {
       if (this.loadFailed || !Number.isFinite(el.duration)) return
     }
 
-    el.volume = 1
     await resumeMusicContext()
 
-    if (!this.playing) {
-      rampMusicOutputGain(0, this.targetGain(), INTRO_FADE_SEC)
+    if (this.pinnedPreviewDuckDepth > 0) {
+      el.volume = 0
+      setMusicOutputGainImmediate(0)
+    } else {
+      el.volume = 1
+      if (!this.playing) {
+        rampMusicOutputGain(0, this.effectiveOutputGain(), INTRO_FADE_SEC)
+      }
     }
 
     try {
@@ -494,7 +513,66 @@ class BackgroundMusicController {
     this.setEnclosedAcoustics(active, opts)
   }
 
+  /**
+   * Duck ambient UI music while a pinned-track (or picker) preview is playing.
+   * Ref-counted; uses element.volume + output gain (rAF) so fades are always audible.
+   */
+  async fadeAmbientForPreview(
+    active: boolean,
+    opts?: { durationSec?: number },
+  ): Promise<void> {
+    if (active) {
+      const wasDucked = this.pinnedPreviewDuckDepth > 0
+      this.pinnedPreviewDuckDepth += 1
+      if (wasDucked) return
+    } else {
+      if (this.pinnedPreviewDuckDepth <= 0) return
+      this.pinnedPreviewDuckDepth -= 1
+      if (this.pinnedPreviewDuckDepth > 0) return
+    }
+
+    if (this.loadFailed) return
+
+    ensureMusicContext()
+    const el = this.ensureElement()
+    if (!el || !musicGain || !musicCtx) return
+
+    this.wireToContext()
+
+    const durationSec = opts?.durationSec ?? PINNED_PREVIEW_DUCK_FADE_SEC
+    const generation = ++this.previewFadeGeneration
+
+    await resumeMusicContext()
+    if (generation !== this.previewFadeGeneration) return
+
+    const fromGain = musicGain.gain.value
+    const toGain = active ? 0 : this.baseOutputGain()
+    const fromVol = el.volume
+    const toVol = active ? 0 : 1
+
+    await animateAmbientPreviewFade({
+      el,
+      gain: musicGain,
+      ctx: musicCtx,
+      durationSec,
+      fromGain,
+      toGain,
+      fromVol,
+      toVol,
+      isCancelled: () => generation !== this.previewFadeGeneration,
+    })
+  }
+
+  /** @deprecated Prefer fadeAmbientForPreview */
+  setPinnedPreviewDucking(
+    active: boolean,
+    opts?: { durationSec?: number },
+  ): void {
+    void this.fadeAmbientForPreview(active, opts)
+  }
+
   stop(): void {
+    this.pinnedPreviewDuckDepth = 0
     this.playing = false
     this.startQueued = false
     if (this.audio) {
@@ -503,6 +581,61 @@ class BackgroundMusicController {
     }
     setMusicOutputGainImmediate(0)
   }
+}
+
+function animateAmbientPreviewFade({
+  el,
+  gain,
+  ctx,
+  durationSec,
+  fromGain,
+  toGain,
+  fromVol,
+  toVol,
+  isCancelled,
+}: {
+  el: HTMLAudioElement
+  gain: GainNode
+  ctx: AudioContext
+  durationSec: number
+  fromGain: number
+  toGain: number
+  fromVol: number
+  toVol: number
+  isCancelled: () => boolean
+}): Promise<void> {
+  const durationMs = Math.max(0, durationSec) * 1000
+  if (durationMs <= 0) {
+    if (!isCancelled()) {
+      gain.gain.cancelScheduledValues(ctx.currentTime)
+      gain.gain.setValueAtTime(Math.max(0, toGain), ctx.currentTime)
+      el.volume = toVol
+    }
+    return Promise.resolve()
+  }
+
+  const t0 = performance.now()
+
+  return new Promise((resolve) => {
+    const step = (now: number) => {
+      if (isCancelled()) {
+        resolve()
+        return
+      }
+      const p = Math.min(1, (now - t0) / durationMs)
+      const g = fromGain + (toGain - fromGain) * p
+      const v = fromVol + (toVol - fromVol) * p
+      gain.gain.cancelScheduledValues(ctx.currentTime)
+      gain.gain.setValueAtTime(Math.max(0, g), ctx.currentTime)
+      el.volume = Math.max(0, Math.min(1, v))
+      if (p < 1) {
+        requestAnimationFrame(step)
+      } else {
+        resolve()
+      }
+    }
+    requestAnimationFrame(step)
+  })
 }
 
 export const backgroundMusic = new BackgroundMusicController()

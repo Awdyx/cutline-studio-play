@@ -20,6 +20,8 @@ export type PinnedTrack = {
   preview: string
   /** Start offset in seconds within the 30-second preview clip (0–29). */
   startTime: number
+  /** End offset in seconds within the 30-second preview clip (startTime+1–30). */
+  endTime: number
 }
 
 export type UserProfile = {

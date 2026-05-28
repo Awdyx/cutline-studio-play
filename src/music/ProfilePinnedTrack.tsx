@@ -1,22 +1,67 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { Play, Pause } from 'lucide-react'
 import { font } from '../styles/tokens'
 import type { PinnedTrack } from '../profile/types'
+import {
+  startPreviewPlayback,
+  stopPreviewPlayback,
+  bindPreviewEndCutoff,
+  unbindPreviewEndCutoff,
+} from './previewAudioEffects'
+import { usePreviewBackgroundMusicDuck } from './usePreviewBackgroundMusicDuck'
 
 export default function ProfilePinnedTrack({ track }: { track: PinnedTrack }) {
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const cutoffCleanupRef = useRef<(() => void) | null>(null)
+  const { onPreviewStarted, onPreviewStopped } = usePreviewBackgroundMusicDuck()
   const [playing, setPlaying] = useState(false)
 
-  function togglePlay() {
+  useEffect(() => {
+    return () => {
+      cutoffCleanupRef.current?.()
+      cutoffCleanupRef.current = null
+      if (audioRef.current) unbindPreviewEndCutoff(audioRef.current)
+    }
+  }, [])
+
+  function clearCutoffMonitor() {
+    cutoffCleanupRef.current?.()
+    cutoffCleanupRef.current = null
+  }
+
+  async function stopPreview() {
+    const audio = audioRef.current
+    clearCutoffMonitor()
+    setPlaying(false)
+    onPreviewStopped()
+    if (audio) await stopPreviewPlayback(audio)
+  }
+
+  async function togglePlay() {
     const audio = audioRef.current
     if (!audio) return
     if (playing) {
-      audio.pause()
-      setPlaying(false)
-    } else {
-      audio.currentTime = track.startTime
-      void audio.play()
+      await stopPreview()
+      return
+    }
+
+    try {
+      await startPreviewPlayback(audio, track.preview, track.startTime)
+      onPreviewStarted()
       setPlaying(true)
+      clearCutoffMonitor()
+      cutoffCleanupRef.current = bindPreviewEndCutoff(audio, {
+        startTime: track.startTime,
+        endTime: track.endTime,
+        onFadeComplete: () => {
+          clearCutoffMonitor()
+          onPreviewStopped()
+          setPlaying(false)
+        },
+      })
+    } catch {
+      onPreviewStopped()
+      setPlaying(false)
     }
   }
 
@@ -25,7 +70,7 @@ export default function ProfilePinnedTrack({ track }: { track: PinnedTrack }) {
       <button
         type="button"
         aria-label={playing ? 'Pause preview' : 'Play preview'}
-        onClick={togglePlay}
+        onClick={() => void togglePlay()}
         style={{
           display: 'inline-flex',
           alignItems: 'center',
@@ -82,12 +127,8 @@ export default function ProfilePinnedTrack({ track }: { track: PinnedTrack }) {
           )}
         </span>
       </button>
-      <audio
-        ref={audioRef}
-        src={track.preview}
-        onEnded={() => setPlaying(false)}
-        preload="none"
-      />
+      {/* src is assigned in preparePreviewForPlayback so crossOrigin applies before load */}
+      <audio ref={audioRef} onEnded={() => void stopPreview()} preload="none" />
     </div>
   )
 }

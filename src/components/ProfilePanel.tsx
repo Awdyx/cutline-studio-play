@@ -75,7 +75,7 @@ const NAV_ITEMS: {
   label: string
   destination: ProfileDestination
 }[] = [
-  { icon: User, label: 'Profile', destination: 'profile' },
+  { icon: User, label: 'Edit profile', destination: 'profile' },
   { icon: CreditCard, label: 'Subscription', destination: 'subscription' },
   { icon: HelpCircle, label: 'Help & support', destination: 'help' },
 ]

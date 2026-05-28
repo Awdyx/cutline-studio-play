@@ -145,7 +145,9 @@ export default function TrackPicker({ value, onChange }: TrackPickerProps) {
               <TrackScrubber
                 previewUrl={value.preview}
                 startTime={value.startTime}
+                endTime={value.endTime}
                 onStartTimeChange={(t) => onChange({ ...value, startTime: t })}
+                onEndTimeChange={(t) => onChange({ ...value, endTime: t })}
               />
             </motion.div>
           </motion.div>
@@ -255,6 +257,7 @@ export default function TrackPicker({ value, onChange }: TrackPickerProps) {
                           art: t.art,
                           preview: t.preview,
                           startTime: 0,
+                          endTime: 30,
                         })
                       }
                       onMouseEnter={() => setHoveredId(t.id)}

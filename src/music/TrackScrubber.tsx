@@ -1,50 +1,135 @@
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, type CSSProperties } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Play, Pause } from 'lucide-react'
 import { font } from '../styles/tokens'
+import {
+  startPreviewPlayback,
+  stopPreviewPlayback,
+  bindPreviewEndCutoff,
+  unbindPreviewEndCutoff,
+} from './previewAudioEffects'
+import { usePreviewBackgroundMusicDuck } from './usePreviewBackgroundMusicDuck'
 
 const FALLBACK_DURATION = 30
+const MIN_CLIP = 1
 
 interface TrackScrubberProps {
   previewUrl: string
   startTime: number
+  endTime: number
   onStartTimeChange: (t: number) => void
+  onEndTimeChange: (t: number) => void
 }
+
+type DragTarget = 'start' | 'end' | null
+
+const handleStyle = (dragging: boolean): CSSProperties => ({
+  position: 'absolute',
+  transform: `translateX(-50%) scale(${dragging ? 1.25 : 1})`,
+  width: 3,
+  height: 16,
+  borderRadius: 999,
+  background: 'var(--ui-accent)',
+  boxShadow: dragging
+    ? '0 0 0 4px rgba(var(--ui-accent-rgb, 100,120,200), 0.18)'
+    : 'none',
+  cursor: 'ew-resize',
+  zIndex: 2,
+  willChange: 'left, transform',
+  transformOrigin: 'center center',
+  touchAction: 'none',
+})
 
 export default function TrackScrubber({
   previewUrl,
   startTime,
+  endTime,
   onStartTimeChange,
+  onEndTimeChange,
 }: TrackScrubberProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const cutoffCleanupRef = useRef<(() => void) | null>(null)
+  const { onPreviewStarted, onPreviewStopped } = usePreviewBackgroundMusicDuck()
   const trackRef = useRef<HTMLDivElement | null>(null)
   const [playing, setPlaying] = useState(false)
   const [playhead, setPlayhead] = useState(startTime)
   const [duration, setDuration] = useState(FALLBACK_DURATION)
-  const [dragging, setDragging] = useState(false)
+  const [dragging, setDragging] = useState<DragTarget>(null)
   const [snapping, setSnapping] = useState(false)
 
-  // Keep playhead pinned to startTime while not playing
+  useEffect(() => {
+    return () => {
+      cutoffCleanupRef.current?.()
+      cutoffCleanupRef.current = null
+      if (audioRef.current) unbindPreviewEndCutoff(audioRef.current)
+    }
+  }, [])
+
   useEffect(() => {
     if (!playing && !dragging) setPlayhead(startTime)
   }, [startTime, playing, dragging])
 
-  function togglePlay() {
+  function clearCutoffMonitor() {
+    cutoffCleanupRef.current?.()
+    cutoffCleanupRef.current = null
+  }
+
+  function attachCutoffMonitor(audio: HTMLAudioElement) {
+    clearCutoffMonitor()
+    cutoffCleanupRef.current = bindPreviewEndCutoff(audio, {
+      startTime,
+      endTime,
+      onFadeComplete: () => {
+        clearCutoffMonitor()
+        onPreviewStopped()
+        setPlaying(false)
+        setSnapping(true)
+        setPlayhead(startTime)
+        setTimeout(() => setSnapping(false), 600)
+      },
+    })
+  }
+
+  useEffect(() => {
+    if (!playing) return
+    const audio = audioRef.current
+    if (!audio) return
+    attachCutoffMonitor(audio)
+  }, [playing, startTime, endTime])
+
+  async function stopScrubberPreview() {
+    const audio = audioRef.current
+    clearCutoffMonitor()
+    setPlaying(false)
+    onPreviewStopped()
+    if (audio) await stopPreviewPlayback(audio)
+  }
+
+  async function togglePlay() {
     const audio = audioRef.current
     if (!audio) return
     if (playing) {
-      audio.pause()
-      setPlaying(false)
-    } else {
-      audio.currentTime = startTime
+      await stopScrubberPreview()
+      return
+    }
+
+    try {
+      await startPreviewPlayback(audio, previewUrl, startTime)
       setPlayhead(startTime)
-      void audio.play()
+      onPreviewStarted()
       setPlaying(true)
+    } catch {
+      onPreviewStopped()
+      setPlaying(false)
     }
   }
 
-  function clampTime(t: number) {
-    return Math.max(0, Math.min(t, duration - 0.1))
+  function clampStart(t: number) {
+    return Math.max(0, Math.min(t, endTime - MIN_CLIP))
+  }
+
+  function clampEnd(t: number) {
+    return Math.max(startTime + MIN_CLIP, Math.min(t, duration))
   }
 
   function timeFromClientX(clientX: number): number {
@@ -52,41 +137,48 @@ export default function TrackScrubber({
     if (!track) return 0
     const rect = track.getBoundingClientRect()
     const x = Math.max(0, Math.min(clientX - rect.left, rect.width))
-    return clampTime((x / rect.width) * duration)
+    return (x / rect.width) * duration
   }
 
-  function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
-    e.currentTarget.setPointerCapture(e.pointerId)
-    setDragging(true)
-    setSnapping(false)
-    const t = timeFromClientX(e.clientX)
-    onStartTimeChange(t)
-    setPlayhead(t)
-    if (audioRef.current && playing) audioRef.current.currentTime = t
+  function handlePointerDown(target: DragTarget) {
+    return (e: React.PointerEvent<HTMLDivElement>) => {
+      e.stopPropagation()
+      e.currentTarget.setPointerCapture(e.pointerId)
+      setDragging(target)
+      setSnapping(false)
+    }
   }
 
   function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
-    if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
+    if (!dragging || !e.currentTarget.hasPointerCapture(e.pointerId)) return
     const t = timeFromClientX(e.clientX)
-    onStartTimeChange(t)
-    setPlayhead(t)
-    if (audioRef.current && playing) audioRef.current.currentTime = t
+    if (dragging === 'start') {
+      const next = clampStart(t)
+      onStartTimeChange(next)
+      setPlayhead(next)
+      if (audioRef.current && playing) audioRef.current.currentTime = next
+    } else {
+      const next = clampEnd(t)
+      onEndTimeChange(next)
+      if (audioRef.current && playing && audioRef.current.currentTime > next) {
+        audioRef.current.currentTime = next
+        setPlayhead(next)
+      }
+    }
   }
 
   function handlePointerUp(e: React.PointerEvent<HTMLDivElement>) {
     e.currentTarget.releasePointerCapture(e.pointerId)
-    setDragging(false)
+    setDragging(null)
   }
 
-  // The knob sits at playhead when playing, startTime when paused/dragging
-  const knobPct = playing ? (playhead / duration) * 100 : (startTime / duration) * 100
   const startPct = (startTime / duration) * 100
-  const fillWidth = Math.max(0, knobPct - startPct)
+  const endPct = (endTime / duration) * 100
+  const playheadPct = (Math.min(playhead, endTime) / duration) * 100
+  const fillWidth = Math.max(0, playheadPct - startPct)
+  const livePos = playing || dragging !== null
 
-  // During playback/drag: no transition so knob tracks audio perfectly.
-  // After snap-back (onEnded): spring overshoot via cubic-bezier.
-  const livePos = playing || dragging
-  const knobTransition = livePos
+  const handleTransition = livePos
     ? 'none'
     : snapping
       ? 'left 0.55s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.18s ease'
@@ -99,7 +191,6 @@ export default function TrackScrubber({
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      {/* Play / pause */}
       <button
         type="button"
         aria-label={playing ? 'Pause preview' : 'Play from start point'}
@@ -137,7 +228,6 @@ export default function TrackScrubber({
         </AnimatePresence>
       </button>
 
-      {/* Timeline */}
       <div
         ref={trackRef}
         style={{
@@ -145,16 +235,11 @@ export default function TrackScrubber({
           minWidth: 0,
           position: 'relative',
           height: 30,
-          cursor: 'ew-resize',
           userSelect: 'none',
           display: 'flex',
           alignItems: 'center',
         }}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
       >
-        {/* Groove background */}
         <div
           style={{
             position: 'absolute',
@@ -166,43 +251,84 @@ export default function TrackScrubber({
           }}
         />
 
-        {/* Played fill — trails the knob from startTime */}
         <div
           style={{
             position: 'absolute',
             left: `${startPct}%`,
-            width: `${fillWidth}%`,
+            width: `${endPct - startPct}%`,
             height: 4,
             borderRadius: 3,
             background: 'var(--ui-accent)',
-            opacity: 0.45,
-            transition: livePos ? 'none' : 'width 0.25s ease, opacity 0.2s ease',
+            opacity: 0.2,
+            transition: livePos ? 'none' : 'left 0.25s ease, width 0.25s ease',
           }}
         />
 
-        {/* Knob — IS the playhead */}
+        {playing && (
+          <div
+            style={{
+              position: 'absolute',
+              left: `${startPct}%`,
+              width: `${fillWidth}%`,
+              height: 4,
+              borderRadius: 3,
+              background: 'var(--ui-accent)',
+              opacity: 0.45,
+              transition: 'none',
+            }}
+          />
+        )}
+
+        {playing && (
+          <div
+            style={{
+              position: 'absolute',
+              left: `${playheadPct}%`,
+              transform: 'translateX(-50%)',
+              width: 2,
+              height: 10,
+              borderRadius: 999,
+              background: 'var(--ui-accent)',
+              opacity: 0.85,
+              pointerEvents: 'none',
+              zIndex: 1,
+            }}
+          />
+        )}
+
         <div
+          role="slider"
+          aria-label="Start time"
+          aria-valuemin={0}
+          aria-valuemax={endTime - MIN_CLIP}
+          aria-valuenow={startTime}
           style={{
-            position: 'absolute',
-            left: `${knobPct}%`,
-            transform: `translateX(-50%) scale(${dragging ? 1.25 : 1})`,
-            width: 3,
-            height: 16,
-            borderRadius: 999,
-            background: 'var(--ui-accent)',
-            boxShadow: dragging
-              ? '0 0 0 4px rgba(var(--ui-accent-rgb, 100,120,200), 0.18)'
-              : 'none',
-            pointerEvents: 'none',
-            zIndex: 1,
-            willChange: 'left, transform',
-            transition: knobTransition,
-            transformOrigin: 'center center',
+            ...handleStyle(dragging === 'start'),
+            left: `${startPct}%`,
+            transition: handleTransition,
           }}
+          onPointerDown={handlePointerDown('start')}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+        />
+
+        <div
+          role="slider"
+          aria-label="End time"
+          aria-valuemin={startTime + MIN_CLIP}
+          aria-valuemax={duration}
+          aria-valuenow={endTime}
+          style={{
+            ...handleStyle(dragging === 'end'),
+            left: `${endPct}%`,
+            transition: handleTransition,
+          }}
+          onPointerDown={handlePointerDown('end')}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
         />
       </div>
 
-      {/* Time label */}
       <span
         style={{
           fontSize: 11,
@@ -212,29 +338,30 @@ export default function TrackScrubber({
           width: 26,
           textAlign: 'right',
           letterSpacing: '0.02em',
-          transition: 'opacity 0.15s ease',
         }}
       >
-        {fmt(startTime)}
+        {fmt(endTime - startTime)}
       </span>
 
       <audio
         ref={audioRef}
-        src={previewUrl}
         preload="none"
         onTimeUpdate={() => {
-          if (audioRef.current) setPlayhead(audioRef.current.currentTime)
+          const audio = audioRef.current
+          if (!audio) return
+          setPlayhead(audio.currentTime)
         }}
         onDurationChange={() => {
           const d = audioRef.current?.duration
           if (d && isFinite(d) && d > 0) setDuration(d)
         }}
         onEnded={() => {
-          setPlaying(false)
-          setSnapping(true)
-          setPlayhead(startTime)
-          // Clear snap flag after animation completes
-          setTimeout(() => setSnapping(false), 600)
+          void (async () => {
+            await stopScrubberPreview()
+            setSnapping(true)
+            setPlayhead(startTime)
+            setTimeout(() => setSnapping(false), 600)
+          })()
         }}
       />
     </div>
