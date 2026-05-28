@@ -1,14 +1,7 @@
 import { useLayoutEffect, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
-import { motion } from 'framer-motion'
-import {
-  ArrowLeft,
-  Calendar,
-  ChevronRight,
-  CreditCard,
-  ExternalLink,
-  Sparkles,
-} from 'lucide-react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { ArrowLeft, Calendar, CreditCard, Sparkles } from 'lucide-react'
 import {
   CHROME_FROSTED_MENU_CLASS,
   CHROME_PRESERVE_CASE_CLASS,
@@ -29,6 +22,7 @@ import { playSubmenuHover, playSubmenuTap } from '../sound/submenuSound'
 import { SubmenuSoundScope } from './SubmenuSoundScope'
 import ChromeScrollFade from './ChromeScrollFade'
 import PhoneCenteredChromeModal from './PhoneCenteredChromeModal'
+import { ComingSoonOverlay } from './ComingSoonOverlay'
 
 const SUBMENU_WIDTH = 320
 const SUBMENU_GAP = 10
@@ -36,8 +30,6 @@ const SUBMENU_GAP = 10
 interface SubscriptionSubmenuProps {
   panelRef: RefObject<HTMLElement | null>
   onClose: () => void
-  onManageBilling?: () => void
-  onChangePlan?: () => void
 }
 
 function DetailRow({
@@ -84,63 +76,13 @@ function DetailRow({
   )
 }
 
-function ActionRow({
-  label,
-  onClick,
-  external = false,
-}: {
-  label: string
-  onClick: () => void
-  external?: boolean
-}) {
-  const [hovered, setHovered] = useState(false)
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        playSubmenuTap()
-        onClick()
-      }}
-      onMouseEnter={() => {
-        setHovered(true)
-        playSubmenuHover()
-      }}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        width: '100%',
-        padding: '10px 0',
-        border: 'none',
-        background: hovered ? 'var(--menu-row-hover-bg)' : 'transparent',
-        borderRadius: 8,
-        cursor: 'pointer',
-        fontFamily: font.family,
-        color: font.colorPrimary,
-        fontSize: 14,
-        fontWeight: 500,
-        textAlign: 'left',
-      }}
-    >
-      <span style={{ flex: 1 }}>{chromeLabel(label)}</span>
-      {external ? (
-        <ExternalLink size={14} strokeWidth={2} color={font.colorMuted} />
-      ) : (
-        <ChevronRight size={14} strokeWidth={2} color={font.colorMuted} />
-      )}
-    </button>
-  )
-}
-
 export default function SubscriptionSubmenu({
   panelRef,
   onClose,
-  onManageBilling,
-  onChangePlan,
 }: SubscriptionSubmenuProps) {
   const isPhone = useIsPhoneLayout()
   const [mounted, setMounted] = useState(false)
+  const [billingComingSoon, setBillingComingSoon] = useState(false)
   const subscription = useSubscriptionStore((s) => s.subscription)
   const billingEmail = useProfileStore((s) => s.profile.email)
   const layout = usePanelAlignedSubmenuLayout(panelRef, SUBMENU_WIDTH, SUBMENU_GAP)
@@ -263,7 +205,7 @@ export default function SubscriptionSubmenu({
           type="button"
           onClick={() => {
             playSubmenuTap()
-            onManageBilling?.()
+            setBillingComingSoon(true)
           }}
           onMouseEnter={() => playSubmenuHover()}
           style={{
@@ -282,18 +224,13 @@ export default function SubscriptionSubmenu({
         >
           {chromeLabel('Manage billing')}
         </button>
-
-        <ActionRow label="Change plan" onClick={() => onChangePlan?.()} />
-        <ActionRow
-          label="Billing portal"
-          external
-          onClick={() => onManageBilling?.()}
-        />
       </ChromeScrollFade>
     </SubmenuSoundScope>
   )
 
-  return createPortal(
+  return (
+    <>
+      {createPortal(
     isPhone ? (
       <PhoneCenteredChromeModal
         onDismiss={onClose}
@@ -331,5 +268,15 @@ export default function SubscriptionSubmenu({
       </motion.div>
     ),
     document.body,
+      )}
+      <AnimatePresence>
+        {billingComingSoon && (
+          <ComingSoonOverlay
+            key="billing-coming-soon"
+            onDismiss={() => setBillingComingSoon(false)}
+          />
+        )}
+      </AnimatePresence>
+    </>
   )
 }

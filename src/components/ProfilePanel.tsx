@@ -1,4 +1,5 @@
 import { useCallback, useRef, useEffect, useLayoutEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { User, CreditCard, HelpCircle, LogOut } from 'lucide-react'
 import { useIsPhoneLayout } from '../hooks/useLayoutProfile'
@@ -19,6 +20,7 @@ import ProfileIdentityTags from './ProfileIdentityTags'
 import ProfileSocialPills from './ProfileSocialPills'
 import ProfileSubmenu from './ProfileSubmenu'
 import SubscriptionSubmenu from './SubscriptionSubmenu'
+import ProfilePinnedTrack from '../music/ProfilePinnedTrack'
 import { MenuRow } from './MenuRow'
 import { SubmenuSoundScope } from './SubmenuSoundScope'
 import { useMenuOutsideDismiss } from './useMenuOutsideDismiss'
@@ -32,11 +34,29 @@ interface ProfilePanelProps {
   onClose: () => void
   onNavigate: (destination: ProfileDestination) => void
   onSignOut: () => void
-  onManageBilling?: () => void
-  onChangePlan?: () => void
 }
 
 const PROFILE_PANEL_TOP = 64
+const HELP_TAUNT_GAP = 12
+const HELP_TAUNT_TEXT = "we aren't a corporation just text us"
+
+const headerContainerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.05, delayChildren: 0.03 },
+  },
+}
+
+const headerItemVariants = {
+  hidden: { opacity: 0, y: 5, scale: 0.965 },
+  show: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: { type: 'spring' as const, stiffness: 360, damping: 34, mass: 0.85 },
+  },
+}
 
 const cardBase: React.CSSProperties = {
   position: 'fixed',
@@ -65,17 +85,29 @@ export default function ProfilePanel({
   onClose,
   onNavigate,
   onSignOut,
-  onManageBilling,
-  onChangePlan,
 }: ProfilePanelProps) {
   const isPhone = useIsPhoneLayout()
   const panelRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
+  const helpRowRef = useRef<HTMLDivElement>(null)
   const [phoneContentFillScale, setPhoneContentFillScale] = useState(1)
   const [openSubmenu, setOpenSubmenu] = useState<ProfileSubmenuId | null>(null)
   const [profileDraft, setProfileDraft] = useState<UserProfile | null>(null)
+  const [showHelpTaunt, setShowHelpTaunt] = useState(false)
+  const [helpTauntPos, setHelpTauntPos] = useState<{ y: number; left: number } | null>(null)
+  const helpTauntTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const profile = useProfileStore((s) => s.profile)
   const visualViewportOffsetTop = useVisualViewportOffset()
+  const hasMountedRef = useRef(false)
+  const [savedVersion, setSavedVersion] = useState(0)
+
+  useEffect(() => {
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true
+      return
+    }
+    setSavedVersion((v) => v + 1)
+  }, [profile])
 
   const closeProfileSubmenu = useCallback(() => {
     setProfileDraft(null)
@@ -87,9 +119,32 @@ export default function ProfilePanel({
     setOpenSubmenu(null)
   }, [])
 
+  const updateHelpTauntPos = useCallback(() => {
+    const row = helpRowRef.current
+    if (!row) return
+    const rect = row.getBoundingClientRect()
+    setHelpTauntPos({ y: rect.top + rect.height / 2, left: rect.left })
+  }, [])
+
   useEffect(() => {
-    if (!isOpen) closeAllSubmenus()
+    if (!isOpen) {
+      closeAllSubmenus()
+      if (helpTauntTimerRef.current) clearTimeout(helpTauntTimerRef.current)
+      setShowHelpTaunt(false)
+      setHelpTauntPos(null)
+    }
   }, [closeAllSubmenus, isOpen])
+
+  useLayoutEffect(() => {
+    if (!showHelpTaunt || !isOpen) return
+    updateHelpTauntPos()
+    window.addEventListener('resize', updateHelpTauntPos)
+    window.addEventListener('scroll', updateHelpTauntPos, true)
+    return () => {
+      window.removeEventListener('resize', updateHelpTauntPos)
+      window.removeEventListener('scroll', updateHelpTauntPos, true)
+    }
+  }, [isOpen, showHelpTaunt, updateHelpTauntPos, phoneContentFillScale, openSubmenu])
 
   useEffect(() => {
     useShortcutUiStore.getState().registerProfileMenu({ closeSubmenus: closeAllSubmenus })
@@ -174,6 +229,13 @@ export default function ProfilePanel({
       setOpenSubmenu((current) => (current === 'subscription' ? null : 'subscription'))
       return
     }
+    if (destination === 'help') {
+      if (helpTauntTimerRef.current) clearTimeout(helpTauntTimerRef.current)
+      updateHelpTauntPos()
+      setShowHelpTaunt(true)
+      helpTauntTimerRef.current = setTimeout(() => setShowHelpTaunt(false), 2600)
+      return
+    }
     setOpenSubmenu(null)
     onNavigate(destination)
   }
@@ -207,10 +269,10 @@ export default function ProfilePanel({
           overflow: 'hidden',
         }}
         {...(isPhone ? phoneTopPanelSlideMotion : {
-          initial: { opacity: 0, scale: 0.96, y: -4 },
+          initial: { opacity: 0, scale: 0.98, y: -2 },
           animate: { opacity: 1, scale: 1, y: 0 },
-          exit: { opacity: 0, scale: 0.96, y: -4 },
-          transition: { duration: 0.18, ease: 'easeOut' },
+          exit: { opacity: 0, scale: 0.98, y: -2 },
+          transition: { duration: 0.22, ease: [0.22, 1, 0.36, 1] },
         })}
       >
         <div
@@ -228,7 +290,7 @@ export default function ProfilePanel({
               : undefined
           }
         >
-        <div data-profile-panel-header>
+        <div data-profile-panel-header style={{ position: 'relative' }}>
           <ProfileBannerHeader
             bannerImageUrl={profileDraft?.bannerImageUrl ?? profile.bannerImageUrl}
             bannerFrame={profileDraft?.bannerFrame ?? profile.bannerFrame}
@@ -242,46 +304,99 @@ export default function ProfilePanel({
             contentPaddingBottom={isPhone ? 6 : undefined}
             edgeToEdge
           >
-            <div className={CHROME_PRESERVE_CASE_CLASS}>
-              <ProfileIdentityTags
-                displayName={profileDraft?.displayName ?? profile.displayName}
-                handle={profileDraft?.handle ?? profile.handle}
-                studentCohort={profile.studentCohort}
-                compact={isPhone}
-              />
+            <motion.div
+              key={savedVersion}
+              className={CHROME_PRESERVE_CASE_CLASS}
+              variants={headerContainerVariants}
+              initial={savedVersion > 0 ? 'hidden' : false}
+              animate="show"
+            >
+              <motion.div variants={headerItemVariants}>
+                <ProfileIdentityTags
+                  displayName={profileDraft?.displayName ?? profile.displayName}
+                  handle={profileDraft?.handle ?? profile.handle}
+                  studentCohort={profile.studentCohort}
+                  compact={isPhone}
+                />
+              </motion.div>
+              {(profileDraft?.pinnedTrack ?? profile.pinnedTrack) && (
+                <motion.div variants={headerItemVariants}>
+                  <ProfilePinnedTrack
+                    track={(profileDraft?.pinnedTrack ?? profile.pinnedTrack)!}
+                  />
+                </motion.div>
+              )}
               {!isPhone && (profileDraft?.bio ?? profile.bio) && (
-                <p
-                  style={{
-                    margin: '16px 0 0',
-                    fontSize: 12,
-                    color: font.colorFaint,
-                    lineHeight: 1.45,
-                  }}
-                >
-                  {profileDraft?.bio ?? profile.bio}
-                </p>
+                <motion.div variants={headerItemVariants}>
+                  <p
+                    style={{
+                      margin: '16px 0 0',
+                      fontSize: 12,
+                      color: font.colorFaint,
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    {profileDraft?.bio ?? profile.bio}
+                  </p>
+                </motion.div>
               )}
               {!isPhone && (
-                <ProfileSocialPills socials={profileDraft?.socials ?? profile.socials} centered />
+                <motion.div variants={headerItemVariants}>
+                  <ProfileSocialPills socials={profileDraft?.socials ?? profile.socials} centered />
+                </motion.div>
               )}
-            </div>
+            </motion.div>
           </ProfileBannerHeader>
+
+          {/* Banner flash on save */}
+          <AnimatePresence>
+            {savedVersion > 0 && (
+              <motion.div
+                key={`flash-${savedVersion}`}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: [0, 0.22, 0] }}
+                transition={{ duration: 0.7, times: [0, 0.18, 1], ease: [0.22, 1, 0.36, 1] }}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: isPhone ? 48 : 80,
+                  background: 'rgba(255,255,255,0.7)',
+                  pointerEvents: 'none',
+                  zIndex: 5,
+                }}
+              />
+            )}
+          </AnimatePresence>
         </div>
 
         <div style={isPhone ? phoneMenuDividerStyle : menuDividerStyle} />
 
         <SubmenuSoundScope>
           <div style={{ padding: isPhone ? '2px 0' : '4px 0' }}>
-            {NAV_ITEMS.map(({ icon, label, destination }) => (
-              <MenuRow
-                key={destination}
-                icon={icon}
-                label={label}
-                inset
-                compact={isPhone}
-                onClick={() => handleNav(destination)}
-              />
-            ))}
+            {NAV_ITEMS.map(({ icon, label, destination }) =>
+              destination === 'help' ? (
+                <div key={destination} ref={helpRowRef}>
+                  <MenuRow
+                    icon={icon}
+                    label={label}
+                    inset
+                    compact={isPhone}
+                    onClick={() => handleNav(destination)}
+                  />
+                </div>
+              ) : (
+                <MenuRow
+                  key={destination}
+                  icon={icon}
+                  label={label}
+                  inset
+                  compact={isPhone}
+                  onClick={() => handleNav(destination)}
+                />
+              ),
+            )}
           </div>
 
           <div style={isPhone ? phoneMenuDividerStyle : menuDividerStyle} />
@@ -300,6 +415,42 @@ export default function ProfilePanel({
         </div>
       </motion.div>
 
+      {helpTauntPos &&
+        createPortal(
+          <AnimatePresence>
+            {showHelpTaunt && isOpen && (
+              <motion.span
+                key="help-taunt"
+                initial={{ opacity: 0, x: 6, y: '-50%', scale: 0.92 }}
+                animate={{ opacity: 0.5, x: 0, y: '-50%', scale: 1 }}
+                exit={{ opacity: 0, x: 6, y: '-50%', scale: 0.94 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 28 }}
+                style={{
+                  position: 'fixed',
+                  right: window.innerWidth - helpTauntPos.left + HELP_TAUNT_GAP,
+                  top: helpTauntPos.y,
+                  zIndex: 41,
+                  fontFamily: font.family,
+                  fontSize: 11,
+                  fontWeight: 500,
+                  color: 'var(--ui-text)',
+                  letterSpacing: '-0.01em',
+                  pointerEvents: 'none',
+                  userSelect: 'none',
+                  maxWidth: 220,
+                  whiteSpace: 'normal',
+                  textAlign: 'right',
+                  lineHeight: 1.3,
+                  transformOrigin: 'right center',
+                }}
+              >
+                {HELP_TAUNT_TEXT}
+              </motion.span>
+            )}
+          </AnimatePresence>,
+          document.body,
+        )}
+
       <AnimatePresence>
         {openSubmenu === 'profile' && (
           <ProfileSubmenu
@@ -314,8 +465,6 @@ export default function ProfilePanel({
             key="subscription-submenu"
             panelRef={panelRef}
             onClose={() => setOpenSubmenu(null)}
-            onManageBilling={onManageBilling}
-            onChangePlan={onChangePlan}
           />
         )}
       </AnimatePresence>

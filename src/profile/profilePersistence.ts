@@ -1,4 +1,4 @@
-import type { ProfileSocialLink, UserProfile } from './types'
+import type { PinnedTrack, ProfileSocialLink, UserProfile } from './types'
 import { parseProfileMediaFrame } from './profileMediaFrame'
 
 export const PROFILE_STORAGE_KEY = 'cutline-profile-v1'
@@ -6,7 +6,7 @@ export const PROFILE_STORAGE_KEY = 'cutline-profile-v1'
 export const DEFAULT_PROFILE: UserProfile = {
   displayName: 'James',
   handle: 'james',
-  email: 'james@cutline.app',
+  email: 'youractual@email.com',
   bio: '',
   studentCohort: 'HSFY',
   avatarColor: '#c4a373',
@@ -15,6 +15,7 @@ export const DEFAULT_PROFILE: UserProfile = {
   bannerImageUrl: null,
   bannerFrame: null,
   socials: [],
+  pinnedTrack: null,
 }
 
 /** Profile fields stored in localStorage (images live in IndexedDB). */
@@ -29,6 +30,23 @@ function parseSocials(raw: unknown): ProfileSocialLink[] {
       value: typeof entry.value === 'string' ? entry.value.trim() : '',
     }))
     .filter((link) => link.label && link.value)
+}
+
+function parsePinnedTrack(raw: unknown): PinnedTrack | null {
+  if (!raw || typeof raw !== 'object') return null
+  const o = raw as Record<string, unknown>
+  if (
+    typeof o.id !== 'number' ||
+    typeof o.title !== 'string' ||
+    typeof o.artist !== 'string' ||
+    typeof o.art !== 'string' ||
+    typeof o.preview !== 'string'
+  )
+    return null
+  const startTime = typeof o.startTime === 'number' && isFinite(o.startTime)
+    ? Math.max(0, Math.min(o.startTime, 29))
+    : 0
+  return { id: o.id, title: o.title, artist: o.artist, art: o.art, preview: o.preview, startTime }
 }
 
 function parseProfileMeta(raw: unknown): PersistedProfileMeta | null {
@@ -69,6 +87,7 @@ function parseProfileMeta(raw: unknown): PersistedProfileMeta | null {
     avatarFrame: parseProfileMediaFrame(o.avatarFrame) ?? null,
     bannerFrame: parseProfileMediaFrame(o.bannerFrame) ?? null,
     socials: parseSocials(o.socials),
+    pinnedTrack: parsePinnedTrack(o.pinnedTrack),
   }
 }
 
@@ -146,5 +165,6 @@ export function mergePersistedMeta(
     avatarFrame: parseProfileMediaFrame(meta?.avatarFrame) ?? DEFAULT_PROFILE.avatarFrame,
     bannerFrame: parseProfileMediaFrame(meta?.bannerFrame) ?? DEFAULT_PROFILE.bannerFrame,
     socials: Array.isArray(meta?.socials) ? meta.socials : DEFAULT_PROFILE.socials,
+    pinnedTrack: parsePinnedTrack(meta?.pinnedTrack) ?? DEFAULT_PROFILE.pinnedTrack,
   }
 }

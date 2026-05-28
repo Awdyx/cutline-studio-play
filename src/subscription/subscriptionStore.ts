@@ -7,10 +7,10 @@ const DEFAULT_SUBSCRIPTION: SubscriptionInfo = {
   renewsAt: '2026-06-01',
   priceLabel: '$40 / week',
   features: [
-    'Unlimited canvases & spaces',
-    'Full drawing & annotation tools',
-    'Cloud sync across devices',
-    'Priority support',
+    'access to cutline rounds',
+    'active AI help from roro',
+    'unlimited tutor support',
+    'maybe higher chance of dent offer',
   ],
 }
 

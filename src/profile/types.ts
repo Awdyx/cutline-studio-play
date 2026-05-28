@@ -12,6 +12,16 @@ export type ProfileSocialLink = {
   value: string
 }
 
+export type PinnedTrack = {
+  id: number
+  title: string
+  artist: string
+  art: string
+  preview: string
+  /** Start offset in seconds within the 30-second preview clip (0–29). */
+  startTime: number
+}
+
 export type UserProfile = {
   displayName: string
   handle: string
@@ -25,6 +35,7 @@ export type UserProfile = {
   bannerImageUrl: string | null
   bannerFrame: ProfileMediaFrame | null
   socials: ProfileSocialLink[]
+  pinnedTrack: PinnedTrack | null
 }
 
 export type TopBarUser = {

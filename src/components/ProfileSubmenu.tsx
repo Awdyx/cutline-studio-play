@@ -9,8 +9,9 @@ import {
   type RefObject,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion, LayoutGroup, useAnimate } from 'framer-motion'
 import { ArrowLeft, Loader2, Plus, Trash2 } from 'lucide-react'
+import TrackPicker from '../music/TrackPicker'
 import { CHROME_FROSTED_MENU_CLASS, chromeFrostedMenuStyle, chromeLabel, font, menuDividerStyle } from '../styles/tokens'
 import { useProfileStore } from '../profile/profileStore'
 import {
@@ -91,15 +92,17 @@ function Field({
   hint,
   error,
   children,
+  last = false,
 }: {
   id: string
   label: string
   hint?: string
   error?: string
   children: React.ReactNode
+  last?: boolean
 }) {
   return (
-    <div style={{ marginBottom: 10 }}>
+    <motion.div layout style={{ marginBottom: last ? 0 : 28 }}>
       <label htmlFor={id} style={labelStyle}>
         {chromeLabel(label)}
       </label>
@@ -108,7 +111,7 @@ function Field({
         <p style={{ margin: '6px 0 0', fontSize: 12, color: font.colorFaint }}>{hint}</p>
       )}
       {error && <p style={fieldErrorStyle}>{error}</p>}
-    </div>
+    </motion.div>
   )
 }
 
@@ -128,6 +131,8 @@ export default function ProfileSubmenu({ panelRef, onClose, onDraftChange }: Pro
   const userEditedRef = useRef(false)
   const isPhone = useIsPhoneLayout()
   const layout = usePanelAlignedSubmenuLayout(panelRef, SUBMENU_WIDTH, SUBMENU_GAP)
+  const [discardRef, animateDiscard] = useAnimate()
+  const [saveRef, animateSave] = useAnimate()
 
   const dirty = !profilesEqual(draft, savedProfile)
 
@@ -178,20 +183,24 @@ export default function ProfileSubmenu({ panelRef, onClose, onDraftChange }: Pro
 
   const handleDiscard = useCallback(() => {
     resetDraft()
-  }, [resetDraft])
+    void animateDiscard(discardRef.current, { x: [0, -8, 8, -6, 6, -3, 0] }, { duration: 0.4, ease: 'easeInOut' })
+  }, [resetDraft, animateDiscard, discardRef])
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     const validation = validateProfileDraft(draft)
     if (Object.keys(validation).length > 0) {
       setErrors(validation)
+      void animateSave(saveRef.current, { x: [0, -6, 6, -5, 5, 0] }, { duration: 0.35, ease: 'easeInOut' })
       return
     }
+    void animateSave(saveRef.current, { scale: [1, 0.91, 1.07, 1] }, { duration: 0.28, ease: 'easeInOut' })
+    await new Promise<void>((r) => setTimeout(r, 120))
     const next = sanitizeProfileDraft(draft)
     saveProfile(next)
     userEditedRef.current = false
     setErrors({})
     onClose()
-  }, [draft, onClose, saveProfile])
+  }, [draft, onClose, saveProfile, animateSave, saveRef])
 
   const applyProfileImage = useCallback(
     async (file: File, kind: ProfileImageKind) => {
@@ -327,12 +336,12 @@ export default function ProfileSubmenu({ panelRef, onClose, onDraftChange }: Pro
         Careful — you have unsaved changes!
       </p>
       <div style={{ display: 'flex', gap: 8 }}>
-        <button type="button" onClick={handleDiscard} style={discardButtonStyle}>
+        <motion.button ref={discardRef} type="button" onClick={handleDiscard} style={discardButtonStyle}>
           Discard
-        </button>
-        <button type="button" onClick={handleSave} style={saveButtonStyle}>
+        </motion.button>
+        <motion.button ref={saveRef} type="button" onClick={() => void handleSave()} style={saveButtonStyle}>
           {chromeLabel('Save changes')}
-        </button>
+        </motion.button>
       </div>
     </>
   )
@@ -378,9 +387,12 @@ export default function ProfileSubmenu({ panelRef, onClose, onDraftChange }: Pro
 
       <ChromeScrollFade
         ref={formScrollRef}
-        scrollStyle={{ padding: '0 16px' }}
+        contentPadY={0}
+        contentStyle={{ paddingTop: 4, paddingBottom: 16 }}
+        scrollStyle={{ padding: '4px 16px 0' }}
         scrollClassName={isPhone ? 'chrome-scroll-hidden' : undefined}
       >
+        <LayoutGroup id="profile-form">
         <div style={{ marginBottom: 2 }}>
           <div style={{ display: 'flex', gap: 10 }}>
             <MediaChangeTile
@@ -444,7 +456,7 @@ export default function ProfileSubmenu({ panelRef, onClose, onDraftChange }: Pro
           )}
         </div>
 
-        <div style={{ ...menuDividerStyle, margin: '10px 0 18px' }} />
+        <div style={{ ...menuDividerStyle, margin: '16px 0 30px' }} />
 
         <Field id="profile-display-name" label="Display name" error={errors.displayName}>
           <input
@@ -462,7 +474,6 @@ export default function ProfileSubmenu({ panelRef, onClose, onDraftChange }: Pro
         <Field
           id="profile-handle"
           label="Username"
-          hint="Letters, numbers, and underscores"
           error={errors.handle}
         >
           <div style={{ display: 'flex', alignItems: 'stretch' }}>
@@ -498,7 +509,6 @@ export default function ProfileSubmenu({ panelRef, onClose, onDraftChange }: Pro
           id="profile-bio"
           label="Bio"
           error={errors.bio}
-          hint={`${draft.bio.length}/${BIO_MAX_LENGTH}`}
         >
           <textarea
             id="profile-bio"
@@ -507,7 +517,13 @@ export default function ProfileSubmenu({ panelRef, onClose, onDraftChange }: Pro
             rows={3}
             onChange={(e) => patchDraft({ bio: e.target.value })}
             onFocus={handleFieldFocus}
-            style={{ ...inputStyle, resize: 'vertical', minHeight: 72 }}
+            style={{
+              ...inputStyle,
+              resize: 'vertical',
+              minHeight: 72,
+              color: draft.bio.length >= BIO_MAX_LENGTH ? '#c44e4e' : font.colorPrimary,
+              transition: 'color 0.2s ease',
+            }}
             placeholder="a line about you"
           />
         </Field>
@@ -515,54 +531,68 @@ export default function ProfileSubmenu({ panelRef, onClose, onDraftChange }: Pro
         <Field
           id="profile-socials"
           label="Social connections"
-          hint="Platform name and handle or URL"
           error={errors.socials}
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {draft.socials.map((link, index) => (
-              <div key={`social-${index}`} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                <input
-                  type="text"
-                  value={link.label}
-                  maxLength={SOCIAL_LABEL_MAX_LENGTH}
-                  placeholder="instagram"
-                  onChange={(e) => updateSocial(index, { label: e.target.value })}
-                  onFocus={handleFieldFocus}
-                  style={{ ...inputStyle, flex: '0 0 96px' }}
-                  aria-label={`Platform ${index + 1}`}
-                />
-                <input
-                  type="text"
-                  value={link.value}
-                  maxLength={SOCIAL_VALUE_MAX_LENGTH}
-                  placeholder="username or URL"
-                  onChange={(e) => updateSocial(index, { value: e.target.value })}
-                  onFocus={handleFieldFocus}
-                  style={{ ...inputStyle, flex: 1, minWidth: 0 }}
-                  aria-label={`Handle or URL ${index + 1}`}
-                />
-                <button
-                  type="button"
-                  aria-label="Remove link"
-                  onClick={() => {
-                    playSubmenuTap()
-                    removeSocial(index)
-                  }}
-                  onMouseEnter={() => playSubmenuHover()}
-                  style={iconButtonStyle}
+          <LayoutGroup>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <AnimatePresence initial={false}>
+              {draft.socials.map((link, index) => (
+                <motion.div
+                  key={`social-${index}`}
+                  layout
+                  initial={{ opacity: 0, scaleY: 0.7, y: -6 }}
+                  animate={{ opacity: 1, scaleY: 1, y: 0 }}
+                  exit={{ opacity: 0, scaleY: 0.7, y: -6 }}
+                  transition={{ type: 'spring', stiffness: 440, damping: 28, mass: 0.7 }}
+                  style={{ display: 'flex', gap: 6, alignItems: 'center', transformOrigin: 'top', marginBottom: 8 }}
                 >
-                  <Trash2 size={14} strokeWidth={2} />
-                </button>
-              </div>
-            ))}
+                  <input
+                    type="text"
+                    value={link.label}
+                    maxLength={SOCIAL_LABEL_MAX_LENGTH}
+                    placeholder="instagram"
+                    onChange={(e) => updateSocial(index, { label: e.target.value })}
+                    onFocus={handleFieldFocus}
+                    style={{ ...inputStyle, flex: '0 0 96px' }}
+                    aria-label={`Platform ${index + 1}`}
+                  />
+                  <input
+                    type="text"
+                    value={link.value}
+                    maxLength={SOCIAL_VALUE_MAX_LENGTH}
+                    placeholder="username or URL"
+                    onChange={(e) => updateSocial(index, { value: e.target.value })}
+                    onFocus={handleFieldFocus}
+                    style={{ ...inputStyle, flex: 1, minWidth: 0 }}
+                    aria-label={`Handle or URL ${index + 1}`}
+                  />
+                  <button
+                    type="button"
+                    aria-label="Remove link"
+                    onClick={() => {
+                      playSubmenuTap()
+                      removeSocial(index)
+                    }}
+                    onMouseEnter={() => playSubmenuHover()}
+                    style={iconButtonStyle}
+                  >
+                    <Trash2 size={14} strokeWidth={2} />
+                  </button>
+                </motion.div>
+              ))}
+            </AnimatePresence>
             {draft.socials.length < SOCIAL_MAX && (
-              <button
+              <motion.button
                 type="button"
+                layout
                 onClick={() => {
                   playSubmenuTap()
                   addSocial()
                 }}
                 onMouseEnter={() => playSubmenuHover()}
+                whileTap={{ scale: 0.94 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 24 }}
                 style={{
                   ...secondaryButtonStyle,
                   alignSelf: 'flex-start',
@@ -570,10 +600,24 @@ export default function ProfileSubmenu({ panelRef, onClose, onDraftChange }: Pro
               >
                 <Plus size={14} strokeWidth={2} />
                 {chromeLabel('Add link')}
-              </button>
+              </motion.button>
             )}
+            </div>
+          </LayoutGroup>
           </div>
         </Field>
+
+        <Field
+          id="profile-pinned-track"
+          label="Pinned track"
+          last
+        >
+          <TrackPicker
+            value={draft.pinnedTrack}
+            onChange={(track) => patchDraft({ pinnedTrack: track })}
+          />
+        </Field>
+        </LayoutGroup>
       </ChromeScrollFade>
       {isPhone && dirty && (
         <div

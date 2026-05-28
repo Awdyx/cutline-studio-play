@@ -941,8 +941,6 @@ function App() {
               if (dest === 'help') console.log('help & support')
             }}
             onSignOut={() => console.log('sign out')}
-            onManageBilling={() => console.log('manage billing')}
-            onChangePlan={() => console.log('change plan')}
           />
         )}
       </AnimatePresence>

@@ -2400,3 +2400,7 @@ html[data-ui-customize='1']
     animation: none;
   }
 }
+
+textarea::-webkit-resizer {
+  opacity: 0.5;
+}

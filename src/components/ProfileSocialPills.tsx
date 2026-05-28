@@ -18,6 +18,14 @@ const socialPillStyle: React.CSSProperties = {
   whiteSpace: 'nowrap',
 }
 
+/** Prepend @ to a value if it looks like a handle (not a URL). */
+function formatValue(value: string): string {
+  const v = value.trim()
+  if (!v) return v
+  if (v.startsWith('@') || v.startsWith('http://') || v.startsWith('https://') || v.includes('.')) return v
+  return `@${v}`
+}
+
 export default function ProfileSocialPills({
   socials,
   centered = false,
@@ -41,7 +49,9 @@ export default function ProfileSocialPills({
     >
       {links.map(({ label, value }) => (
         <span key={`${label}-${value}`} style={socialPillStyle}>
-          {chromeLabel(`${label} · ${value}`)}
+          <span style={{ fontWeight: 500 }}>{chromeLabel(label)}</span>
+          <span style={{ color: font.colorFaint, fontWeight: 400, margin: '0 3px' }}>-</span>
+          <span style={{ color: font.colorFaint, fontWeight: 400 }}>{formatValue(value)}</span>
         </span>
       ))}
     </div>
