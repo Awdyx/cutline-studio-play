@@ -5,8 +5,8 @@ import FeaturePlateComingSoon from './FeaturePlateComingSoon'
 import CanvasPlateBoundsOverlay from './CanvasPlateBoundsOverlay'
 import CanvasPlateRepositionButton from './CanvasPlateRepositionButton'
 import FeaturePlateDragHandle from './FeaturePlateDragHandle'
-import FeaturePlateTitle from './FeaturePlateTitle'
 import { useAppDestinationActive } from '../navigation/useAppDestinationActive'
+import FeaturePlateTitle from './FeaturePlateTitle'
 import { registerFeaturePlateEl } from './featurePlateVisualDrag'
 
 type Props = {
@@ -16,7 +16,7 @@ type Props = {
 
 export default function FeaturePlate({ destination, transformRef }: Props) {
   const plateRef = useRef<HTMLDivElement>(null)
-  const zoneActive = useAppDestinationActive(destination)
+  const viewportActive = useAppDestinationActive(destination)
 
   useEffect(() => {
     registerFeaturePlateEl(destination, plateRef.current)
@@ -27,8 +27,9 @@ export default function FeaturePlate({ destination, transformRef }: Props) {
     <div
       ref={plateRef}
       className={[
-        `canvas-feature-plate canvas-feature-plate--${destination}`,
-        zoneActive ? 'canvas-feature-plate--zone-active' : null,
+        'canvas-feature-plate',
+        `canvas-feature-plate--${destination}`,
+        viewportActive ? 'canvas-feature-plate--viewport-active' : null,
       ]
         .filter(Boolean)
         .join(' ')}

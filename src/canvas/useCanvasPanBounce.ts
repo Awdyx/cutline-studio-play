@@ -8,6 +8,7 @@ import {
   stepPanBounceOffset,
   type PanBounceOffset,
 } from './canvasPanEdgeBounce'
+import { useCanvasFisheyeStore } from './canvasFisheyeStore'
 
 /**
  * Subtle rubber-band offset on a wrapper around the pan/zoom canvas. Mirrors
@@ -68,6 +69,18 @@ export function useCanvasPanBounce() {
   const onPanning = useCallback(
     (ref: ReactZoomPanPinchRef) => {
       cancelSnap()
+
+      // The bounce transform lives on the same host as the fisheye SVG filter, so
+      // moving it every frame forces a full filter re-rasterise. Skip the rubber
+      // band entirely while the overview is engaged.
+      if (useCanvasFisheyeStore.getState().engaged) {
+        if (offsetRef.current.x !== 0 || offsetRef.current.y !== 0) {
+          offsetRef.current = EMPTY_PAN_BOUNCE
+          applyTransform(0, 0)
+        }
+        prevPosRef.current = { x: 0, y: 0, ready: false }
+        return
+      }
 
       const { positionX, positionY } = ref.state
       if (!prevPosRef.current.ready) {

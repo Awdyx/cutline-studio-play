@@ -5,6 +5,17 @@ import {
   type CanvasMinimapRect,
 } from './canvasMinimapGeometry'
 
+function minimapRectsEqual(
+  a: CanvasMinimapRect | null,
+  b: CanvasMinimapRect | null,
+): boolean {
+  if (a === b) return true
+  if (!a || !b) return false
+  return (
+    a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height
+  )
+}
+
 /** Live viewport rect on the full canvas while navigation minimap is shown. */
 export function useCanvasMinimapViewport(
   transformRef: RefObject<ReactZoomPanPinchContentRef | null>,
@@ -26,7 +37,11 @@ export function useCanvasMinimapViewport(
         viewportRef.current ?? ref?.instance.wrapperComponent ?? null
       const width = wrapper?.clientWidth ?? 0
       const height = wrapper?.clientHeight ?? 0
-      setViewport(readCanvasMinimapViewport(ref, width, height))
+      const next = readCanvasMinimapViewport(ref, width, height)
+      // readCanvasMinimapViewport returns a fresh object each frame; only push a
+      // new state when the rect actually moved so the minimap doesn't re-render
+      // 60 times a second while the overview sits idle.
+      setViewport((prev) => (minimapRectsEqual(prev, next) ? prev : next))
       raf = requestAnimationFrame(tick)
     }
 

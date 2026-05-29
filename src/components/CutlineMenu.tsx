@@ -136,7 +136,7 @@ export default function CutlineMenu({
       if (!file) return
 
       const confirmed = window.confirm(
-        'Import will replace your current canvas, pockets, menu layout, shortcuts, theme, and profile images. Continue?',
+        'Import will replace your current canvas, pockets, studio layout, menu pins, shortcuts, theme, sound settings, tools, and profile images. Continue?',
       )
       if (!confirmed) return
 

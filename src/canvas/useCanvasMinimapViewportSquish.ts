@@ -39,8 +39,13 @@ export function useCanvasMinimapViewportSquish(
           : IDLE_MINIMAP_VIEWPORT_SQUISH
 
       const next = stepMinimapViewportSquish(smoothRef.current, target)
-      smoothRef.current = next
-      setSquish(next)
+      // Once settled, stepMinimapViewportSquish returns the shared idle constant,
+      // so a reference check lets an idle overview stop re-rendering the minimap
+      // every frame while still updating smoothly during active pan.
+      if (next !== smoothRef.current) {
+        smoothRef.current = next
+        setSquish(next)
+      }
       rafRef.current = requestAnimationFrame(tick)
     }
 

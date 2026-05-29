@@ -6,7 +6,7 @@ import { useCanvasWorkspaceStore } from '../spaces/canvasWorkspaceStore'
 import { resolveCanvasPlateAt } from './canvasPlate'
 import { useCanvasStudioViewportZoneStore } from './canvasStudioViewportZoneStore'
 
-/** Track viewport proximity to any main-canvas plate and sync active destination. */
+/** Track viewport-centre proximity to any main-canvas plate and sync active destination. */
 export function syncCanvasPlateViewportZone(
   transformRef: RefObject<ReactZoomPanPinchContentRef | null>,
   viewportRef: RefObject<HTMLElement | null>,

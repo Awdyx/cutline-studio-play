@@ -63,6 +63,9 @@ export function studioLogicalToVisual(value: number): number {
 /** Soft ramp width between studio centre fill and outer margin. */
 export const CANVAS_STUDIO_EDGE_FADE = 920
 
+/** Extra reach for plate focus detection — wider than edge fade, visuals unchanged. */
+export const CANVAS_PLATE_VIEWPORT_ZONE_PAD = 1560
+
 /**
  * Open ambient music zone beyond the studio canvas bounds.
  * Negative values pull muffling in toward the studio edge; keep smaller than edge fade.

@@ -1,6 +1,9 @@
 import { del, get, keys, set } from 'idb-keyval'
 import { mediaBlobStore } from '../media/mediaBlobStore'
-import { isCutlineStorageKey } from '../storage/storageScope'
+import {
+  isCutlineStorageKey,
+  scopedStorageKey,
+} from '../storage/storageScope'
 import {
   loadProfileAvatar,
   loadProfileBanner,
@@ -9,7 +12,10 @@ import {
 } from '../profile/profileAvatarPersistence'
 import { useCanvasWorkspaceStore } from '../spaces/canvasWorkspaceStore'
 
-export const CUTLINE_BACKUP_FORMAT_VERSION = 1
+export const CUTLINE_BACKUP_FORMAT_VERSION = 2
+
+/** Keys that are per-device / ephemeral — never export or restore. */
+const EPHEMERAL_STORAGE_SUFFIXES = ['cutline-klipy-customer-id']
 
 export type SerializedBlob = {
   mimeType: string
@@ -17,8 +23,9 @@ export type SerializedBlob = {
 }
 
 export type CutlineBackupFile = {
-  formatVersion: typeof CUTLINE_BACKUP_FORMAT_VERSION
+  formatVersion: typeof CUTLINE_BACKUP_FORMAT_VERSION | 1
   exportedAt: string
+  /** Unscoped `cutline-*` keys for cross-deployment portability. */
   localStorage: Record<string, string>
   mediaBlobs: Record<string, SerializedBlob>
   profileImages: {
@@ -27,13 +34,29 @@ export type CutlineBackupFile = {
   }
 }
 
+/** Strip deployment scope prefix so backups work across local, demo, and Pages URLs. */
+export function unscopedCutlineStorageKey(key: string): string {
+  const tail = key.split('::').pop()
+  return tail ?? key
+}
+
+/** Re-apply the current deployment scope when writing imported keys. */
+export function scopedCutlineStorageKeyFromBase(baseKey: string): string {
+  return scopedStorageKey(baseKey)
+}
+
+function isEphemeralStorageKey(key: string): boolean {
+  const base = unscopedCutlineStorageKey(key)
+  return EPHEMERAL_STORAGE_SUFFIXES.some((suffix) => base === suffix)
+}
+
 function collectCutlineLocalStorage(): Record<string, string> {
   const out: Record<string, string> = {}
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i)
-    if (!key || !isCutlineStorageKey(key)) continue
+    if (!key || !isCutlineStorageKey(key) || isEphemeralStorageKey(key)) continue
     const value = localStorage.getItem(key)
-    if (value !== null) out[key] = value
+    if (value !== null) out[unscopedCutlineStorageKey(key)] = value
   }
   return out
 }
@@ -97,8 +120,9 @@ async function writeAllMediaBlobs(
 function isCutlineBackupFile(value: unknown): value is CutlineBackupFile {
   if (!value || typeof value !== 'object') return false
   const o = value as CutlineBackupFile
+  const versionOk = o.formatVersion === 1 || o.formatVersion === CUTLINE_BACKUP_FORMAT_VERSION
   return (
-    o.formatVersion === CUTLINE_BACKUP_FORMAT_VERSION &&
+    versionOk &&
     typeof o.exportedAt === 'string' &&
     o.localStorage !== null &&
     typeof o.localStorage === 'object' &&
@@ -109,9 +133,41 @@ function isCutlineBackupFile(value: unknown): value is CutlineBackupFile {
   )
 }
 
+/** Flush in-memory stores so localStorage reflects the latest canvas + settings. */
+export function flushAllPersistedState(): void {
+  try {
+    useCanvasWorkspaceStore.getState().flushPersistWorkspace()
+  } catch {
+    // Store may not be mounted yet during dev seed capture.
+  }
+}
+
+/** Write backup payload into localStorage + IndexedDB (no reload). */
+export async function applyCutlineBackupData(
+  backup: CutlineBackupFile,
+): Promise<void> {
+  for (let i = localStorage.length - 1; i >= 0; i--) {
+    const key = localStorage.key(i)
+    if (key && isCutlineStorageKey(key)) {
+      localStorage.removeItem(key)
+    }
+  }
+
+  for (const [rawKey, value] of Object.entries(backup.localStorage)) {
+    const baseKey = unscopedCutlineStorageKey(rawKey)
+    if (!baseKey.startsWith('cutline-') || isEphemeralStorageKey(baseKey)) continue
+    if (typeof value !== 'string') continue
+    localStorage.setItem(scopedCutlineStorageKeyFromBase(baseKey), value)
+  }
+
+  await writeAllMediaBlobs(backup.mediaBlobs ?? {})
+  await saveProfileAvatar(backup.profileImages?.avatar ?? null)
+  await saveProfileBanner(backup.profileImages?.banner ?? null)
+}
+
 /** Snapshot canvas, settings, media blobs, and profile images into a downloadable JSON file. */
 export async function exportCutlineBackup(): Promise<CutlineBackupFile> {
-  useCanvasWorkspaceStore.getState().flushPersistWorkspace()
+  flushAllPersistedState()
 
   const [mediaBlobs, avatar, banner] = await Promise.all([
     readAllMediaBlobs(),
@@ -159,24 +215,39 @@ export async function parseCutlineBackupFile(
 
 /** Replace local storage and IndexedDB, then reload so all stores rehydrate. */
 export async function importCutlineBackup(backup: CutlineBackupFile): Promise<void> {
-  useCanvasWorkspaceStore.getState().flushPersistWorkspace()
-
-  for (let i = localStorage.length - 1; i >= 0; i--) {
-    const key = localStorage.key(i)
-    if (key && isCutlineStorageKey(key)) {
-      localStorage.removeItem(key)
-    }
-  }
-
-  for (const [key, value] of Object.entries(backup.localStorage)) {
-    if (!isCutlineStorageKey(key)) continue
-    if (typeof value !== 'string') continue
-    localStorage.setItem(key, value)
-  }
-
-  await writeAllMediaBlobs(backup.mediaBlobs)
-  await saveProfileAvatar(backup.profileImages.avatar)
-  await saveProfileBanner(backup.profileImages.banner)
-
+  flushAllPersistedState()
+  await applyCutlineBackupData(backup)
   window.location.reload()
+}
+
+/** True when the user already has saved Cutline data on this origin. */
+export function hasExistingCutlineData(): boolean {
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i)
+    if (!key || !isCutlineStorageKey(key) || isEphemeralStorageKey(key)) continue
+    return true
+  }
+  return false
+}
+
+/** Whether IndexedDB already holds canvas media or profile images for this scope. */
+export async function hasExistingCutlineMedia(): Promise<boolean> {
+  try {
+    const mediaKeys = await keys(mediaBlobStore)
+    if (mediaKeys.length > 0) return true
+  } catch {
+    // IndexedDB unavailable — fall back to localStorage-only check.
+  }
+
+  try {
+    const [avatar, banner] = await Promise.all([
+      loadProfileAvatar(),
+      loadProfileBanner(),
+    ])
+    if (avatar || banner) return true
+  } catch {
+    // ignore
+  }
+
+  return false
 }

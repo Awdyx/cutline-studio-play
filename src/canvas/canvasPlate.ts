@@ -4,6 +4,7 @@ import {
   CANVAS_CONTENT_OFFSET_Y,
   CANVAS_ORIGINAL_HEIGHT,
   CANVAS_ORIGINAL_WIDTH,
+  CANVAS_PLATE_VIEWPORT_ZONE_PAD,
   CANVAS_STUDIO_ACOUSTICS_EDGE_PAD,
   CANVAS_STUDIO_EDGE_FADE,
   FEATURE_PLATE_HEIGHT,
@@ -111,8 +112,8 @@ function canvasPlateViewportZoneEllipseForSize(
   return {
     cx: plateX + plateWidth / 2,
     cy: plateY + plateHeight / 2,
-    rx: plateWidth / 2 + CANVAS_STUDIO_EDGE_FADE,
-    ry: plateHeight / 2 + CANVAS_STUDIO_EDGE_FADE,
+    rx: plateWidth / 2 + CANVAS_PLATE_VIEWPORT_ZONE_PAD,
+    ry: plateHeight / 2 + CANVAS_PLATE_VIEWPORT_ZONE_PAD,
   }
 }
 
@@ -307,7 +308,31 @@ export type CanvasPlateHit = {
   depth: number
 }
 
-/** Deepest plate whose viewport ellipse contains the point. */
+/** Normalized ellipse distance above 1.0 — still snap to nearest plate when approaching. */
+const CANVAS_PLATE_VIEWPORT_NEAR_DEPTH = 1.18
+
+/** Fisheye titles sit above plates — keep this band in the owning plate’s focus footprint. */
+const FEATURE_PLATE_TITLE_BAND = 420
+
+/** Side/bottom reach beyond feature plate edges for viewport focus. */
+const FEATURE_PLATE_FOCUS_SIDE_PAD = 520
+const FEATURE_PLATE_FOCUS_BOTTOM_PAD = 720
+
+function isPointInFeaturePlateFocusFootprint(
+  x: number,
+  y: number,
+  plateX: number,
+  plateY: number,
+): boolean {
+  return (
+    x >= plateX - FEATURE_PLATE_FOCUS_SIDE_PAD &&
+    x <= plateX + FEATURE_PLATE_WIDTH + FEATURE_PLATE_FOCUS_SIDE_PAD &&
+    y >= plateY - FEATURE_PLATE_TITLE_BAND &&
+    y <= plateY + FEATURE_PLATE_HEIGHT + FEATURE_PLATE_FOCUS_BOTTOM_PAD
+  )
+}
+
+/** Nearest plate within the viewport focus zone (ellipse + near reach). */
 export function resolveCanvasPlateAt(
   x: number,
   y: number,
@@ -317,22 +342,34 @@ export function resolveCanvasPlateAt(
   const studio = useStudioCentrePositionStore.getState()
   const feature = useFeaturePlatePositionStore.getState().positions
 
+  // Feature plates below/above studio share a vertical gap where studio’s wide
+  // ellipse wins even while the viewport centre is over the neighbour’s title.
+  const footprintHits: CanvasPlateHit[] = []
+  for (const dest of FEATURE_PLATE_DESTINATIONS) {
+    const { x: px, y: py } = feature[dest]
+    if (!isPointInFeaturePlateFocusFootprint(x, y, px, py)) continue
+    footprintHits.push({
+      destination: dest,
+      depth: featurePlateViewportZoneDepth(x, y, px, py),
+    })
+  }
+  if (footprintHits.length > 0) {
+    footprintHits.sort((a, b) => a.depth - b.depth)
+    return footprintHits[0] ?? null
+  }
+
   const candidates: CanvasPlateHit[] = []
 
-  if (isPointInStudioPlateViewportZone(x, y, studio.x, studio.y)) {
-    candidates.push({
-      destination: 'studio',
-      depth: studioPlateViewportZoneDepth(x, y, studio.x, studio.y),
-    })
+  const studioDepth = studioPlateViewportZoneDepth(x, y, studio.x, studio.y)
+  if (studioDepth <= CANVAS_PLATE_VIEWPORT_NEAR_DEPTH) {
+    candidates.push({ destination: 'studio', depth: studioDepth })
   }
 
   for (const dest of FEATURE_PLATE_DESTINATIONS) {
     const { x: px, y: py } = feature[dest]
-    if (isPointInFeaturePlateViewportZone(x, y, px, py)) {
-      candidates.push({
-        destination: dest,
-        depth: featurePlateViewportZoneDepth(x, y, px, py),
-      })
+    const depth = featurePlateViewportZoneDepth(x, y, px, py)
+    if (depth <= CANVAS_PLATE_VIEWPORT_NEAR_DEPTH) {
+      candidates.push({ destination: dest, depth })
     }
   }
 

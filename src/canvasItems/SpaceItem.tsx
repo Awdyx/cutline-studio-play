@@ -422,12 +422,13 @@ export default function SpaceItem({
       >
         <div
           style={{
-            padding: '10px 12px 12px',
+            padding: '10px 12px 14px',
             fontSize: 16,
             fontWeight: 500,
-            lineHeight: 1.2,
+            lineHeight: 1.35,
             flexShrink: 0,
             position: 'relative',
+            overflow: 'visible',
             ...textAlignmentEditorStyle(resolveItemTextAlignment(item)),
           }}
         >

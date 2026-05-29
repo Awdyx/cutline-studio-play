@@ -98,6 +98,7 @@ import { useCanvasPanBounce } from './canvas/useCanvasPanBounce'
 import { useCanvasCompositorWarmup } from './canvas/useCanvasCompositorWarmup'
 import CanvasSwapVeil from './canvas/CanvasSwapVeil'
 import CanvasPlateBoundsOverlay from './canvas/CanvasPlateBoundsOverlay'
+import { useAppDestinationActive } from './navigation/useAppDestinationActive'
 import StudioCentreTitle from './canvas/StudioCentreTitle'
 import StudioCentreDragHandle from './canvas/StudioCentreDragHandle'
 import CanvasPlateRepositionButton from './canvas/CanvasPlateRepositionButton'
@@ -117,7 +118,6 @@ import { useCanvasFisheyeMinimapOpen } from './canvas/useCanvasFisheyeMinimapOpe
 import FeaturePlatesLayer from './canvas/FeaturePlatesLayer'
 import { useFeaturePlatePositionCssVars } from './canvas/useFeaturePlatePositionCssVars'
 import { useAppDestinationHighlightSound } from './navigation/useAppDestinationHighlightSound'
-import { useAppDestinationActive } from './navigation/useAppDestinationActive'
 import { useStudioCentrePositionCssVars } from './canvas/useStudioCentrePositionCssVars'
 import { useStudioCentreHoldDrag } from './canvas/useStudioCentreHoldDrag'
 import { useStudioCentreDragStore } from './canvas/studioCentreDragStore'
@@ -312,6 +312,7 @@ function App() {
   useStudioCentrePositionCssVars()
   useFeaturePlatePositionCssVars()
   useAppDestinationHighlightSound()
+  const studioViewportActive = useAppDestinationActive('studio')
   useThemeChangeFeedback(effectiveMode, themeModeStore)
 
   const pinchStopTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -358,7 +359,6 @@ function App() {
   } = useCanvasFileHandlers(transformRef, viewportRef, canvasRef)
 
   const isInsideSpace = useCanvasWorkspaceStore((s) => s.activeCanvasId !== 'main')
-  const studioZoneActive = useAppDestinationActive('studio')
   const activeCanvasWidth = isInsideSpace ? SPACE_CANVAS_WIDTH : CANVAS_WIDTH
   const activeCanvasHeight = isInsideSpace ? SPACE_CANVAS_HEIGHT : CANVAS_HEIGHT
   const activeLayoutWidth = isInsideSpace ? activeCanvasWidth : canvasLayoutWidth()
@@ -915,8 +915,10 @@ function App() {
                     isInsideSpace
                       ? 'cutline-draw-target cutline-draw-target--pocket draw-target'
                       : [
-                          'cutline-draw-target cutline-draw-target--positioned draw-target',
-                          studioZoneActive ? 'cutline-draw-target--zone-active' : null,
+                          'cutline-draw-target',
+                          'cutline-draw-target--positioned',
+                          'draw-target',
+                          studioViewportActive ? 'cutline-draw-target--viewport-active' : null,
                         ]
                           .filter(Boolean)
                           .join(' ')
