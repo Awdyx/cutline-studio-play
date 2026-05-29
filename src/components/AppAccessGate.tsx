@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import { font } from '../styles/tokens'
 
-const ACCESS_PASSWORD = 'asianbaddies123'
+const ACCESS_PASSWORD = 'asianavoidants4life'
 
 type Props = {
   onUnlock: () => void
